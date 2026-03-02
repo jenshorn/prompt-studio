@@ -1,0 +1,115 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (for example: v1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  package_cli:
+    name: Package CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.3
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Package CLI workspace
+        working-directory: packages/cli
+        run: |
+          mkdir -p "${GITHUB_WORKSPACE}/release-assets"
+          bun pm pack --destination "${GITHUB_WORKSPACE}/release-assets"
+
+      - name: Upload CLI package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-package
+          path: release-assets/*.tgz
+
+  publish_images:
+    name: Publish Docker Images
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: dashboard
+            dockerfile: webapps/dashboard/Dockerfile
+          - image: landing-page
+            dockerfile: webapps/landing-page/Dockerfile
+          - image: documentation
+            dockerfile: webapps/documentation/Dockerfile
+          - image: api
+            dockerfile: packages/api/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=sha,format=short
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - package_cli
+      - publish_images
+    steps:
+      - name: Download CLI package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-package
+          path: release-assets
+
+      - name: Create release with notes and assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: release-assets/*.tgz
+          body: |
+            ## Container Images
+            - `ghcr.io/${{ github.repository }}/dashboard:${{ env.RELEASE_TAG }}`
+            - `ghcr.io/${{ github.repository }}/landing-page:${{ env.RELEASE_TAG }}`
+            - `ghcr.io/${{ github.repository }}/documentation:${{ env.RELEASE_TAG }}`
+            - `ghcr.io/${{ github.repository }}/api:${{ env.RELEASE_TAG }}`

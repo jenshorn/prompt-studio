@@ -1,0 +1,30 @@
+---
+name: update-documentation
+description: "Use when asked to update, add, or modify project documentation. Pull the latest project documentation, apply updates, and save changes back."
+---
+
+## User Input
+
+```text
+$ARGUMENTS
+```
+
+## Workflow
+
+1. Run `npx schub@latest docs pull` to pull the latest persisted documentation snapshot to `.schub/docs`:
+   - If the pull fails because docs have not been initialized, run `npx schub@latest docs init` first, then retry.
+2. Read `.schub/docs/docs.json` to understand the current sidebar structure and available pages.
+3. Apply the requested documentation changes:
+   - **Adding a new page**: create the markdown file under `.schub/docs/`, then add a sidebar entry in `docs.json` with `{ "text": "<title>", "link": "<relative-path>" }`.
+   - **Updating an existing page**: edit the markdown file in place.
+   - **Removing a page**: delete the markdown file and remove its sidebar entry from `docs.json`.
+   - **Reorganizing**: update `docs.json` sidebar order or grouping. Groups use `{ "text": "<group>", "items": [...] }`.
+4. Save the updated documentation:
+   - Run `npx schub@latest docs save`.
+   - Verify the command reports the expected number of updated/removed files.
+5. Summarize the changes made: list added, updated, and removed pages.
+
+## Output Locations
+
+- Documentation files: `.schub/docs/`
+- Sidebar config: `.schub/docs/docs.json`

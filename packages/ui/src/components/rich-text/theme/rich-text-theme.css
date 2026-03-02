@@ -1,0 +1,773 @@
+/* -----------------------------------------------------------------------------
+   Rich Text styles (Chakra UI v3 semantic tokens & variable names)
+   ----------------------------------------------------------------------------- */
+
+.rich-text__ltr {
+  text-align: left;
+}
+.rich-text__rtl {
+  text-align: right;
+}
+
+.rich-text {
+  --rich-text-font-scale: 1;
+  font-size: calc(1rem * var(--rich-text-font-scale));
+}
+
+.rich-text[data-rich-message="true"] {
+  --rich-text-font-scale: 0.8;
+}
+
+.rich-text__paragraph {
+  margin: 0;
+  position: relative;
+}
+
+.rich-text__quote {
+  margin: 0;
+  margin-top: var(--chakra-spacing-3, 0.75rem);
+  margin-left: var(--chakra-spacing-3, 0.75rem);
+  margin-bottom: var(--chakra-spacing-3, 0.75rem);
+  font-size: calc(15px * var(--rich-text-font-scale));
+  color: var(--chakra-colors-fg-muted);
+  border-left: 4px solid var(--chakra-colors-border);
+  padding-left: 16px;
+}
+
+.rich-text__indent {
+  --lexical-indent-base-value: 40px;
+}
+
+/* Inline text decorations */
+.rich-text__textBold {
+  font-weight: bold;
+}
+.rich-text__textItalic {
+  font-style: italic;
+}
+
+.rich-text__reference {
+  font: inherit;
+  border-bottom: 1px dotted currentColor;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+.rich-text__textUnderline {
+  text-decoration: underline;
+}
+.rich-text__textStrikethrough {
+  text-decoration: line-through;
+}
+.rich-text__textUnderlineStrikethrough {
+  text-decoration: underline line-through;
+}
+.rich-text__textSubscript {
+  font-size: 0.8em;
+  vertical-align: sub;
+}
+.rich-text__textSuperscript {
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+/* Inline code */
+.rich-text__textCode {
+  background-color: var(--chakra-colors-bg-code);
+  padding: 1px 0.25rem;
+  font-family: var(--chakra-fonts-mono);
+  font-size: 0.94em;
+}
+
+/* Links (use semantic blue) */
+.rich-text__link {
+  color: var(--chakra-colors-blue-600);
+  text-decoration: none;
+  cursor: pointer;
+}
+.rich-text__link:hover {
+  text-decoration: underline;
+}
+
+/* Code block with gutter line numbers */
+.rich-text__code {
+  background-color: var(--chakra-colors-bg-muted);
+  font-family: var(--chakra-fonts-mono);
+  display: block;
+  padding: 8px 8px 8px 52px;
+  line-height: 1.53;
+  font-size: calc(13px * var(--rich-text-font-scale));
+  margin: 0;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  position: relative;
+  tab-size: 2;
+}
+.rich-text__code::before {
+  content: attr(data-gutter);
+  position: absolute;
+  background-color: var(--chakra-colors-bg-subtle);
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid var(--chakra-colors-border);
+  padding: 8px;
+  color: var(--chakra-colors-fg-muted);
+  white-space: pre-wrap;
+  text-align: right;
+  min-width: 25px;
+}
+
+/* Tables */
+.rich-text__table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  color: var(--chakra-colors-fg);
+  font-size: calc(var(--chakra-font-sizes-sm) * var(--rich-text-font-scale));
+  line-height: 21px;
+  overflow-y: auto;
+  overflow-x: auto;
+  table-layout: fixed;
+  width: max-content;
+}
+.rich-text__tableSelection *::selection {
+  background-color: transparent;
+}
+.rich-text__tableSelected {
+  outline: 2px solid var(--chakra-colors-blue-500);
+}
+
+.rich-text__tableCell {
+  border: 1px solid var(--chakra-colors-border);
+  vertical-align: top;
+  text-align: start;
+  padding: 6px 8px;
+  position: relative;
+  outline: none;
+}
+
+.rich-text__tableCellSortedIndicator {
+  display: block;
+  opacity: 0.5;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: var(--chakra-colors-bg);
+}
+
+.rich-text__tableCellResizer {
+  position: absolute;
+  right: -4px;
+  height: 100%;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 10;
+  top: 0;
+}
+
+.rich-text__tableCellHeader {
+  background-color: var(--chakra-colors-bg-muted);
+  font-weight: normal;
+  text-align: start;
+}
+
+.rich-text__tableCellSelected {
+  background-color: var(--chakra-colors-blue-100);
+}
+
+.rich-text__tableCellPrimarySelected {
+  border: 2px solid var(--chakra-colors-blue-500);
+  display: block;
+  height: calc(100% - 2px);
+  position: absolute;
+  width: calc(100% - 2px);
+  left: -1px;
+  top: -1px;
+  z-index: 2;
+}
+
+.rich-text__tableCellEditing {
+  box-shadow: var(--chakra-shadows-sm);
+  border-radius: 3px;
+}
+
+/* Add-row/column controls */
+.rich-text__tableAddColumns,
+.rich-text__tableAddRows {
+  position: absolute;
+  background-color: var(--chakra-colors-bg-muted);
+  animation: table-controls 0.2s ease;
+  border: 0;
+  cursor: pointer;
+}
+
+.rich-text__tableAddColumns {
+  top: 0;
+  width: 20px;
+  height: 100%;
+  right: -25px;
+}
+.rich-text__tableAddColumns::after {
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: block;
+  content: " ";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.4;
+}
+
+.rich-text__tableAddRows {
+  bottom: -25px;
+  width: calc(100% - 25px);
+  height: 20px;
+  left: 0;
+}
+.rich-text__tableAddRows::after {
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: block;
+  content: " ";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.4;
+}
+
+.rich-text__tableAddColumns:hover,
+.rich-text__tableAddRows:hover {
+  background-color: var(--chakra-colors-blue-100);
+}
+
+@keyframes table-controls {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.rich-text__tableCellResizeRuler {
+  display: block;
+  position: absolute;
+  width: 1px;
+  background-color: var(--chakra-colors-blue-500);
+  height: 100%;
+  top: 0;
+}
+
+.rich-text__tableCellActionButtonContainer {
+  display: block;
+  right: 5px;
+  top: 6px;
+  position: absolute;
+  z-index: 4;
+  width: 20px;
+  height: 20px;
+}
+.rich-text__tableCellActionButton {
+  background-color: var(--chakra-colors-bg-muted);
+  display: block;
+  border: 0;
+  border-radius: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--chakra-colors-fg);
+  cursor: pointer;
+}
+.rich-text__tableCellActionButton:hover {
+  background-color: var(--chakra-colors-bg-subtle);
+}
+
+.rich-text__characterLimit {
+  display: inline;
+  background-color: var(--chakra-colors-red-100);
+}
+
+/* -----------------------------------------------------------------------------
+   LISTS — markers restored, base indent added, nested indentation fixed
+   ----------------------------------------------------------------------------- */
+
+/* Base list styling + indent (applies to your rich-text UL/OL variants) */
+ul.rich-text__ul,
+ol.rich-text__ol,
+ol.rich-text__ol1,
+ol.rich-text__ol2,
+ol.rich-text__ol3,
+ol.rich-text__ol4,
+ol.rich-text__ol5 {
+  /* Base indent size (customize as needed) */
+  --rt-indent: var(--chakra-spacing-sm, 0.5rem);
+  /* Nesting level (auto-incremented below) */
+  --rt-level: 1;
+
+  /* Show markers and keep them outside for clean alignment */
+  list-style-position: outside;
+  padding-inline-start: calc(var(--rt-indent) * var(--rt-level));
+  margin-top: var(--chakra-spacing-3, 0.75rem);
+  margin-bottom: var(--chakra-spacing-3, 0.75rem);
+}
+
+/* Marker types */
+ul.rich-text__ul {
+  list-style-type: disc;
+}
+ol.rich-text__ol,
+ol.rich-text__ol1 {
+  list-style-type: decimal;
+}
+ol.rich-text__ol2 {
+  list-style-type: upper-alpha;
+}
+ol.rich-text__ol3 {
+  list-style-type: lower-alpha;
+}
+ol.rich-text__ol4 {
+  list-style-type: upper-roman;
+}
+ol.rich-text__ol5 {
+  list-style-type: lower-roman;
+}
+
+/* Ensure <li> actually renders a marker and gets spacing */
+li.rich-text__listItem {
+  display: list-item;
+  list-style-position: outside;
+  margin-inline: var(--chakra-spacing-1, 0.25rem);
+}
+
+/* TODO-style checklists keep custom boxes (no bullet/number) */
+li.rich-text__listItemUnchecked,
+li.rich-text__listItemChecked {
+  display: list-item;
+  list-style-type: none;
+}
+
+/* Nested lists: auto-increment level and indent further.
+   Works even when nested lists don't carry your custom classes. */
+ul.rich-text__ul :where(ul, ol),
+ol.rich-text__ol :where(ul, ol),
+ol.rich-text__ol1 :where(ul, ol),
+ol.rich-text__ol2 :where(ul, ol),
+ol.rich-text__ol3 :where(ul, ol),
+ol.rich-text__ol4 :where(ul, ol),
+ol.rich-text__ol5 :where(ul, ol) {
+  --rt-level: calc(var(--rt-level) + 1);
+  padding-inline-start: calc(var(--rt-indent) * var(--rt-level));
+}
+
+/* If nested lists DO carry your classes, the rule above still applies and
+   increments indentation correctly. No extra overrides needed. */
+
+/* Keep RTL checkbox affordance mirrored */
+.rich-text__listItemUnchecked::before,
+.rich-text__listItemChecked::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  top: 2px;
+  left: 0;
+  cursor: pointer;
+  display: block;
+  background-size: cover;
+  position: absolute;
+}
+.rich-text__listItemUnchecked[dir="rtl"]::before,
+.rich-text__listItemChecked[dir="rtl"]::before {
+  left: auto;
+  right: 0;
+}
+
+.rich-text__listItemUnchecked:focus::before,
+.rich-text__listItemChecked:focus::before {
+  box-shadow: 0 0 0 2px var(--chakra-colors-blue-200);
+  border-radius: 2px;
+}
+.rich-text__listItemUnchecked::before {
+  border: 1px solid var(--chakra-colors-gray-400);
+  border-radius: 2px;
+}
+.rich-text__listItemChecked::before {
+  border: 1px solid var(--chakra-colors-blue-500);
+  border-radius: 2px;
+  background-color: var(--chakra-colors-blue-500);
+  background-repeat: no-repeat;
+}
+.rich-text__listItemChecked::after {
+  content: "";
+  cursor: pointer;
+  border-color: var(--chakra-colors-bg, var(--chakra-colors-bg));
+  border-style: solid;
+  position: absolute;
+  display: block;
+  top: 6px;
+  width: 3px;
+  left: 7px;
+  right: 7px;
+  height: 6px;
+  transform: rotate(45deg);
+  border-width: 0 2px 2px 0;
+}
+
+/* Nested list items should inherit the marker style */
+.rich-text__nestedListItem {
+  list-style-type: inherit;
+}
+.rich-text__nestedListItem::before,
+.rich-text__nestedListItem::after {
+  display: none;
+}
+
+/* -----------------------------------------------------------------------------
+   Tokens for code highlighting
+   ----------------------------------------------------------------------------- */
+.rich-text__tokenComment {
+  color: var(--chakra-colors-gray-500);
+}
+.rich-text__tokenPunctuation {
+  color: var(--chakra-colors-gray-400);
+}
+.rich-text__tokenProperty {
+  color: var(--chakra-colors-purple-600);
+}
+.rich-text__tokenSelector {
+  color: var(--chakra-colors-green-600);
+}
+.rich-text__tokenOperator {
+  color: var(--chakra-colors-orange-600);
+}
+.rich-text__tokenAttr {
+  color: var(--chakra-colors-blue-600);
+}
+.rich-text__tokenVariable {
+  color: var(--chakra-colors-yellow-600);
+}
+.rich-text__tokenFunction {
+  color: var(--chakra-colors-pink-600);
+}
+
+/* -----------------------------------------------------------------------------
+   Mark/highlight styles
+   ----------------------------------------------------------------------------- */
+.rich-text__mark {
+  background: var(--chakra-colors-yellow-100);
+  border-bottom: 2px solid var(--chakra-colors-yellow-200);
+  padding-bottom: 2px;
+}
+.rich-text__markOverlap {
+  background: var(--chakra-colors-yellow-200);
+  border-bottom: 2px solid var(--chakra-colors-yellow-300);
+}
+.rich-text__mark.selected {
+  background: var(--chakra-colors-yellow-300);
+  border-bottom: 2px solid var(--chakra-colors-yellow-400);
+}
+.rich-text__markOverlap.selected {
+  background: var(--chakra-colors-yellow-400);
+  border-bottom: 2px solid var(--chakra-colors-yellow-400);
+}
+
+/* -----------------------------------------------------------------------------
+   Layout helpers
+   ----------------------------------------------------------------------------- */
+.rich-text__layoutContainer {
+  display: grid;
+  gap: var(--chakra-spacing-2, 0.5rem);
+}
+
+.rich-text__layoutItem {
+  border-radius: var(--chakra-radii-sm);
+}
+
+.rich-text__layoutItem > :first-child {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* -----------------------------------------------------------------------------
+   Row layout
+   ----------------------------------------------------------------------------- */
+.draggable-block-demo__row {
+  display: flex;
+  gap: var(--chakra-spacing-3, 0.75rem);
+  padding-block: var(--chakra-spacing-2, 0.5rem);
+  padding-inline: var(--chakra-spacing-4, 1rem);
+  position: relative;
+  transition: box-shadow 140ms ease;
+}
+
+.rich-text__row {
+  border-radius: var(--chakra-radii-lg);
+}
+
+.draggable-block-demo__row:focus-within {
+  box-shadow: 0 0 0 2px var(--chakra-colors-blue-200);
+}
+
+.draggable-block-demo__content,
+.rich-text__content {
+  position: relative;
+  flex: 1 1 0;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.draggable-block-demo__content--empty {
+  color: var(--chakra-colors-fg-muted);
+  border-style: dashed;
+  background: var(--chakra-colors-bg-subtle);
+}
+
+.draggable-block-demo__handle-slot {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.draggable-block-demo__handle-controls {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-10000px, -10000px);
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.draggable-block-demo__floating-handle,
+.draggable-block-demo__delete-button {
+  pointer-events: auto;
+}
+
+.draggable-block-demo__floating-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--chakra-radii-sm);
+  border: 1px solid var(--chakra-colors-border);
+  background: var(--chakra-colors-bg);
+  color: var(--chakra-colors-fg-muted);
+  box-shadow: var(--chakra-shadows-sm);
+  cursor: grab;
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.draggable-block-demo__floating-handle:active {
+  cursor: grabbing;
+}
+
+.draggable-block-demo__handle-icon {
+  margin-left: -4px;
+  display: inline-block;
+  font-size: calc(12px * var(--rich-text-font-scale));
+  letter-spacing: -4px;
+  user-select: none;
+}
+
+.draggable-block-demo__delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--chakra-radii-sm);
+  border: 1px solid var(--chakra-colors-red-200);
+  background: var(--chakra-colors-red-50);
+  color: var(--chakra-colors-red-600);
+  cursor: pointer;
+  box-shadow: var(--chakra-shadows-xs);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.draggable-block-demo__delete-button:hover {
+  background: var(--chakra-colors-red-100);
+  border-color: var(--chakra-colors-red-300);
+}
+
+.draggable-block-demo__delete-icon {
+  font-size: calc(16px * var(--rich-text-font-scale));
+  line-height: 1;
+  user-select: none;
+}
+
+.draggable-block-demo__gap {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.draggable-block-demo__gap-line {
+  width: 100%;
+  border-top: 1px dashed var(--chakra-colors-border);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.draggable-block-demo__gap-button {
+  pointer-events: auto;
+  border: 1px solid var(--chakra-colors-border);
+  background: var(--chakra-colors-bg);
+  border-radius: 999px;
+  width: 20px;
+  height: 20px;
+  font-size: calc(18px * var(--rich-text-font-scale));
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--chakra-colors-fg-muted);
+  box-shadow: var(--chakra-shadows-xs);
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.draggable-block-demo__gap:hover,
+.draggable-block-demo__gap.is-active {
+  opacity: 1;
+}
+
+.draggable-block-demo__gap-button:hover {
+  background: var(--chakra-colors-bg-subtle);
+  color: var(--chakra-colors-fg);
+}
+
+.draggable-block-demo__indicator {
+  position: absolute;
+  background: var(--chakra-colors-blue-500);
+  pointer-events: none;
+  border-radius: 2px;
+  z-index: 12;
+}
+
+.draggable-block-demo__indicator--horizontal {
+  height: 2px;
+}
+
+.draggable-block-demo__indicator--vertical {
+  width: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+   Headings & paragraphs (migrated to v3 token vars)
+   ----------------------------------------------------------------------------- */
+.rich-text__h1 {
+  font-family: var(--chakra-fonts-body);
+  font-size: calc(var(--chakra-font-sizes-3xl) * var(--rich-text-font-scale));
+  font-weight: var(--chakra-font-weights-medium);
+  line-height: 120%;
+  color: var(--chakra-colors-fg);
+  margin-top: var(--chakra-spacing-5, 1.5rem);
+  margin-bottom: var(--chakra-spacing-4, 1rem);
+}
+
+.rich-text__h1_2 {
+  font-family: var(--chakra-fonts-body);
+  font-size: calc(var(--chakra-font-sizes-3xl) * var(--rich-text-font-scale));
+  font-weight: var(--chakra-font-weights-medium);
+  line-height: 120%;
+  color: var(--chakra-colors-fg);
+  margin-top: var(--chakra-spacing-3, 0.75rem);
+  margin-bottom: var(--chakra-spacing-2, 0.5rem);
+}
+
+.rich-text__h2 {
+  font-family: var(--chakra-fonts-body);
+  font-size: calc(var(--chakra-font-sizes-2xl) * var(--rich-text-font-scale));
+  font-weight: var(--chakra-font-weights-medium);
+  line-height: 120%;
+  color: var(--chakra-colors-fg, var(--chakra-colors-fg));
+  margin-top: var(--chakra-spacing-4, 1rem);
+  margin-bottom: var(--chakra-spacing-3, 0.75rem);
+}
+
+.rich-text__h2_2 {
+  font-family: var(--chakra-fonts-body);
+  font-size: calc(var(--chakra-font-sizes-2xl) * var(--rich-text-font-scale));
+  font-weight: var(--chakra-font-weights-medium);
+  line-height: 120%;
+  color: var(--chakra-colors-fg, var(--chakra-colors-fg));
+  margin-top: var(--chakra-spacing-2, 0.5rem);
+  margin-bottom: var(--chakra-spacing-1, 0.125rem);
+}
+
+.rich-text__h3 {
+  font-family: var(--chakra-fonts-body);
+  font-size: calc(var(--chakra-font-sizes-lg) * var(--rich-text-font-scale));
+  font-weight: var(--chakra-font-weights-medium);
+  line-height: 100%;
+  color: var(--chakra-colors-fg, var(--chakra-colors-fg));
+  margin-top: var(--chakra-spacing-4, 1rem);
+  margin-bottom: var(--chakra-spacing-3, 0.75rem);
+}
+
+.rich-text__h3_2 {
+  font-family: var(--chakra-fonts-body);
+  font-size: calc(var(--chakra-font-sizes-lg) * var(--rich-text-font-scale));
+  font-weight: var(--chakra-font-weights-medium);
+  line-height: 100%;
+  color: var(--chakra-colors-fg, var(--chakra-colors-fg));
+  margin-top: var(--chakra-spacing-2, 0.5rem);
+}
+
+.rich-text__p {
+  font-family: var(--chakra-fonts-body);
+  letter-spacing: 0.14px;
+  margin: 0;
+  margin-top: var(--chakra-spacing-3, 0.75rem);
+  margin-bottom: var(--chakra-spacing-3, 0.75rem);
+}
+
+.rich-text__p:first-child {
+  margin-top: 0;
+}
+
+.rich-text__p:only-child {
+  margin-bottom: 0;
+}
+
+.rich-text__p2 {
+  font-family: var(--chakra-fonts-body);
+  letter-spacing: 0.14px;
+  margin: 0;
+}
+
+/* Keep for completeness if these classes are used elsewhere */
+.rich-text__textUnderline {
+  text-decoration: underline;
+}
+
+.rich-text__textItalic {
+  font-style: italic;
+}

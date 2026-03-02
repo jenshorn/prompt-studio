@@ -1,0 +1,188 @@
+{
+  "title": "Proyectos",
+  "subtitle": "Gestiona tus proyectos y sigue su progreso",
+  "createProject": "Crear Proyecto",
+  "loading": "Cargando proyectos...",
+  "repoSearch": {
+    "searching": "Buscando repositorios...",
+    "stillSearching": "Aún buscando... ({{seconds}}s)",
+    "takingLonger": "Esto está tardando más de lo habitual. Puedes buscar manualmente abajo.",
+    "noReposFound": "No se encontraron repositorios en ubicaciones comunes.",
+    "browseHint": "Usa la opción de abajo para buscar un repositorio."
+  },
+  "errors": {
+    "fetchFailed": "Error al cargar proyectos",
+    "deleteFailed": "Error al eliminar el proyecto"
+  },
+  "empty": {
+    "title": "Aún no hay proyectos",
+    "description": "Comienza creando tu primer proyecto.",
+    "createFirst": "Crear tu primer proyecto"
+  },
+  "projectNotFound": "El proyecto que buscas no existe o ha sido eliminado.",
+  "viewProject": "Ver Proyecto",
+  "openInIDE": "Abrir en IDE",
+  "createdDate": "Creado {{date}}",
+  "chatInput": {
+    "placeholder": "iniciar una nueva tarea",
+    "ariaLabel": "Crear una nueva tarea",
+    "closeLabel": "Minimizar chat",
+    "agent": {
+      "selectLabel": "Seleccionar agente",
+      "unknown": "Agente desconocido",
+      "options": {
+        "opencode": "Opencode"
+      }
+    },
+    "repo": {
+      "selectLabel": "Seleccionar repositorio",
+      "none": "Sin repositorios",
+      "noneLinked": "No hay repositorios vinculados"
+    },
+    "branch": {
+      "selectLabel": "Seleccionar rama",
+      "none": "Sin ramas",
+      "noneAvailable": "No hay ramas disponibles",
+      "loading": "Cargando ramas...",
+      "tags": {
+        "current": "Actual",
+        "remote": "Remoto"
+      }
+    },
+    "model": {
+      "selectLabel": "Seleccionar modelo",
+      "none": "Sin modelos",
+      "noneAvailable": "No hay modelos disponibles",
+      "loading": "Cargando modelos..."
+    },
+    "sessionMeta": {
+      "agent": "Agente",
+      "repo": "Repo",
+      "branch": "Rama"
+    },
+    "session": {
+      "selectLabel": "Seleccionar sesión",
+      "none": "Sin sesión",
+      "noneHint": "Iniciar una nueva sesión",
+      "loading": "Cargando sesiones...",
+      "noneAvailable": "Aún no hay sesiones",
+      "unknown": "Sesión desconocida",
+      "emptyTitle": "Ninguna sesión seleccionada",
+      "emptyDescription": "Inicia una nueva sesión o elige una del menú.",
+      "notFoundTitle": "Sesión no encontrada",
+      "notFoundDescription": "Selecciona una sesión diferente de la lista.",
+      "resumePlaceholder": "Reanudar esta sesión",
+      "openInBubble": "Abrir en burbuja",
+      "viewMore": "Ver más sesiones",
+      "executorSessionIdLabel": "Executor session ID",
+      "panelTitle": "Todas las sesiones",
+      "group": {
+        "today": "Hoy",
+        "yesterday": "Ayer"
+      }
+    }
+  },
+  "createProjectDialog": {
+    "title": "Crear proyecto",
+    "projectName": {
+      "label": "Nombre del proyecto",
+      "placeholder": "Nombre del proyecto",
+      "required": "El nombre del proyecto es obligatorio."
+    },
+    "repositories": {
+      "label": "Repositorios",
+      "empty": "Aún no se han seleccionado repositorios.",
+      "remove": "Quitar repositorio",
+      "browse": "Buscar repositorio",
+      "selectOne": "Selecciona al menos un repositorio.",
+      "errors": {
+        "pathRequired": "La ruta del repositorio es obligatoria.",
+        "alreadyAdded": "El repositorio ya está agregado.",
+        "registerFailed": "No se pudo registrar el repositorio."
+      }
+    },
+    "actions": {
+      "create": "Crear proyecto"
+    },
+    "folderPicker": {
+      "title": "Seleccionar repositorio",
+      "description": "Elige una carpeta de repositorio git"
+    }
+  },
+  "ticketPanel": {
+    "fields": {
+      "id": "ID",
+      "updated": "Actualizado",
+      "status": "Estado",
+      "blockedReason": "Motivo de bloqueo",
+      "dependsOn": "Depende de",
+      "complexity": {
+        "label": "Complejidad",
+        "options": {
+          "unspecified": "Sin especificar",
+          "low": "Baja",
+          "medium": "Media",
+          "high": "Alta"
+        }
+      }
+    },
+    "title": {
+      "label": "Ticket title",
+      "placeholder": "Untitled ticket"
+    },
+    "none": "Ninguna",
+    "properties": {
+      "title": "Propiedades"
+    },
+    "options": {
+      "ticket": "Abrir opciones de tarea",
+      "refineTicket": "Refine ticket",
+      "archiveTicket": "Archive ticket",
+      "deleteTicket": "Eliminar tarea"
+    },
+    "deleteConfirmation": {
+      "ticket": {
+        "headline": "¿Eliminar tarea?",
+        "notification": "Esto eliminará la tarea y la quitará del proyecto."
+      }
+    },
+    "attempts": {
+      "title": "Intentos",
+      "startNew": "Iniciar nuevo intento",
+      "emptyTitle": "Aún no hay intentos",
+      "emptyDescription": "Inicia un intento de tarea para seguir las sesiones aquí.",
+      "updatedLabel": "Actualizado {{date}}",
+      "dialog": {
+        "title": "Iniciar nuevo intento",
+        "description": "Elige un agente y un repositorio para iniciar este intento de tarea.",
+        "modelLabel": "Modelo",
+        "modelPlaceholder": "Usar modelo predeterminado",
+        "promptLabel": "Instrucción",
+        "start": "Iniciar intento"
+      }
+    },
+    "description": {
+      "edit": "Editar",
+      "save": "Guardar cambios"
+    },
+    "dataTable": {
+      "noData": "Sin datos",
+      "emptyValue": "-"
+    }
+  },
+  "createProjectSession": {
+    "errors": {
+      "missingProjectId": "Se requiere el ID del proyecto para crear una sesión."
+    }
+  },
+  "createWorkspaceSession": {
+    "errors": {
+      "missingProjectId": "Se requiere el ID del proyecto para crear una sesión."
+    }
+  },
+  "createTicketAttempt": {
+    "errors": {
+      "missingProjectId": "Se requiere el ID del proyecto para crear un intento."
+    }
+  }
+}

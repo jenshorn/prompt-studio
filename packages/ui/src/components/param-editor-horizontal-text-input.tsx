@@ -1,0 +1,130 @@
+import { Box, Flex, Input, Text, Textarea } from "@chakra-ui/react";
+import { useEffect, useRef, useState } from "react";
+import { Tooltip } from "./tooltip";
+
+interface HorizontalTextInputProps {
+  id: string;
+  defaultValue: string;
+  name: string;
+  onChange: (id: string, value: string) => void;
+  description: string;
+  readOnly?: boolean;
+  hideLabel?: boolean;
+  tooltipPlacement?: "top" | "right" | "bottom" | "left";
+}
+
+export const HorizontalTextInput = (props: HorizontalTextInputProps) => {
+  const {
+    id,
+    defaultValue,
+    name,
+    onChange,
+    description,
+    readOnly,
+    hideLabel = false,
+    tooltipPlacement = "right",
+  } = props;
+  const [value, setValue] = useState(defaultValue);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleChange = (nextValue: string) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => onChange(id, nextValue), 540);
+  };
+
+  useEffect(() => {
+    setValue(defaultValue);
+  }, [defaultValue]);
+
+  const handleChange = (newValue: string) => {
+    setValue(newValue);
+    scheduleChange(newValue);
+  };
+
+  const handleClick = () => {
+    if (!readOnly) {
+      setIsExpanded(true);
+    }
+  };
+
+  const handleBlur = () => {
+    // Only collapse if the value is empty
+    if (value.trim().length === 0) {
+      setIsExpanded(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Allow users to collapse with Escape key
+    if (e.key === "Escape") {
+      setIsExpanded(false);
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <Box position="relative" flex="1" minW="12.5rem">
+      <Tooltip positioning={{ placement: tooltipPlacement }} content={description} contentProps={{ padding: "xxs" }}>
+        <Box position="relative" minHeight="2rem">
+          {!isExpanded ? (
+            <Flex alignItems="center" justifyContent="space-between" height="2rem">
+              {!hideLabel && <Text textStyle="label/M/medium">{name}</Text>}
+              <Input
+                className="nodrag"
+                readOnly={readOnly}
+                flex="1"
+                maxW="12.5rem"
+                size="sm"
+                type="text"
+                placeholder={hideLabel ? name : undefined}
+                value={value}
+                onClick={handleClick}
+                onChange={(e) => handleChange(e.target.value)}
+                onKeyUp={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                }}
+              />
+            </Flex>
+          ) : (
+            <Box
+              position="absolute"
+              top="0"
+              left="0"
+              right="0"
+              zIndex="10"
+              bg="background.primary"
+              borderWidth="1px"
+              borderStyle="solid"
+              borderColor="border.secondary"
+              borderRadius="lg"
+              p="2"
+              boxShadow="lg"
+            >
+              {!hideLabel && (
+                <Text textStyle="label/M/medium" mb="sm">
+                  {name}
+                </Text>
+              )}
+              <Textarea
+                className="nodrag"
+                readOnly={readOnly}
+                width="100%"
+                size="sm"
+                placeholder={hideLabel ? name : undefined}
+                value={value}
+                onChange={(e) => handleChange(e.target.value)}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                rows={3}
+                resize="vertical"
+                autoFocus
+              />
+            </Box>
+          )}
+        </Box>
+      </Tooltip>
+    </Box>
+  );
+};

@@ -1,0 +1,17 @@
+{
+  "name": "e2e",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "bun scripts/run-playwright.ts",
+    "test:electric": "bun scripts/run-electric.ts",
+    "test": "bun run test:ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/pg": "^8.11.0",
+    "pstdio-db": "workspace:*",
+    "pg": "^8.13.0"
+  }
+}

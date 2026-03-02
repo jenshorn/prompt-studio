@@ -1,0 +1,182 @@
+{
+  "title": "Projets",
+  "subtitle": "Gérez vos projets et suivez leur progression",
+  "createProject": "Créer un projet",
+  "loading": "Chargement des projets...",
+  "repoSearch": {
+    "searching": "Recherche de dépôts...",
+    "stillSearching": "Recherche en cours... ({{seconds}}s)",
+    "takingLonger": "Cela prend plus de temps que prévu. Vous pouvez parcourir manuellement ci-dessous.",
+    "noReposFound": "Aucun dépôt trouvé dans les emplacements courants.",
+    "browseHint": "Utilisez l'option ci-dessous pour parcourir et trouver un dépôt."
+  },
+  "errors": {
+    "fetchFailed": "Échec de la récupération des projets",
+    "deleteFailed": "Échec de la suppression du projet"
+  },
+  "empty": {
+    "title": "Aucun projet pour le moment",
+    "description": "Commencez par créer votre premier projet.",
+    "createFirst": "Créer votre premier projet"
+  },
+  "projectNotFound": "Le projet que vous recherchez n'existe pas ou a été supprimé.",
+  "viewProject": "Voir le projet",
+  "openInIDE": "Ouvrir dans l'IDE",
+  "createdDate": "Créé le {{date}}",
+  "chatInput": {
+    "placeholder": "démarrer une nouvelle tâche",
+    "ariaLabel": "Créer une nouvelle tâche",
+    "closeLabel": "Réduire le chat",
+    "agent": {
+      "selectLabel": "Sélectionner un agent",
+      "unknown": "Agent inconnu",
+      "options": {
+        "opencode": "Opencode"
+      }
+    },
+    "repo": {
+      "selectLabel": "Sélectionner un dépôt",
+      "none": "Aucun dépôt",
+      "noneLinked": "Aucun dépôt lié"
+    },
+    "branch": {
+      "selectLabel": "Sélectionner une branche",
+      "none": "Aucune branche",
+      "noneAvailable": "Aucune branche disponible",
+      "loading": "Chargement des branches...",
+      "tags": {
+        "current": "Courante",
+        "remote": "Distante"
+      }
+    },
+    "sessionMeta": {
+      "agent": "Agent",
+      "repo": "Repo",
+      "branch": "Branche"
+    },
+    "session": {
+      "selectLabel": "Select session",
+      "none": "New Session",
+      "noneHint": "Start a new session",
+      "loading": "Loading sessions...",
+      "noneAvailable": "No sessions yet",
+      "unknown": "Unknown session",
+      "emptyTitle": "New Session",
+      "emptyDescription": "Start a new session or pick one from the menu.",
+      "notFoundTitle": "Session not found",
+      "notFoundDescription": "Select a different session from the list.",
+      "resumePlaceholder": "Resume this session",
+      "openInBubble": "Open in bubble",
+      "viewMore": "View more sessions",
+      "executorSessionIdLabel": "Executor session ID",
+      "panelTitle": "All sessions",
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      }
+    }
+  },
+  "createProjectDialog": {
+    "title": "Créer un projet",
+    "projectName": {
+      "label": "Nom du projet",
+      "placeholder": "Nom du projet",
+      "required": "Le nom du projet est requis."
+    },
+    "repositories": {
+      "label": "Dépôts",
+      "empty": "Aucun dépôt sélectionné pour l'instant.",
+      "remove": "Retirer le dépôt",
+      "browse": "Parcourir les dépôts",
+      "selectOne": "Sélectionnez au moins un dépôt.",
+      "errors": {
+        "pathRequired": "Le chemin du dépôt est requis.",
+        "alreadyAdded": "Le dépôt est déjà ajouté.",
+        "registerFailed": "Échec de l'enregistrement du dépôt."
+      }
+    },
+    "actions": {
+      "create": "Créer un projet"
+    },
+    "folderPicker": {
+      "title": "Sélectionner un dépôt",
+      "description": "Choisissez un dossier de dépôt git"
+    }
+  },
+  "ticketPanel": {
+    "fields": {
+      "id": "ID",
+      "updated": "Mis à jour",
+      "status": "Statut",
+      "blockedReason": "Raison du blocage",
+      "dependsOn": "Dépend de",
+      "complexity": {
+        "label": "Complexité",
+        "options": {
+          "unspecified": "Non spécifiée",
+          "low": "Basse",
+          "medium": "Moyenne",
+          "high": "Haute"
+        }
+      }
+    },
+    "title": {
+      "label": "Ticket title",
+      "placeholder": "Untitled ticket"
+    },
+    "none": "Aucun",
+    "properties": {
+      "title": "Propriétés"
+    },
+    "options": {
+      "ticket": "Ouvrir les options de tâche",
+      "refineTicket": "Refine ticket",
+      "archiveTicket": "Archive ticket",
+      "deleteTicket": "Supprimer la tâche"
+    },
+    "deleteConfirmation": {
+      "ticket": {
+        "headline": "Supprimer la tâche ?",
+        "notification": "Cela supprimera la tâche et la retirera du projet."
+      }
+    },
+    "attempts": {
+      "title": "Tentatives",
+      "startNew": "Démarrer une nouvelle tentative",
+      "emptyTitle": "Aucune tentative pour l'instant",
+      "emptyDescription": "Démarrez une tentative de tâche pour suivre les sessions ici.",
+      "updatedLabel": "Mis à jour {{date}}",
+      "dialog": {
+        "title": "Démarrer une nouvelle tentative",
+        "description": "Choisissez un agent et un dépôt pour démarrer cette tentative de tâche.",
+        "modelLabel": "Modèle",
+        "modelPlaceholder": "Utiliser le modèle par défaut",
+        "promptLabel": "Instruction",
+        "start": "Démarrer la tentative"
+      }
+    },
+    "description": {
+      "edit": "Modifier",
+      "save": "Enregistrer les modifications"
+    },
+    "dataTable": {
+      "noData": "Aucune donnée",
+      "emptyValue": "-"
+    }
+  },
+  "createProjectSession": {
+    "errors": {
+      "missingProjectId": "L'identifiant du projet est requis pour créer une session."
+    }
+  },
+  "createWorkspaceSession": {
+    "errors": {
+      "missingProjectId": "L'identifiant du projet est requis pour créer une session."
+    }
+  },
+  "createTicketAttempt": {
+    "errors": {
+      "missingProjectId": "L'identifiant du projet est requis pour créer une tentative."
+    }
+  }
+}

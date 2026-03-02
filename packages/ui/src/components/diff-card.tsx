@@ -1,0 +1,139 @@
+import { Box, Grid, IconButton, Text } from "@chakra-ui/react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { DiffBubble } from "@/components/diff-bubble";
+import { DiffEditor } from "./diff-editor";
+
+export interface Diff {
+  change: "added" | "deleted" | "modified" | "renamed" | "copied" | "permissionChange";
+  oldPath?: string;
+  newPath?: string;
+  oldContent?: string;
+  newContent?: string;
+  additions?: number;
+  deletions?: number;
+}
+
+interface DiffCardProps {
+  diff: Diff;
+}
+
+const getLanguage = (path: string) => {
+  const ext = path.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    case "py":
+      return "python";
+    case "go":
+      return "go";
+    case "rs":
+      return "rust";
+    case "css":
+      return "css";
+    case "html":
+      return "html";
+    case "sh":
+      return "shell";
+    case "yml":
+    case "yaml":
+      return "yaml";
+    default:
+      return "plaintext";
+  }
+};
+
+export const DiffCard = (props: DiffCardProps) => {
+  const { diff } = props;
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const filePath = diff.newPath || diff.oldPath || "unknown";
+  const language = getLanguage(filePath);
+
+  const additions = diff.additions ?? 0;
+  const deletions = diff.deletions ?? 0;
+
+  return (
+    <Box
+      border="1px solid"
+      borderColor="border.muted"
+      borderRadius="xs"
+      overflow="hidden"
+      bg="bg"
+      width="100%"
+      maxW="100%"
+    >
+      <Grid
+        templateColumns="auto minmax(0, 1fr) auto"
+        px="xs"
+        py="2xs"
+        alignItems="center"
+        justifyContent="space-between"
+        borderBottom={isExpanded ? "1px solid" : "none"}
+        borderColor="border.muted"
+        cursor="pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+        gap="sm"
+      >
+        <IconButton
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+          variant="ghost"
+          size="2xs"
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          flexShrink={0}
+        >
+          {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </IconButton>
+
+        <Box minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" title={filePath}>
+          {diff.change === "renamed" ? (
+            <Text as="span" textStyle="sm">
+              <Text as="span" color="fg.muted" textDecoration="line-through" mr="xs">
+                {diff.oldPath}
+              </Text>
+              <Box as="span" display="inline-flex" alignItems="center" verticalAlign="middle" mr="xs">
+                <ChevronRight size={12} />
+              </Box>
+              {diff.newPath}
+            </Text>
+          ) : diff.change === "deleted" ? (
+            <Text as="span" color="fg.muted" textDecoration="line-through" textStyle="sm">
+              {filePath}
+            </Text>
+          ) : (
+            <Text as="span" textStyle="sm">
+              {filePath}
+            </Text>
+          )}
+        </Box>
+
+        <Box flexShrink={0}>
+          <DiffBubble variant="ghost" additions={additions} deletions={deletions} />
+        </Box>
+      </Grid>
+
+      {isExpanded && (
+        <Box height="400px" bg="bg">
+          <DiffEditor
+            original={diff.oldContent || ""}
+            modified={diff.newContent || ""}
+            language={language}
+            sideBySide={false}
+            disableScroll={false}
+          />
+        </Box>
+      )}
+    </Box>
+  );
+};

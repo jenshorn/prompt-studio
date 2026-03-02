@@ -1,0 +1,177 @@
+{
+  "title": "專案",
+  "subtitle": "管理您的專案並追蹤進度",
+  "createProject": "建立專案",
+  "loading": "載入專案中...",
+  "repoSearch": {
+    "searching": "正在搜尋儲存庫...",
+    "stillSearching": "仍在搜尋... ({{seconds}}秒)",
+    "takingLonger": "搜尋時間比平時長。您可以在下方手動瀏覽。",
+    "noReposFound": "在常見位置未找到儲存庫。",
+    "browseHint": "使用下方選項瀏覽儲存庫。"
+  },
+  "errors": {
+    "fetchFailed": "取得專案失敗",
+    "deleteFailed": "刪除專案失敗"
+  },
+  "empty": {
+    "title": "還沒有專案",
+    "description": "先建立您的第一個專案。",
+    "createFirst": "建立您的第一個專案"
+  },
+  "projectNotFound": "您要查找的專案不存在或已被刪除。",
+  "viewProject": "查看專案",
+  "openInIDE": "在 IDE 中開啟",
+  "createdDate": "建立於 {{date}}",
+  "chatInput": {
+    "placeholder": "開始新的任務",
+    "ariaLabel": "建立新的任務",
+    "closeLabel": "最小化聊天",
+    "agent": {
+      "selectLabel": "選擇代理",
+      "unknown": "未知代理",
+      "options": {
+        "opencode": "Opencode"
+      }
+    },
+    "repo": {
+      "selectLabel": "選擇儲存庫",
+      "none": "沒有儲存庫",
+      "noneLinked": "未連結儲存庫"
+    },
+    "branch": {
+      "selectLabel": "選擇分支",
+      "none": "沒有分支",
+      "noneAvailable": "沒有可用分支",
+      "loading": "正在載入分支...",
+      "tags": {
+        "current": "目前",
+        "remote": "遠端"
+      }
+    },
+    "sessionMeta": {
+      "agent": "代理",
+      "repo": "儲存庫",
+      "branch": "分支"
+    },
+    "session": {
+      "selectLabel": "Select session",
+      "none": "New Session",
+      "noneHint": "Start a new session",
+      "loading": "Loading sessions...",
+      "noneAvailable": "No sessions yet",
+      "unknown": "Unknown session",
+      "emptyTitle": "New Session",
+      "emptyDescription": "Start a new session or pick one from the menu.",
+      "notFoundTitle": "Session not found",
+      "notFoundDescription": "Select a different session from the list.",
+      "resumePlaceholder": "Resume this session",
+      "openInBubble": "Open in bubble",
+      "viewMore": "View more sessions",
+      "executorSessionIdLabel": "Executor session ID",
+      "panelTitle": "All sessions",
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      }
+    }
+  },
+  "createProjectDialog": {
+    "title": "建立專案",
+    "projectName": {
+      "label": "專案名稱",
+      "placeholder": "專案名稱",
+      "required": "專案名稱為必填。"
+    },
+    "repositories": {
+      "label": "儲存庫",
+      "empty": "尚未選擇儲存庫。",
+      "remove": "移除儲存庫",
+      "browse": "瀏覽儲存庫",
+      "selectOne": "請至少選擇一個儲存庫。",
+      "errors": {
+        "pathRequired": "需要儲存庫路徑。",
+        "alreadyAdded": "此儲存庫已加入。",
+        "registerFailed": "註冊儲存庫失敗。"
+      }
+    },
+    "actions": {
+      "create": "建立專案"
+    },
+    "folderPicker": {
+      "title": "選擇儲存庫",
+      "description": "選擇 git 儲存庫資料夾"
+    }
+  },
+  "ticketPanel": {
+    "fields": {
+      "id": "ID",
+      "updated": "已更新",
+      "status": "狀態",
+      "blockedReason": "阻塞原因",
+      "dependsOn": "依賴於",
+      "complexity": {
+        "label": "複雜度",
+        "options": {
+          "unspecified": "未指定",
+          "low": "低",
+          "medium": "中",
+          "high": "高"
+        }
+      }
+    },
+    "title": {
+      "label": "Ticket title",
+      "placeholder": "Untitled ticket"
+    },
+    "none": "無",
+    "properties": {
+      "title": "屬性"
+    },
+    "options": {
+      "ticket": "開啟任務選項",
+      "refineTicket": "Refine ticket",
+      "archiveTicket": "Archive ticket",
+      "deleteTicket": "刪除任務"
+    },
+    "deleteConfirmation": {
+      "ticket": {
+        "headline": "Delete ticket?",
+        "notification": "This deletes the ticket and removes it from the project."
+      }
+    },
+    "attempts": {
+      "title": "嘗試",
+      "startNew": "Start new attempt",
+      "emptyTitle": "尚無嘗試",
+      "emptyDescription": "在此開始任務嘗試以追蹤工作階段。",
+      "updatedLabel": "{{date}} 已更新",
+      "dialog": {
+        "title": "Start new attempt",
+        "description": "Choose an agent and repository to start this ticket attempt.",
+        "modelLabel": "Model",
+        "modelPlaceholder": "Use default model",
+        "promptLabel": "Prompt",
+        "start": "Start attempt"
+      }
+    },
+    "description": {
+      "edit": "編輯",
+      "save": "儲存變更"
+    },
+    "dataTable": {
+      "noData": "無資料",
+      "emptyValue": "-"
+    }
+  },
+  "createProjectSession": {
+    "errors": {
+      "missingProjectId": "建立工作階段需要專案 ID。"
+    }
+  },
+  "createTicketAttempt": {
+    "errors": {
+      "missingProjectId": "建立嘗試需要專案 ID。"
+    }
+  }
+}

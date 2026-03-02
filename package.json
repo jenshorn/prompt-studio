@@ -1,0 +1,44 @@
+{
+  "name": "prompt-studio",
+  "private": true,
+  "type": "module",
+  "author": "Prompt Studio",
+  "email": "support@prompt.studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pufflyai/prompt-studio.git"
+  },
+  "scripts": {
+    "build": "bunx cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" lerna run build",
+    "test": "bunx lerna run test --stream --no-prefix -- --reporter dot --silent",
+    "test:e2e": "bun run --cwd packages/e2e test:ui",
+    "lint": "bunx lerna run lint",
+    "format": "bunx biome check --write .",
+    "format:check": "bunx biome check .",
+    "clean": "find . -type d \\( -name node_modules -o -name dist -o -name .cache \\) -prune -exec rm -rf '{}' + && rm -rf .nx",
+    "knip": "bunx knip",
+    "setup:demo": "bun run --cwd scripts setup-demo-project",
+    "dev:api": "bun run --cwd packages/api dev",
+    "dev:landing-page": "bun run --cwd clients/landing-page develop",
+    "storybook:ui": "bun run --cwd packages/ui storybook",
+    "studio:db": "bun run --cwd packages/db studio",
+    "dev:desktop": "bun run --cwd clients/desktop dev"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "workspaces": [
+    "clients/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "2.4.5",
+    "@types/bun": "latest",
+    "@types/node": "^24.8.1",
+    "cross-env": "^10.0.0",
+    "knip": "^5.66.1",
+    "lerna": "^9.0.1"
+  },
+  "packageManager": "bun@1.3.3"
+}

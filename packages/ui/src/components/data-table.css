@@ -1,0 +1,51 @@
+.data-table {
+  table-layout: fixed;
+}
+
+.data-table.full-width {
+  width: 100%;
+  table-layout: auto;
+}
+
+.data-table tr {
+  width: fit-content;
+}
+
+.data-table.full-width tr {
+  width: 100%;
+}
+
+.data-table .resizer {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  right: 0;
+  width: 5px;
+  background-color: var(--chakra-colors-border-primary);
+  opacity: 0.5;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.data-table .resizer.isResizing {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .data-table .resizer {
+    opacity: 0;
+  }
+
+  .data-table *:hover > .resizer {
+    opacity: 1;
+  }
+}
+
+.data-table .resizer.ltr {
+  right: 0;
+}
+
+.data-table .resizer.rtl {
+  left: 0;
+}

@@ -1,0 +1,194 @@
+{
+  "title": "Projects",
+  "subtitle": "Manage your projects and track their progress",
+  "createProject": "Create Project",
+  "loading": "Loading projects...",
+  "repoSearch": {
+    "searching": "Searching for repositories...",
+    "stillSearching": "Still searching... ({{seconds}}s)",
+    "takingLonger": "This is taking longer than usual. You can browse manually below.",
+    "noReposFound": "No repositories found in common locations.",
+    "browseHint": "Use the option below to browse for a repository."
+  },
+  "errors": {
+    "fetchFailed": "Failed to fetch projects",
+    "deleteFailed": "Failed to delete project"
+  },
+  "empty": {
+    "title": "No projects yet",
+    "description": "Get started by creating your first project.",
+    "createFirst": "Create your first project"
+  },
+  "projectNotFound": "The project you're looking for doesn't exist or has been deleted.",
+  "viewProject": "View Project",
+  "openInIDE": "Open in IDE",
+  "createdDate": "Created {{date}}",
+  "chatInput": {
+    "placeholder": "start a new ticket",
+    "ariaLabel": "Create a new ticket",
+    "closeLabel": "Minimize chat",
+    "agent": {
+      "selectLabel": "Select agent",
+      "unknown": "Unknown agent",
+      "options": {
+        "opencode": "Opencode",
+        "codex": "Codex",
+        "claudeCode": "Claude Code"
+      }
+    },
+    "repo": {
+      "selectLabel": "Select repository",
+      "none": "No repositories",
+      "noneLinked": "No repositories linked"
+    },
+    "branch": {
+      "selectLabel": "Select branch",
+      "none": "No branches",
+      "noneAvailable": "No branches available",
+      "loading": "Loading branches...",
+      "tags": {
+        "current": "Current",
+        "remote": "Remote"
+      }
+    },
+    "model": {
+      "selectLabel": "Select model",
+      "none": "No models",
+      "noneAvailable": "No models available",
+      "loading": "Loading models..."
+    },
+    "sessionMeta": {
+      "agent": "Agent",
+      "repo": "Repo",
+      "branch": "Branch"
+    },
+    "session": {
+      "selectLabel": "Select session",
+      "none": "New Session",
+      "noneHint": "Start a new session",
+      "loading": "Loading sessions...",
+      "noneAvailable": "No sessions yet",
+      "unknown": "Unknown session",
+      "emptyTitle": "New Session",
+      "emptyDescription": "Start a new session or pick one from the menu.",
+      "notFoundTitle": "Session not found",
+      "notFoundDescription": "Select a different session from the list.",
+      "resumePlaceholder": "Resume this session",
+      "openInBubble": "Open in bubble",
+      "viewMore": "View more sessions",
+      "executorSessionIdLabel": "Executor session ID",
+      "panelTitle": "All sessions",
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      }
+    }
+  },
+  "createProjectDialog": {
+    "title": "Create project",
+    "projectName": {
+      "label": "Project name",
+      "placeholder": "Project name",
+      "required": "Project name is required."
+    },
+    "repositories": {
+      "label": "Repositories",
+      "empty": "No repositories selected yet.",
+      "remove": "Remove repository",
+      "browse": "Browse for repository",
+      "selectOne": "Select at least one repository.",
+      "errors": {
+        "pathRequired": "Repository path is required.",
+        "alreadyAdded": "Repository already added.",
+        "registerFailed": "Failed to register repository."
+      }
+    },
+    "actions": {
+      "create": "Create project"
+    },
+    "folderPicker": {
+      "title": "Select repository",
+      "description": "Choose a git repository folder"
+    }
+  },
+  "ticketPanel": {
+    "fields": {
+      "id": "ID",
+      "updated": "Updated",
+      "status": "Status",
+      "blockedBy": "Blocked by",
+      "blockedReason": "Blocked reason",
+      "dependsOn": "Depends on",
+      "dependencies": "Dependencies",
+      "archived": "Archived",
+      "complexity": {
+        "label": "Complexity",
+        "options": {
+          "unspecified": "Unspecified",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      }
+    },
+    "title": {
+      "label": "Ticket title",
+      "placeholder": "Untitled ticket"
+    },
+    "none": "None",
+    "properties": {
+      "title": "Properties"
+    },
+    "options": {
+      "ticket": "Open ticket options",
+      "createSubTicket": "Create sub-ticket",
+      "refineTicket": "Refine ticket",
+      "archiveTicket": "Archive ticket",
+      "deleteTicket": "Delete ticket"
+    },
+    "deleteConfirmation": {
+      "ticket": {
+        "headline": "Delete ticket?",
+        "notification": "This deletes the ticket and removes it from the project."
+      }
+    },
+    "attempts": {
+      "title": "Attempts",
+      "startNew": "Start new attempt",
+      "emptyTitle": "No attempts yet",
+      "emptyDescription": "Start a ticket attempt to track sessions here.",
+      "updatedLabel": "Updated {{date}}",
+      "dialog": {
+        "title": "Start new attempt",
+        "description": "Choose an agent and repository to start this ticket attempt.",
+        "modelLabel": "Model",
+        "modelPlaceholder": "Use default model",
+        "promptLabel": "Prompt",
+        "start": "Start attempt"
+      }
+    },
+    "description": {
+      "edit": "Edit",
+      "save": "Save changes"
+    },
+    "dataTable": {
+      "noData": "No data",
+      "emptyValue": "-"
+    }
+  },
+  "createProjectSession": {
+    "errors": {
+      "missingProjectId": "Project id is required to create a session."
+    }
+  },
+  "createWorkspaceSession": {
+    "errors": {
+      "missingProjectId": "Project id is required to create a session."
+    }
+  },
+  "createTicketAttempt": {
+    "errors": {
+      "missingProjectId": "Project id is required to create an attempt."
+    }
+  }
+}

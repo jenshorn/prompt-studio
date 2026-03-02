@@ -1,0 +1,24 @@
+name: Build Docker Images
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build_images:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dashboard image
+        run: docker build -t monorepo-template/dashboard:${IMAGE_TAG} -f webapps/dashboard/Dockerfile .
+
+      - name: Build landing-page image
+        run: docker build -t monorepo-template/landing-page:${IMAGE_TAG} -f webapps/landing-page/Dockerfile .
+
+      - name: Build api image
+        run: docker build -t monorepo-template/api:${IMAGE_TAG} -f packages/api/Dockerfile .

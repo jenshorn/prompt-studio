@@ -1,0 +1,38 @@
+import { CodeNode } from "@lexical/code";
+import { LinkNode } from "@lexical/link";
+import { ListItemNode, ListNode } from "@lexical/list";
+import { TRANSFORMERS } from "@lexical/markdown";
+import { HeadingNode, QuoteNode } from "@lexical/rich-text";
+import type { Klass, LexicalNode } from "lexical";
+import { REFERENCE_LINK_TRANSFORMER, ReferenceLinkNode } from "../markdown-editor/plugins/ReferenceLinkPlugin";
+import theme from "../theme/rich-text-theme";
+import { DataTableNode } from "./nodes/DataTableNode";
+import { CodeBlockNode } from "./plugins/CodePlugin/CodeNode";
+import { EquationNode } from "./plugins/EquationPlugin/EquationNode";
+import { EQUATION_INLINE, EQUATION_MULTILINE } from "./plugins/EquationPlugin/EquationPlugin";
+import { HRNode } from "./plugins/HorizontalRulePlugin/HorizontalRuleNode";
+import { TRANSFORMERS_EXTENDED } from "./transformers/markdown-transformers";
+
+export const editorNodes: Array<Klass<LexicalNode>> = [
+  QuoteNode,
+  LinkNode,
+  DataTableNode,
+  HeadingNode,
+  ListNode,
+  ListItemNode,
+  CodeNode,
+  CodeBlockNode,
+  EquationNode,
+  HRNode,
+  ReferenceLinkNode,
+];
+
+export const editorTransformers = [
+  ...TRANSFORMERS,
+  ...TRANSFORMERS_EXTENDED,
+  EQUATION_INLINE,
+  EQUATION_MULTILINE,
+  REFERENCE_LINK_TRANSFORMER,
+];
+
+export const editorTheme = theme;

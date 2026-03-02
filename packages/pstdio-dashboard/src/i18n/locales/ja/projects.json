@@ -1,0 +1,177 @@
+{
+  "title": "プロジェクト",
+  "subtitle": "プロジェクトを管理し、進捗を追跡します",
+  "createProject": "プロジェクトを作成",
+  "loading": "プロジェクトを読み込み中...",
+  "repoSearch": {
+    "searching": "リポジトリを検索中...",
+    "stillSearching": "検索中... ({{seconds}}秒)",
+    "takingLonger": "通常より時間がかかっています。下から手動で選択できます。",
+    "noReposFound": "一般的な場所にリポジトリが見つかりませんでした。",
+    "browseHint": "下のオプションを使用してリポジトリを参照してください。"
+  },
+  "errors": {
+    "fetchFailed": "プロジェクトの取得に失敗しました",
+    "deleteFailed": "プロジェクトの削除に失敗しました"
+  },
+  "empty": {
+    "title": "プロジェクトがありません",
+    "description": "最初のプロジェクトを作成して始めましょう。",
+    "createFirst": "最初のプロジェクトを作成"
+  },
+  "projectNotFound": "お探しのプロジェクトは存在しないか、削除されました。",
+  "viewProject": "プロジェクトを表示",
+  "openInIDE": "IDEで開く",
+  "createdDate": "作成日 {{date}}",
+  "chatInput": {
+    "placeholder": "新しいタスクを開始する",
+    "ariaLabel": "新しいタスクを作成",
+    "closeLabel": "チャットを最小化",
+    "agent": {
+      "selectLabel": "エージェントを選択",
+      "unknown": "不明なエージェント",
+      "options": {
+        "opencode": "Opencode"
+      }
+    },
+    "repo": {
+      "selectLabel": "リポジトリを選択",
+      "none": "リポジトリがありません",
+      "noneLinked": "リンクされたリポジトリがありません"
+    },
+    "branch": {
+      "selectLabel": "ブランチを選択",
+      "none": "ブランチがありません",
+      "noneAvailable": "利用可能なブランチがありません",
+      "loading": "ブランチを読み込み中...",
+      "tags": {
+        "current": "現在",
+        "remote": "リモート"
+      }
+    },
+    "sessionMeta": {
+      "agent": "エージェント",
+      "repo": "リポジトリ",
+      "branch": "ブランチ"
+    },
+    "session": {
+      "selectLabel": "Select session",
+      "none": "New Session",
+      "noneHint": "Start a new session",
+      "loading": "Loading sessions...",
+      "noneAvailable": "No sessions yet",
+      "unknown": "Unknown session",
+      "emptyTitle": "New Session",
+      "emptyDescription": "Start a new session or pick one from the menu.",
+      "notFoundTitle": "Session not found",
+      "notFoundDescription": "Select a different session from the list.",
+      "resumePlaceholder": "Resume this session",
+      "openInBubble": "Open in bubble",
+      "viewMore": "View more sessions",
+      "executorSessionIdLabel": "Executor session ID",
+      "panelTitle": "All sessions",
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      }
+    }
+  },
+  "createProjectDialog": {
+    "title": "プロジェクトを作成",
+    "projectName": {
+      "label": "プロジェクト名",
+      "placeholder": "プロジェクト名",
+      "required": "プロジェクト名は必須です。"
+    },
+    "repositories": {
+      "label": "リポジトリ",
+      "empty": "まだリポジトリが選択されていません。",
+      "remove": "リポジトリを削除",
+      "browse": "リポジトリを参照",
+      "selectOne": "少なくとも1つのリポジトリを選択してください。",
+      "errors": {
+        "pathRequired": "リポジトリのパスが必要です。",
+        "alreadyAdded": "リポジトリはすでに追加されています。",
+        "registerFailed": "リポジトリの登録に失敗しました。"
+      }
+    },
+    "actions": {
+      "create": "プロジェクトを作成"
+    },
+    "folderPicker": {
+      "title": "リポジトリを選択",
+      "description": "git リポジトリのフォルダーを選択してください"
+    }
+  },
+  "ticketPanel": {
+    "fields": {
+      "id": "ID",
+      "updated": "更新",
+      "status": "ステータス",
+      "blockedReason": "ブロック理由",
+      "dependsOn": "依存先",
+      "complexity": {
+        "label": "難易度",
+        "options": {
+          "unspecified": "未指定",
+          "low": "低",
+          "medium": "中",
+          "high": "高"
+        }
+      }
+    },
+    "title": {
+      "label": "Ticket title",
+      "placeholder": "Untitled ticket"
+    },
+    "none": "なし",
+    "properties": {
+      "title": "プロパティ"
+    },
+    "options": {
+      "ticket": "タスクオプションを開く",
+      "refineTicket": "Refine ticket",
+      "archiveTicket": "Archive ticket",
+      "deleteTicket": "タスクを削除"
+    },
+    "deleteConfirmation": {
+      "ticket": {
+        "headline": "Delete ticket?",
+        "notification": "This deletes the ticket and removes it from the project."
+      }
+    },
+    "attempts": {
+      "title": "試行",
+      "startNew": "Start new attempt",
+      "emptyTitle": "まだ試行がありません",
+      "emptyDescription": "ここでタスクの試行を開始してセッションを追跡します。",
+      "updatedLabel": "{{date}} 更新",
+      "dialog": {
+        "title": "Start new attempt",
+        "description": "Choose an agent and repository to start this ticket attempt.",
+        "modelLabel": "Model",
+        "modelPlaceholder": "Use default model",
+        "promptLabel": "Prompt",
+        "start": "Start attempt"
+      }
+    },
+    "description": {
+      "edit": "編集",
+      "save": "変更を保存"
+    },
+    "dataTable": {
+      "noData": "データなし",
+      "emptyValue": "-"
+    }
+  },
+  "createProjectSession": {
+    "errors": {
+      "missingProjectId": "セッションを作成するにはプロジェクトIDが必要です。"
+    }
+  },
+  "createTicketAttempt": {
+    "errors": {
+      "missingProjectId": "試行を作成するにはプロジェクトIDが必要です。"
+    }
+  }
+}

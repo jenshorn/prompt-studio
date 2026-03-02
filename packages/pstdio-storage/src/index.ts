@@ -1,0 +1,13 @@
+export { createDocsService, isDocsServiceError } from "./services/docs";
+export { createFilesService } from "./services/files";
+export type { DiffMode, FileChange, GitDiffService } from "./services/git-diff";
+export { createGitDiffService } from "./services/git-diff";
+export type {
+  AgentSettingsMap,
+  ApprovalMode,
+  ClaudeCodeSettings,
+  OpencodeSettings,
+  SchubSettings,
+} from "./services/settings";
+export { createSettingsService } from "./services/settings";
+export { ensureStorageRoot, resolveStorageRoot } from "./storage/paths";
