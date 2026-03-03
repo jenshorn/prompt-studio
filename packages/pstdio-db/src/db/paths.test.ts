@@ -5,32 +5,32 @@ import path from "node:path";
 
 import { ensureDbDirectory, resolveDbPath } from "./paths";
 
-const originalDbPath = process.env.DB_PATH;
+const originalDbPath = process.env.PSTDIO_DB_PATH;
 
 afterEach(() => {
   if (typeof originalDbPath === "undefined") {
-    delete process.env.DB_PATH;
+    delete process.env.PSTDIO_DB_PATH;
     return;
   }
 
-  process.env.DB_PATH = originalDbPath;
+  process.env.PSTDIO_DB_PATH = originalDbPath;
 });
 
 describe("resolveDbPath", () => {
   it("uses ~/.pstdio by default", () => {
-    delete process.env.DB_PATH;
+    delete process.env.PSTDIO_DB_PATH;
 
     expect(resolveDbPath()).toBe(path.join(os.homedir(), ".pstdio"));
   });
 
-  it("expands the home directory from DB_PATH", () => {
-    process.env.DB_PATH = "~/.pstdio/custom";
+  it("expands the home directory from PSTDIO_DB_PATH", () => {
+    process.env.PSTDIO_DB_PATH = "~/.pstdio/custom";
 
     expect(resolveDbPath()).toBe(path.join(os.homedir(), ".pstdio", "custom"));
   });
 
-  it("prefers an explicit path over DB_PATH", () => {
-    process.env.DB_PATH = "/tmp/env-path";
+  it("prefers an explicit path over PSTDIO_DB_PATH", () => {
+    process.env.PSTDIO_DB_PATH = "/tmp/env-path";
 
     expect(resolveDbPath("~/.pstdio/explicit")).toBe(path.join(os.homedir(), ".pstdio", "explicit"));
   });

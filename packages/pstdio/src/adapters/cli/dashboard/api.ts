@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveDefaultDbPath, resolveDefaultStoragePath } from "@/helpers/state-paths";
+import { resolveDefaultDbPath, resolveDefaultStoragePath } from "./state-paths";
 
 type ApiSpawnOptions = {
   cwd?: string;
@@ -37,13 +37,13 @@ const readApiPackageName = (apiRoot: string) => {
   }
 };
 
-const isApiWorkspace = (apiRoot: string) => readApiPackageName(apiRoot) === "@pstdio/schub-api";
+const isApiWorkspace = (apiRoot: string) => readApiPackageName(apiRoot) === "pstdio-api";
 
 export const resolveApiRoot = (startDir: string) => {
   let current = resolve(startDir);
 
   while (true) {
-    const candidate = join(current, "packages", "schub-api");
+    const candidate = join(current, "packages", "pstdio-api");
     if (isApiWorkspace(candidate)) {
       return candidate;
     }
@@ -87,16 +87,16 @@ const buildBundledApiCommand = (serverEntry: string, stdio: ApiSpawnOptions["std
   options: { cwd: undefined as string | undefined, stdio, detached },
 });
 
-export const shouldAutoStartApi = (env: NodeJS.ProcessEnv = process.env) => env.SCHUB_DISABLE_API_AUTO_START !== "1";
+export const shouldAutoStartApi = (env: NodeJS.ProcessEnv = process.env) => env.PSTDIO_DISABLE_API_AUTO_START !== "1";
 
 const resolveApiEnv = (env: NodeJS.ProcessEnv) => {
   const resolved = { ...env };
 
-  if (!resolved.SCHUB_API_PORT) {
+  if (!resolved.PSTDIO_API_PORT) {
     return resolved;
   }
 
-  resolved.PORT = resolved.SCHUB_API_PORT;
+  resolved.PORT = resolved.PSTDIO_API_PORT;
 
   return resolved;
 };
@@ -104,12 +104,12 @@ const resolveApiEnv = (env: NodeJS.ProcessEnv) => {
 const resolveApiRuntimeEnv = (env: NodeJS.ProcessEnv) => {
   const resolved = resolveApiEnv(env);
 
-  if (!resolved.SCHUB_DB_PATH) {
-    resolved.SCHUB_DB_PATH = resolveDefaultDbPath();
+  if (!resolved.PSTDIO_DB_PATH) {
+    resolved.PSTDIO_DB_PATH = resolveDefaultDbPath();
   }
 
-  if (!resolved.SCHUB_STORAGE_PATH) {
-    resolved.SCHUB_STORAGE_PATH = resolveDefaultStoragePath();
+  if (!resolved.PSTDIO_STORAGE_PATH) {
+    resolved.PSTDIO_STORAGE_PATH = resolveDefaultStoragePath();
   }
 
   return resolved;

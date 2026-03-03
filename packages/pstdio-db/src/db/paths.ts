@@ -17,7 +17,7 @@ const expandHomeDirectory = (value: string) => {
 };
 
 export const resolveDbPath = (dbPath?: string) => {
-  return expandHomeDirectory(dbPath ?? process.env.DB_PATH ?? defaultDbPath);
+  return expandHomeDirectory(dbPath ?? process.env.PSTDIO_DB_PATH ?? defaultDbPath);
 };
 
 export const ensureDbDirectory = (dbPath: string) => {

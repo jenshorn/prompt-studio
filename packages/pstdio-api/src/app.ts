@@ -13,9 +13,9 @@ interface AppOptions {
 }
 
 export const createApp = async (options?: AppOptions) => {
-  const { db } = await createDb({ path: options?.dbPath ?? process.env.DB_PATH });
+  const { db } = await createDb({ path: options?.dbPath ?? process.env.PSTDIO_DB_PATH });
 
-  const storageRoot = options?.storagePath ?? resolveStorageRoot();
+  const storageRoot = options?.storagePath ?? resolveStorageRoot(process.env.PSTDIO_STORAGE_PATH);
   ensureStorageRoot(storageRoot);
 
   const projectsService = createProjectsService(db);

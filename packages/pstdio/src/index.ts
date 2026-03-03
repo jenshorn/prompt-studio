@@ -4,14 +4,15 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { topLevelCommandModules } from "./adapters/cli/commands";
+import * as dashboardCommand from "./adapters/cli/commands/dashboard";
 
 const packageData = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
 const cli = yargs(hideBin(process.argv))
-  .scriptName("mono")
+  .scriptName("pstdio")
   .version(packageData.version)
   .strict()
-  .demandCommand(1, "Please specify a command.");
+  .command(dashboardCommand);
 
 for (const mod of topLevelCommandModules) {
   cli.command(mod);

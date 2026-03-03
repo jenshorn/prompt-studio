@@ -49,8 +49,9 @@ type OpencodeModelInput = {
 const defaultServerHost = "127.0.0.1";
 const defaultServerPort = 4096;
 const maxServerPortAttempts = 20;
+const resolveHome = () => process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 
-const defaultServerStorePath = () => join(homedir(), ".schub", "opencode-server.txt");
+const defaultServerStorePath = () => join(resolveHome(), ".pstdio", "opencode-server.txt");
 
 const buildServerUrl = (host: string, port: number) => `http://${host}:${port}`;
 

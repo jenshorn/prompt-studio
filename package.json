@@ -11,8 +11,8 @@
   },
   "scripts": {
     "build": "bunx cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" lerna run build",
-    "test": "bunx lerna run test --stream --no-prefix -- --reporter dot --silent",
-    "test:e2e": "bun run --cwd packages/e2e test:ui",
+    "test": "bunx lerna run test --stream --no-prefix --ignore e2e -- --reporter dot --silent && bun run test:e2e",
+    "test:e2e": "bun run --cwd packages/e2e test",
     "lint": "bunx lerna run lint",
     "format": "bunx biome check --write .",
     "format:check": "bunx biome check .",

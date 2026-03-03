@@ -7,7 +7,7 @@ export type {
   ApprovalMode,
   ClaudeCodeSettings,
   OpencodeSettings,
-  SchubSettings,
+  PstdioSettings,
 } from "./services/settings";
 export { createSettingsService } from "./services/settings";
 export { ensureStorageRoot, resolveStorageRoot } from "./storage/paths";

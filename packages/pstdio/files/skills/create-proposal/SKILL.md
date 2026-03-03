@@ -12,24 +12,24 @@ $ARGUMENTS
 ## Workflow
 
 1. Derive a concise, verb-led `title` from the request (kebab-case: `add-`, `update-`, `remove-`, `refactor-`, `fix-`).
-2. Run `npx schub tickets write --title "<title>" --input "<user prompt verbatim>" --status "backlog" --template "proposal"` to create a proposal.
+2. Run `npx pstdio tickets write --title "<title>" --input "<user prompt verbatim>" --status "backlog" --template "proposal"` to create a proposal.
 3. Update the proposal with concrete, testable statements.
 4. Identify touch points throughout the project and track them in the proposal sections.
 5. Track missing information with [MISSING INFORMATION] tags in the ticket.
-6. (OPTIONAL) If the change affects a public surface (API, SDK, CLI), run `npx schub templates create --ticket-id "<ticket-id>" --name "cookbook"` to scaffold `cookbook.md`.
+6. (OPTIONAL) If the change affects a public surface (API, SDK, CLI), run `npx pstdio templates create --ticket-id "<ticket-id>" --name "cookbook"` to scaffold `cookbook.md`.
 7. (OPTIONAL) If implementing the change requires knowledge of an API, DB schema, etc., encode this in a `contracts.md` or `schemas.md` file in the ticket folder.
 8. (OPTIONAL) For complex tickets requiring deep understanding of the system, track relevant additional information in a `research.md` file in the ticket folder.
-9. (OPTIONAL) For decisions with lasting architectural impact or important tradeoffs, run `npx schub templates create --ticket-id "<ticket-id>" --name "adr" --title "<title>"` to scaffold `adr.md`.
-10. Run `npx schub tickets save --id "<ticket-id>"` to persist the proposal.
+9. (OPTIONAL) For decisions with lasting architectural impact or important tradeoffs, run `npx pstdio templates create --ticket-id "<ticket-id>" --name "adr" --title "<title>"` to scaffold `adr.md`.
+10. Run `npx pstdio tickets save --id "<ticket-id>"` to persist the proposal.
 
 ## Output Locations
 
-- Proposal: `.schub/tickets/<ticket-id>_<slug>/ticket.md`
-- (OPTIONAL) Cookbook: `.schub/tickets/<ticket-id>_<slug>/cookbook.md`
-- (OPTIONAL) Schemas: `.schub/tickets/<ticket-id>_<slug>/schemas.md`
-- (OPTIONAL) Contracts: `.schub/tickets/<ticket-id>_<slug>/contracts.md`
-- (OPTIONAL) Research: `.schub/tickets/<ticket-id>_<slug>/research.md`
-- (OPTIONAL) ADR: `.schub/tickets/<ticket-id>_<slug>/adr.md`
+- Proposal: `.pstdio/tickets/<ticket-id>_<slug>/ticket.md`
+- (OPTIONAL) Cookbook: `.pstdio/tickets/<ticket-id>_<slug>/cookbook.md`
+- (OPTIONAL) Schemas: `.pstdio/tickets/<ticket-id>_<slug>/schemas.md`
+- (OPTIONAL) Contracts: `.pstdio/tickets/<ticket-id>_<slug>/contracts.md`
+- (OPTIONAL) Research: `.pstdio/tickets/<ticket-id>_<slug>/research.md`
+- (OPTIONAL) ADR: `.pstdio/tickets/<ticket-id>_<slug>/adr.md`
 
 ## Notes
 

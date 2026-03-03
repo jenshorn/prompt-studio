@@ -23,18 +23,10 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: [
-    {
-      command: `NODE_ENV=test PORT=${apiPort} bun run --cwd ../../packages/api src/server.ts`,
-      port: apiPort,
-      reuseExistingServer: true,
-      timeout: 30_000,
-    },
-    {
-      command: `VITE_API_BASE_URL=http://localhost:${apiPort} bun run --cwd ../../webapps/dashboard dev --port ${dashboardPort}`,
-      port: dashboardPort,
-      reuseExistingServer: true,
-      timeout: 30_000,
-    },
-  ],
+  webServer: {
+    command: `bun run --cwd ../../packages/pstdio pstdio -- --api-port ${apiPort} --dashboard-port ${dashboardPort}`,
+    port: dashboardPort,
+    reuseExistingServer: true,
+    timeout: 30_000,
+  },
 });

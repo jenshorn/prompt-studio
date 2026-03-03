@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveDefaultDbPath, resolveDefaultStoragePath } from "../helpers/state-paths";
 import { resolveApiRoot, resolveBundledApiEntry, runApi, shouldAutoStartApi } from "./api";
+import { resolveDefaultDbPath, resolveDefaultStoragePath } from "./state-paths";
 
 type SpawnCall = {
   command: string;
@@ -34,35 +34,35 @@ const createSpawnRecorder = () => {
 };
 
 const writeApiPackage = (root: string) => {
-  const apiRoot = join(root, "packages", "schub-api");
+  const apiRoot = join(root, "packages", "pstdio-api");
   mkdirSync(apiRoot, { recursive: true });
-  writeFileSync(join(apiRoot, "package.json"), JSON.stringify({ name: "@pstdio/schub-api" }));
+  writeFileSync(join(apiRoot, "package.json"), JSON.stringify({ name: "pstdio-api" }));
   return apiRoot;
 };
 
 const withDefaultDataPaths = (env: NodeJS.ProcessEnv) => ({
   ...env,
-  SCHUB_DB_PATH: resolveDefaultDbPath(),
-  SCHUB_STORAGE_PATH: resolveDefaultStoragePath(),
+  PSTDIO_DB_PATH: resolveDefaultDbPath(),
+  PSTDIO_STORAGE_PATH: resolveDefaultStoragePath(),
 });
 
-test("resolveApiRoot finds schub-api workspace above start directory", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-root-"));
+test("resolveApiRoot finds pstdio-api workspace above start directory", () => {
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-root-"));
   const apiRoot = writeApiPackage(base);
-  const nested = join(base, "packages", "schub", "src");
+  const nested = join(base, "packages", "pstdio", "src");
   mkdirSync(nested, { recursive: true });
 
   expect(resolveApiRoot(nested)).toBe(apiRoot);
 });
 
 test("runApi spawns bun dev in the api workspace", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-run-"));
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-run-"));
   const apiRoot = writeApiPackage(base);
-  const nested = join(base, "packages", "schub", "src");
+  const nested = join(base, "packages", "pstdio", "src");
   mkdirSync(nested, { recursive: true });
 
   const { calls, spawner, unrefCalled } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
 
   runApi(nested, { spawner, env });
 
@@ -77,13 +77,13 @@ test("runApi spawns bun dev in the api workspace", () => {
 });
 
 test("runApi keeps child attached when detached is false", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-attached-"));
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-attached-"));
   const apiRoot = writeApiPackage(base);
-  const nested = join(base, "packages", "schub", "src");
+  const nested = join(base, "packages", "pstdio", "src");
   mkdirSync(nested, { recursive: true });
 
   const { calls, spawner, unrefCalled } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
 
   runApi(nested, { spawner, env, stdio: "inherit", detached: false });
 
@@ -98,13 +98,13 @@ test("runApi keeps child attached when detached is false", () => {
 });
 
 test("runApi uses stdio override when provided", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-stdio-"));
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-stdio-"));
   const apiRoot = writeApiPackage(base);
-  const nested = join(base, "packages", "schub", "src");
+  const nested = join(base, "packages", "pstdio", "src");
   mkdirSync(nested, { recursive: true });
 
   const { calls, spawner } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
 
   runApi(nested, { spawner, env, stdio: "inherit" });
 
@@ -117,14 +117,14 @@ test("runApi uses stdio override when provided", () => {
   ]);
 });
 
-test("runApi forwards SCHUB_API_PORT as PORT", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-port-"));
+test("runApi forwards PSTDIO_API_PORT as PORT", () => {
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-port-"));
   const apiRoot = writeApiPackage(base);
-  const nested = join(base, "packages", "schub", "src");
+  const nested = join(base, "packages", "pstdio", "src");
   mkdirSync(nested, { recursive: true });
 
   const { calls, spawner } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0", SCHUB_API_PORT: "4511" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0", PSTDIO_API_PORT: "4511" } as NodeJS.ProcessEnv;
 
   runApi(nested, { spawner, env });
 
@@ -143,11 +143,11 @@ test("runApi forwards SCHUB_API_PORT as PORT", () => {
 });
 
 test("shouldAutoStartApi returns false when disable flag is set", () => {
-  expect(shouldAutoStartApi({ SCHUB_DISABLE_API_AUTO_START: "1" })).toBe(false);
+  expect(shouldAutoStartApi({ PSTDIO_DISABLE_API_AUTO_START: "1" })).toBe(false);
 });
 
 test("resolveBundledApiEntry finds bundled api server.js next to CLI dist", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-bundled-"));
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-bundled-"));
   const cliDistDir = join(base, "dist");
   const apiDir = join(cliDistDir, "api");
   mkdirSync(apiDir, { recursive: true });
@@ -159,7 +159,7 @@ test("resolveBundledApiEntry finds bundled api server.js next to CLI dist", () =
 });
 
 test("resolveBundledApiEntry returns null when no bundled api", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-bundled-none-"));
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-bundled-none-"));
   const cliDistDir = join(base, "dist");
   mkdirSync(cliDistDir, { recursive: true });
 
@@ -169,7 +169,7 @@ test("resolveBundledApiEntry returns null when no bundled api", () => {
 });
 
 test("runApi falls back to bundled api when no workspace found", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-bundled-run-"));
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-bundled-run-"));
   const startDir = join(base, "some-project");
   mkdirSync(startDir, { recursive: true });
 
@@ -179,7 +179,7 @@ test("runApi falls back to bundled api when no workspace found", () => {
   writeFileSync(join(apiDir, "server.js"), "// bundled api");
 
   const { calls, spawner, unrefCalled } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
 
   runApi(startDir, { spawner, env, bundledCliPath: join(cliDistDir, "index.js") });
 
@@ -192,8 +192,8 @@ test("runApi falls back to bundled api when no workspace found", () => {
   expect(unrefCalled()).toBe(true);
 });
 
-test("runApi sets default SCHUB_DB_PATH and SCHUB_STORAGE_PATH for bundled mode", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-bundled-env-"));
+test("runApi sets default PSTDIO_DB_PATH and PSTDIO_STORAGE_PATH for bundled mode", () => {
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-bundled-env-"));
   const startDir = join(base, "some-project");
   mkdirSync(startDir, { recursive: true });
 
@@ -203,28 +203,28 @@ test("runApi sets default SCHUB_DB_PATH and SCHUB_STORAGE_PATH for bundled mode"
   writeFileSync(join(apiDir, "server.js"), "// bundled api");
 
   const { calls, spawner } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
 
   runApi(startDir, { spawner, env, bundledCliPath: join(cliDistDir, "index.js") });
 
   const spawnedEnv = calls[0]?.options.env as Record<string, string>;
-  expect(spawnedEnv.SCHUB_DB_PATH).toBe(resolveDefaultDbPath());
-  expect(spawnedEnv.SCHUB_STORAGE_PATH).toBe(resolveDefaultStoragePath());
+  expect(spawnedEnv.PSTDIO_DB_PATH).toBe(resolveDefaultDbPath());
+  expect(spawnedEnv.PSTDIO_STORAGE_PATH).toBe(resolveDefaultStoragePath());
 });
 
-test("runApi sets default SCHUB_DB_PATH and SCHUB_STORAGE_PATH for workspace mode", () => {
-  const base = mkdtempSync(join(tmpdir(), "schub-api-workspace-env-"));
+test("runApi sets default PSTDIO_DB_PATH and PSTDIO_STORAGE_PATH for workspace mode", () => {
+  const base = mkdtempSync(join(tmpdir(), "pstdio-api-workspace-env-"));
   const apiRoot = writeApiPackage(base);
-  const startDir = join(base, "packages", "schub", "src");
+  const startDir = join(base, "packages", "pstdio", "src");
   mkdirSync(startDir, { recursive: true });
 
   const { calls, spawner } = createSpawnRecorder();
-  const env = { SCHUB_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
+  const env = { PSTDIO_DISABLE_API_AUTO_START: "0" } as NodeJS.ProcessEnv;
 
   runApi(startDir, { spawner, env });
 
   const spawnedEnv = calls[0]?.options.env as Record<string, string>;
   expect(calls[0]?.options.cwd).toBe(apiRoot);
-  expect(spawnedEnv.SCHUB_DB_PATH).toBe(resolveDefaultDbPath());
-  expect(spawnedEnv.SCHUB_STORAGE_PATH).toBe(resolveDefaultStoragePath());
+  expect(spawnedEnv.PSTDIO_DB_PATH).toBe(resolveDefaultDbPath());
+  expect(spawnedEnv.PSTDIO_STORAGE_PATH).toBe(resolveDefaultStoragePath());
 });

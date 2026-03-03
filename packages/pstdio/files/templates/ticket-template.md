@@ -65,6 +65,6 @@ blocked_reason: ""
 
 ## Evidence
 
-[Point to artifacts under `.schub/tickets/<ticket-id>_<slug>/artifacts/`. The artifacts must include a way to recreate the outputs (e.g. commands used).]
+[Point to artifacts under `.pstdio/tickets/<ticket-id>_<slug>/artifacts/`. The artifacts must include a way to recreate the outputs (e.g. commands used).]
 
 - [build outputs, test outputs, screenshots, traces, curl responses]

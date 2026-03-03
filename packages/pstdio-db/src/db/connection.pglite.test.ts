@@ -5,15 +5,15 @@ import path from "node:path";
 
 import { createDb } from "./connection.pglite";
 
-const originalDbPath = process.env.DB_PATH;
+const originalDbPath = process.env.PSTDIO_DB_PATH;
 
 afterEach(() => {
   if (typeof originalDbPath === "undefined") {
-    delete process.env.DB_PATH;
+    delete process.env.PSTDIO_DB_PATH;
     return;
   }
 
-  process.env.DB_PATH = originalDbPath;
+  process.env.PSTDIO_DB_PATH = originalDbPath;
 });
 
 describe("createDb", () => {
@@ -25,11 +25,11 @@ describe("createDb", () => {
     await client.close();
   });
 
-  it("uses DB_PATH for the default database location", async () => {
+  it("uses PSTDIO_DB_PATH for the default database location", async () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pstdio-db-"));
     const dbPath = path.join(tempRoot, ".pstdio");
 
-    process.env.DB_PATH = dbPath;
+    process.env.PSTDIO_DB_PATH = dbPath;
 
     const client = await createDb();
 

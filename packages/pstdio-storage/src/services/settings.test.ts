@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSettingsService } from "./settings";
 
-const tempRoot = mkdtempSync(join(tmpdir(), "schub-settings-"));
+const tempRoot = mkdtempSync(join(tmpdir(), "pstdio-settings-"));
 
 afterAll(() => {
   rmSync(tempRoot, { recursive: true, force: true });
@@ -16,6 +16,38 @@ test("get returns empty defaults when file does not exist", async () => {
   const result = await settings.get();
 
   expect(result).toEqual({});
+});
+
+test("createSettingsService defaults to ~/.pstdio/settings.json", async () => {
+  const customHome = join(tempRoot, "custom-home");
+  mkdirSync(customHome, { recursive: true });
+
+  const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
+
+  process.env.HOME = customHome;
+  process.env.USERPROFILE = customHome;
+
+  try {
+    const settings = createSettingsService();
+    await settings.update({ default_agent: "opencode" });
+
+    const settingsPath = join(customHome, ".pstdio", "settings.json");
+    const persisted = JSON.parse(readFileSync(settingsPath, "utf8"));
+    expect(persisted.default_agent).toBe("opencode");
+  } finally {
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+
+    if (originalUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = originalUserProfile;
+    }
+  }
 });
 
 test("get reads existing settings file", async () => {

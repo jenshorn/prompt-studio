@@ -10,7 +10,7 @@ import {
   TableCellNode,
 } from "@lexical/table";
 import { $getSelection, $isRangeSelection } from "lexical";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type TableCellActionMenuProps = Readonly<{
@@ -46,37 +46,31 @@ function TableActionMenu({ tableCellNode: _tableCellNode }: TableCellActionMenuP
     });
   }, [editor, tableCellNode]);
 
-  const insertTableRowAtSelection = useCallback(
-    (shouldInsertAfter: boolean) => {
-      editor.update(() => {
-        $insertTableRowAtSelection(shouldInsertAfter);
-      });
-    },
-    [editor],
-  );
+  const insertTableRowAtSelection = (shouldInsertAfter: boolean) => {
+    editor.update(() => {
+      $insertTableRowAtSelection(shouldInsertAfter);
+    });
+  };
 
-  const insertTableColumnAtSelection = useCallback(
-    (shouldInsertAfter: boolean) => {
-      editor.update(() => {
-        for (let i = 0; i < selectionCounts.columns; i++) {
-          $insertTableColumnAtSelection(shouldInsertAfter);
-        }
-      });
-    },
-    [editor],
-  );
+  const insertTableColumnAtSelection = (shouldInsertAfter: boolean) => {
+    editor.update(() => {
+      for (let i = 0; i < selectionCounts.columns; i++) {
+        $insertTableColumnAtSelection(shouldInsertAfter);
+      }
+    });
+  };
 
-  const deleteTableRowAtSelection = useCallback(() => {
+  const deleteTableRowAtSelection = () => {
     editor.update(() => {
       $deleteTableRowAtSelection();
     });
-  }, [editor]);
+  };
 
-  const deleteTableColumnAtSelection = useCallback(() => {
+  const deleteTableColumnAtSelection = () => {
     editor.update(() => {
       $deleteTableColumnAtSelection();
     });
-  }, [editor]);
+  };
 
   return createPortal(
     <Menu.Content>
@@ -120,7 +114,7 @@ function TableCellActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement 
 
   const [tableCellNode, setTableMenuCellNode] = useState<TableCellNode | null>(null);
 
-  const moveMenu = useCallback(() => {
+  const moveMenu = () => {
     const menu = menuButtonRef.current;
     const selection = $getSelection();
     const nativeSelection = window.getSelection();
@@ -157,7 +151,7 @@ function TableCellActionMenuContainer({ anchorElem }: { anchorElem: HTMLElement 
     } else if (!activeElement) {
       setTableMenuCellNode(null);
     }
-  }, [editor]);
+  };
 
   useEffect(() => {
     return editor.registerUpdateListener(() => {

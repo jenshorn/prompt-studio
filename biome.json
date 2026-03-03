@@ -13,6 +13,7 @@
       "!!**/coverage",
       "!!**/dist",
       "!!**/.nx",
+      "!!packages/pstdio-dashboard/chakra-config.json",
       "!!packages/e2e/playwright-report",
       "!!packages/e2e/test-results"
     ]

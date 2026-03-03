@@ -12,7 +12,8 @@ import {
   Info,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { DataTable, type DataTableProps, type RowData } from "./data-table";
+
+import { DataTable, type DataTableProps, type RowData } from ".";
 
 type StoryFn = () => ReactNode;
 

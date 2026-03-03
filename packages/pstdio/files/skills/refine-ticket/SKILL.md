@@ -13,7 +13,7 @@ $ARGUMENTS
 
 1. Identify the target ticket shorthand from the user request (`TK####`).
    - If the request includes a template name (e.g. `refine ticket: TK0001 with template proposal-template`), extract the template slug.
-2. Run `npx schub tickets apply-template --id "<ticket-shorthand>"` (or `npx schub tickets apply-template --id "<ticket-shorthand>" --template "<slug>"` when a template is specified).
+2. Run `npx pstdio tickets apply-template --id "<ticket-shorthand>"` (or `npx pstdio tickets apply-template --id "<ticket-shorthand>" --template "<slug>"` when a template is specified).
    - This command pulls the ticket from DB if it is not local.
    - It creates `ticket.original.md` in the ticket folder as a backup.
    - It prepends the ticket template into `ticket.md`.
@@ -29,10 +29,10 @@ $ARGUMENTS
    - Acceptance criteria with explicit pass/fail conditions
    - Evidence expectations and exact validation commands
 5. Remove `<MOVE_TO_TEMPLATE>...</MOVE_TO_TEMPLATE>` once the template is fully populated.
-6. Save to DB with `npx schub tickets save --id "<ticket-shorthand>"`.
+6. Save to DB with `npx pstdio tickets save --id "<ticket-shorthand>"`.
 7. Stop after refinement and save. Do not implement code changes unless explicitly asked.
 
 ## Output Locations
 
-- Ticket: `.schub/tickets/<ticket-id>_<slug>/ticket.md`
-- Original backup: `.schub/tickets/<ticket-id>_<slug>/ticket.original.md`
+- Ticket: `.pstdio/tickets/<ticket-id>_<slug>/ticket.md`
+- Original backup: `.pstdio/tickets/<ticket-id>_<slug>/ticket.original.md`

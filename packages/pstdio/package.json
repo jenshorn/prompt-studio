@@ -1,16 +1,17 @@
 {
-  "name": "cli",
+  "name": "pstdio",
   "version": "0.0.1",
   "type": "module",
   "bin": {
-    "mono": "./dist/index.js"
+    "pstdio": "./dist/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "mono": "bun ./src/index.ts",
+    "pstdio": "bun ./src/index.ts",
     "build": "bun build ./src/index.ts --outfile dist/index.js --target node --banner \"#!/usr/bin/env node\" --external ink --external react --external ink-text-input",
+    "build:bundle": "bun run build && mkdir -p dist/api && cp -r ../pstdio-dashboard/dist ./dist/dashboard && cp ../pstdio-api/dist/index.js ./dist/api/server.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build",
     "lint": "bun run typecheck && bunx @biomejs/biome lint .",

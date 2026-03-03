@@ -26,7 +26,7 @@ const MIME_TYPES: Record<string, string> = {
 export const resolveMimeType = (ext: string) => MIME_TYPES[ext] ?? "application/octet-stream";
 
 export const injectConfig = (html: string, config: DashboardConfig) => {
-  const script = `<script>window.__SCHUB_CONFIG__=${JSON.stringify(config)}</script>`;
+  const script = `<script>window.__PSTDIO_CONFIG__=${JSON.stringify(config)}</script>`;
   const headClose = "</head>";
 
   if (!html.includes(headClose)) {

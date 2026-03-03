@@ -22,31 +22,31 @@ export type AgentSettingsMap = {
   opencode?: OpencodeSettings;
 };
 
-export type SchubSettings = {
+export type PstdioSettings = {
   default_agent?: string;
   agents?: Record<string, Record<string, unknown>>;
 };
 
 const resolveHome = () => process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 
-const defaultSettingsPath = () => join(resolveHome(), ".schub", "settings.json");
+const defaultSettingsPath = () => join(resolveHome(), ".pstdio", "settings.json");
 
-const persist = async (path: string, data: SchubSettings) => {
+const persist = async (path: string, data: PstdioSettings) => {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(data, null, 2), "utf8");
 };
 
 export const createSettingsService = (path = defaultSettingsPath()) => {
-  const get = async (): Promise<SchubSettings> => {
+  const get = async (): Promise<PstdioSettings> => {
     try {
       const raw = await readFile(path, "utf8");
-      return JSON.parse(raw) as SchubSettings;
+      return JSON.parse(raw) as PstdioSettings;
     } catch {
       return {};
     }
   };
 
-  const update = async (partial: Partial<SchubSettings>) => {
+  const update = async (partial: Partial<PstdioSettings>) => {
     const current = await get();
     const merged = { ...current, ...partial };
 
@@ -70,7 +70,7 @@ export const createSettingsService = (path = defaultSettingsPath()) => {
     const currentAgent = current.agents?.[agentId] ?? {};
     const mergedAgent = { ...currentAgent, ...partial };
 
-    const merged: SchubSettings = {
+    const merged: PstdioSettings = {
       ...current,
       agents: { ...current.agents, [agentId]: mergedAgent },
     };

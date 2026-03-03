@@ -16,11 +16,11 @@ type ApiRequestOptions = Omit<RequestInit, "body"> & {
   allowNotFound?: boolean;
 };
 
-type SchubConfig = { apiBaseUrl?: string };
+type PstdioConfig = { apiBaseUrl?: string };
 
-const readRuntimeConfig = (): SchubConfig | null => {
-  const w = globalThis as unknown as { __SCHUB_CONFIG__?: SchubConfig };
-  return w.__SCHUB_CONFIG__ ?? null;
+const readRuntimeConfig = (): PstdioConfig | null => {
+  const w = globalThis as unknown as { __PSTDIO_CONFIG__?: PstdioConfig };
+  return w.__PSTDIO_CONFIG__ ?? null;
 };
 
 const resolveApiBaseUrl = () => {
