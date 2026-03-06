@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bunx playwright test"
+    "test": "bun run test:cli && bun run test:ui",
+    "test:cli": "bun test src/cli",
+    "test:ui": "bunx playwright test",
+    "report": "bunx playwright show-report"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",

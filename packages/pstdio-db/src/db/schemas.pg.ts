@@ -1,4 +1,4 @@
-import { boolean, customType, integer, jsonb, pgTable, primaryKey, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, customType, integer, pgTable, primaryKey, text, uniqueIndex } from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType() {
@@ -9,8 +9,11 @@ const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
 export const projects = pgTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  shorthand: text("shorthand").notNull(),
+  startup_script: text("startup_script"),
   created_at: text("created_at").notNull(),
   updated_at: text("updated_at").notNull(),
+  deleted_at: text("deleted_at"),
 });
 
 export const repos = pgTable("repos", {
@@ -33,6 +36,19 @@ export const project_repos = pgTable("project_repos", {
   created_at: text("created_at").notNull(),
 });
 
+export const agent_configs = pgTable(
+  "agent_configs",
+  {
+    id: text("id").primaryKey(),
+    agent_id: text("agent_id").notNull(),
+    is_default: boolean("is_default").notNull().default(false),
+    config: text("config").notNull().default("{}"),
+    created_at: text("created_at").notNull(),
+    updated_at: text("updated_at").notNull(),
+  },
+  (table) => [uniqueIndex("agent_configs_agent_id_idx").on(table.agent_id)],
+);
+
 export const ticket_statuses = pgTable("ticket_statuses", {
   id: text("id").primaryKey(),
   project_id: text("project_id")
@@ -50,6 +66,7 @@ export const ticket_statuses = pgTable("ticket_statuses", {
   column_actions: text("column_actions").notNull().default("[]"),
   created_at: text("created_at").notNull(),
   updated_at: text("updated_at").notNull(),
+  deleted_at: text("deleted_at"),
 });
 
 export const tickets = pgTable(
@@ -72,7 +89,7 @@ export const tickets = pgTable(
     blocked_reason: text("blocked_reason"),
     depends_on: text("depends_on"),
     archived: boolean("archived").notNull().default(false),
-    staged: boolean("staged").notNull().default(false),
+    draft: boolean("draft").notNull().default(false),
     deleted_at: text("deleted_at"),
     created_at: text("created_at").notNull(),
     updated_at: text("updated_at").notNull(),
@@ -91,6 +108,7 @@ export const ticket_tags = pgTable(
     color: text("color").notNull(),
     created_at: text("created_at").notNull(),
     updated_at: text("updated_at").notNull(),
+    deleted_at: text("deleted_at"),
   },
   (table) => [uniqueIndex("ticket_tags_project_name_idx").on(table.project_id, table.name)],
 );
@@ -113,16 +131,17 @@ export const ticket_tag_assignments = pgTable(
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
-  status: text("status", { enum: ["in_progress", "completed", "failed"] })
+  status: text("status", { enum: ["in_progress", "awaiting_input", "completed", "failed", "cancelled"] })
     .notNull()
     .default("in_progress"),
+  project_id: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
   archived: boolean("archived").notNull().default(false),
   created: text("created"),
   last_request_started: text("last_request_started"),
   last_request_ended: text("last_request_ended"),
   agent: text("agent"),
   agent_session_id: text("agent_session_id"),
-  content: jsonb("content").$type<unknown>(),
+  session_file_id: text("session_file_id").references(() => files.id),
   created_at: text("created_at").notNull(),
   updated_at: text("updated_at").notNull(),
 });
@@ -137,13 +156,13 @@ export const workspaces = pgTable(
     name: text("name").notNull(),
     session_id: text("session_id").references(() => sessions.id, { onDelete: "set null" }),
     branch: text("branch"),
-    repo_id: text("repo_id"),
     worktree_path: text("worktree_path"),
     status: text("status", { enum: ["active", "merged", "rejected"] })
       .notNull()
       .default("active"),
     archived: boolean("archived").notNull().default(false),
-    workspace_shorthand: text("workspace_shorthand"),
+    workspace_shorthand: text("workspace_shorthand").notNull(),
+    startup_log_file_id: text("startup_log_file_id").references(() => files.id, { onDelete: "set null" }),
     created_at: text("created_at").notNull(),
     updated_at: text("updated_at").notNull(),
     deleted_at: text("deleted_at"),
@@ -186,35 +205,6 @@ export const files = pgTable("files", {
   updated_at: text("updated_at").notNull(),
 });
 
-export const project_docs = pgTable(
-  "project_docs",
-  {
-    id: text("id").primaryKey(),
-    project_id: text("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
-    last_synced_at: text("last_synced_at"),
-    created_at: text("created_at").notNull(),
-    updated_at: text("updated_at").notNull(),
-  },
-  (table) => [uniqueIndex("project_docs_project_id_idx").on(table.project_id)],
-);
-
-export const project_doc_files = pgTable(
-  "project_doc_files",
-  {
-    id: text("id").primaryKey(),
-    project_doc_id: text("project_doc_id")
-      .notNull()
-      .references(() => project_docs.id, { onDelete: "cascade" }),
-    file_id: text("file_id")
-      .notNull()
-      .references(() => files.id, { onDelete: "cascade" }),
-    created_at: text("created_at").notNull(),
-  },
-  (table) => [uniqueIndex("project_doc_files_project_doc_file_idx").on(table.project_doc_id, table.file_id)],
-);
-
 export const ticket_files = pgTable("ticket_files", {
   id: text("id").primaryKey(),
   ticket_id: text("ticket_id")
@@ -255,6 +245,7 @@ export const templates = pgTable("templates", {
   is_default: boolean("is_default").notNull().default(false),
   created_at: text("created_at").notNull(),
   updated_at: text("updated_at").notNull(),
+  deleted_at: text("deleted_at"),
 });
 
 export const ydocUpdates = pgTable("ydoc_updates", {

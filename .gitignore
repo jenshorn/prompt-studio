@@ -161,6 +161,8 @@ packages/api/.data/
 *.db
 .data
 
+packages/pstdio/bin
+
 # e2e
 packages/e2e/playwright-report
 packages/e2e/test-results
@@ -174,3 +176,4 @@ packages/e2e/screenshots
 webapps/documentation/build
 
 .pstdio/tickets
+.pstdio/config.json

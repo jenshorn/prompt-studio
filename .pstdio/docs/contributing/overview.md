@@ -2,7 +2,7 @@ This Project is a Bun + TypeScript monorepo using workspaces (Lerna + Nx cache),
 
 ## Prerequisites
 
-- Bun `>=1.3.3`
+- Bun `>=1.3.10`
 - Docker (for remote/sync setup)
 
 ## Install
@@ -13,7 +13,7 @@ bun install
 
 ## Run Locally
 
-By default everything runs against a local SQLite database at `.db/todos.db`.
+By default everything runs against a local PGlite database.
 
 ```bash
 bun run dev:dashboard
@@ -32,7 +32,7 @@ bun run dev:desktop
 
 Inspect and edit data visually with Drizzle Studio.
 
-**Local SQLite database:**
+**Local PGlite database:**
 
 ```bash
 bun run --cwd packages/db studio
@@ -88,26 +88,6 @@ bun run --cwd packages/cli mono todos rm <id>
 ```
 
 `<id>` is a prefix of the todo's UUID (the first 8 characters shown by `list`).
-
-### Interactive TUI
-
-Launch a full interactive terminal UI (Ink.js) with vim-style keybindings:
-
-```bash
-bun run --cwd packages/cli mono tui
-```
-
-| Key       | Action                        |
-| --------- | ----------------------------- |
-| `j` / `k` | Navigate up / down            |
-| `space`   | Toggle completed              |
-| `enter`   | Expand / collapse children    |
-| `a`       | Add todo                      |
-| `A`       | Add sub-todo                  |
-| `e`       | Edit title                    |
-| `d`       | Delete (cascades to children) |
-| `/`       | Search / filter               |
-| `q`       | Quit                          |
 
 ## Storybook
 

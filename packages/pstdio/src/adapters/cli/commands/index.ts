@@ -1,5 +1,25 @@
-import * as docsCommand from "./docs";
+import * as agentsCommand from "./agents";
+import * as closeCommand from "./close";
 import * as projectsCommand from "./projects";
+import * as serveCommand from "./serve";
+import * as sessionsCommand from "./sessions";
+import * as statusesCommand from "./statuses";
+import * as tagsCommand from "./tags";
+import * as templatesCommand from "./templates";
+import * as ticketsCommand from "./tickets";
 import * as tuiCommand from "./tui";
+import * as workspaceCommand from "./workspace";
 
-export const topLevelCommandModules = [projectsCommand, docsCommand, tuiCommand];
+export const topLevelCommandModules = [
+  agentsCommand,
+  closeCommand,
+  projectsCommand,
+  serveCommand,
+  sessionsCommand,
+  statusesCommand,
+  tagsCommand,
+  templatesCommand,
+  ticketsCommand,
+  tuiCommand,
+  workspaceCommand,
+];

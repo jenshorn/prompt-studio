@@ -152,12 +152,12 @@ Split content that will grow in separate files, e.g. Instead of placing all endp
 
 ### Testing Rules
 
+- When adding new features, an E2E test must be added as well covering all new flows. Update existing flows that are affected by the change.
 - Tests must be **located next to the file they test**
-- No real network calls
+- Avoid mocks, test the real thing when possible
 - Control time where needed
 - Bug fixes must add a regression test first
-- Visual-only UI/component changes must use Storybook stories instead of adding test files
-- Add automated tests only when UI changes include non-visual behavior or logic changes
+- Visual-only UI/component changes must use Storybook stories instead of adding test files, add automated tests only when UI changes include non-visual behavior or logic changes
 
 ### API Changes
 

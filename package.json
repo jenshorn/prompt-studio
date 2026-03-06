@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "bunx cross-env NODE_OPTIONS=\"--max-old-space-size=8192\" lerna run build",
-    "test": "bunx lerna run test --stream --no-prefix --ignore e2e -- --reporter dot --silent && bun run test:e2e",
+    "analyze-bundle": "bunx lerna run analyze-bundle --stream",
+    "test": "bunx lerna run test --stream --no-prefix --ignore e2e -- --reporter dot --silent; lerna_exit=$?; bun run test:e2e; exit $((lerna_exit + $?))",
     "test:e2e": "bun run --cwd packages/e2e test",
     "lint": "bunx lerna run lint",
     "format": "bunx biome check --write .",
@@ -23,10 +24,13 @@
     "dev:landing-page": "bun run --cwd clients/landing-page develop",
     "storybook:ui": "bun run --cwd packages/ui storybook",
     "studio:db": "bun run --cwd packages/db studio",
-    "dev:desktop": "bun run --cwd clients/desktop dev"
+    "dev:desktop": "bun run --cwd clients/desktop dev",
+    "report:e2e": "bun run --cwd packages/e2e report",
+    "storybook:dashboard": "bun run --cwd packages/pstdio-dashboard storybook",
+    "build-storybook:dashboard": "bun run --cwd packages/pstdio-dashboard build-storybook"
   },
   "engines": {
-    "bun": ">=1.1.0"
+    "bun": ">=1.3.10"
   },
   "workspaces": [
     "clients/*",
@@ -40,5 +44,5 @@
     "knip": "^5.66.1",
     "lerna": "^9.0.1"
   },
-  "packageManager": "bun@1.3.3"
+  "packageManager": "bun@1.3.10"
 }

@@ -1,24 +1,17 @@
 import type { Server } from "node:http";
 import type { Argv } from "yargs";
-import { runApi as defaultRunApi } from "../../dashboard/api";
-import { isHealthy as defaultIsHealthy, waitForHealthy as defaultWaitForHealthy } from "../../dashboard/health-check";
 import { openBrowser as defaultOpenBrowser } from "../../dashboard/open-browser";
 import { resolveDashboardRoot as defaultResolveDashboardRoot } from "../../dashboard/resolve-dashboard-root";
 import { serveDashboard as defaultServeDashboard } from "../../dashboard/serve-dashboard";
+import { isCompiledBinary } from "../serve/embedded-assets";
 
 type LaunchDeps = {
-  isHealthy: typeof defaultIsHealthy;
-  waitForHealthy: typeof defaultWaitForHealthy;
-  runApi: typeof defaultRunApi;
   serveDashboard: typeof defaultServeDashboard;
   resolveDashboardRoot: typeof defaultResolveDashboardRoot;
   openBrowser: (url: string) => void;
 };
 
 const defaultDeps: LaunchDeps = {
-  isHealthy: defaultIsHealthy,
-  waitForHealthy: defaultWaitForHealthy,
-  runApi: defaultRunApi,
   serveDashboard: defaultServeDashboard,
   resolveDashboardRoot: defaultResolveDashboardRoot,
   openBrowser: defaultOpenBrowser,
@@ -27,41 +20,53 @@ const defaultDeps: LaunchDeps = {
 type LaunchOptions = {
   apiPort: number;
   dashboardPort: number;
+  openBrowser: boolean;
+};
+
+const launchCompiled = (options: LaunchOptions, deps: Pick<LaunchDeps, "openBrowser">) => {
+  // In compiled mode, `ensureApi` already spawned `pstdio serve` on apiPort.
+  // That process serves both API and dashboard. Just open the browser.
+  const url = `http://localhost:${options.apiPort}`;
+
+  if (options.openBrowser) {
+    deps.openBrowser(url);
+  }
+
+  process.stdout.write(`Dashboard: ${url}\n`);
+  process.stdout.write(`API:       ${url}/v1\n`);
+
+  const shutdown = () => process.exit(0);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 };
 
 export const launch = async (options: LaunchOptions, deps: LaunchDeps = defaultDeps) => {
-  const { apiPort, dashboardPort } = options;
+  if (isCompiledBinary()) {
+    launchCompiled(options, deps);
+    return;
+  }
+
+  const { apiPort, dashboardPort, openBrowser } = options;
   const apiUrl = `http://localhost:${apiPort}`;
   const dashboardUrl = `http://localhost:${dashboardPort}`;
-
-  const apiAlreadyRunning = await deps.isHealthy(`${apiUrl}/healthz`);
-
-  let apiChild: ReturnType<typeof deps.runApi> = null;
-  if (!apiAlreadyRunning) {
-    apiChild = deps.runApi(process.cwd(), {
-      stdio: "inherit",
-      detached: false,
-      env: { ...process.env, PSTDIO_API_PORT: String(apiPort) },
-    });
-  }
+  const appVersion = process.env.PSTDIO_VERSION ?? "dev";
 
   const dashboardRoot = deps.resolveDashboardRoot(process.cwd());
   const server = deps.serveDashboard({
     root: dashboardRoot,
     port: dashboardPort,
-    config: { apiBaseUrl: apiUrl },
+    config: { apiBaseUrl: apiUrl, version: appVersion },
   });
 
-  await deps.waitForHealthy({ url: `${apiUrl}/healthz` });
-
-  deps.openBrowser(dashboardUrl);
+  if (openBrowser) {
+    deps.openBrowser(dashboardUrl);
+  }
 
   process.stdout.write(`Dashboard: ${dashboardUrl}\n`);
   process.stdout.write(`API:       ${apiUrl}\n`);
 
   const shutdown = () => {
     (server as Server).close();
-    apiChild?.child?.kill?.();
     process.exit(0);
   };
 
@@ -75,8 +80,9 @@ export const describe = "Start API and dashboard, then open in browser";
 export const builder = (yargs: Argv) =>
   yargs
     .option("api-port", { type: "number", default: 3000, describe: "API server port" })
-    .option("dashboard-port", { type: "number", default: 5555, describe: "Dashboard server port" });
+    .option("dashboard-port", { type: "number", default: 5555, describe: "Dashboard server port" })
+    .option("open-browser", { type: "boolean", default: true, describe: "Open dashboard in browser" });
 
-export const handler = async (args: { apiPort: number; dashboardPort: number }) => {
+export const handler = async (args: { apiPort: number; dashboardPort: number; openBrowser: boolean }) => {
   await launch(args);
 };

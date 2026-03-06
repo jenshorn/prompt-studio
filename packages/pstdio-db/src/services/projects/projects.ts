@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { DbClient } from "../../db/connection.pglite";
 import { projects, ticket_statuses, ticket_tags } from "../../db/schemas.pg";
+import { deriveShorthand } from "./derive-shorthand";
 
 type ProjectRecord = typeof projects.$inferSelect;
 
@@ -18,7 +19,7 @@ const DEFAULT_TICKET_STATUSES = [
   },
   {
     name: "ready",
-    color: "blue",
+    color: "teal",
     is_default: false,
     is_open: true,
     can_drag_out: true,
@@ -29,7 +30,7 @@ const DEFAULT_TICKET_STATUSES = [
   },
   {
     name: "wip",
-    color: "orange",
+    color: "blue",
     is_default: false,
     is_open: true,
     can_drag_out: false,
@@ -50,8 +51,8 @@ const DEFAULT_TICKET_STATUSES = [
     column_actions: [],
   },
   {
-    name: "in_review",
-    color: "purple",
+    name: "review",
+    color: "amber",
     is_default: false,
     is_open: true,
     can_drag_out: true,
@@ -71,33 +72,24 @@ const DEFAULT_TICKET_STATUSES = [
     can_attempt_on_drop: false,
     column_actions: ["archive_all"],
   },
-  {
-    name: "archived",
-    color: "gray",
-    is_default: false,
-    is_open: false,
-    can_drag_out: false,
-    can_drag_in: false,
-    can_create: false,
-    can_attempt_on_drop: false,
-    column_actions: [],
-  },
 ] as const;
 
 const DEFAULT_TICKET_TAGS = [
   { name: "bug", color: "red" },
   { name: "feature", color: "blue" },
-  { name: "chore", color: "gray" },
-  { name: "proposal", color: "purple" },
+  { name: "documentation", color: "purple" },
 ] as const;
 
 const nowTimestamp = () => new Date().toISOString();
 
 export const createProjectsService = (db: DbClient) => {
-  const list = async () => db.select().from(projects).orderBy(projects.created_at);
+  const list = async () => db.select().from(projects).where(isNull(projects.deleted_at)).orderBy(projects.created_at);
 
   const get = async (id: string) => {
-    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, id), isNull(projects.deleted_at)));
     return project ?? null;
   };
 
@@ -106,8 +98,11 @@ export const createProjectsService = (db: DbClient) => {
     const project: ProjectRecord = {
       id: crypto.randomUUID(),
       name: input.name,
+      shorthand: deriveShorthand(input.name),
+      startup_script: null,
       created_at: timestamp,
       updated_at: timestamp,
+      deleted_at: null,
     };
 
     await db.insert(projects).values(project);
@@ -166,10 +161,34 @@ export const createProjectsService = (db: DbClient) => {
 
     if (!existing) return false;
 
-    await db.delete(projects).where(eq(projects.id, id));
+    await db.update(projects).set({ deleted_at: nowTimestamp() }).where(eq(projects.id, id));
 
     return true;
   };
 
-  return { list, get, create, update, remove };
+  const getStartupScript = async (id: string) => {
+    const project = await get(id);
+    if (!project) return null;
+    return project.startup_script;
+  };
+
+  const setStartupScript = async (id: string, script: string) => {
+    const existing = await get(id);
+    if (!existing) return null;
+
+    await db.update(projects).set({ startup_script: script, updated_at: nowTimestamp() }).where(eq(projects.id, id));
+
+    return true;
+  };
+
+  const clearStartupScript = async (id: string) => {
+    const existing = await get(id);
+    if (!existing) return null;
+
+    await db.update(projects).set({ startup_script: null, updated_at: nowTimestamp() }).where(eq(projects.id, id));
+
+    return true;
+  };
+
+  return { list, get, create, update, remove, getStartupScript, setStartupScript, clearStartupScript };
 };

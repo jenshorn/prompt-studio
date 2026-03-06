@@ -1,9 +1,15 @@
 {
   "name": "pstdio-api",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts"
+  },
   "scripts": {
+    "start": "bun run src/index.ts",
     "dev": "bun run --hot src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "analyze-bundle": "bun build ./src/index.ts --outdir ./dist --target bun --metafile=./dist/bundle-meta.json --metafile-md=./dist/bundle-meta.md",
     "typecheck": "tsc --noEmit",
     "lint": "bun run typecheck && bunx biome check .",
     "format": "bunx biome check --write .",
@@ -13,6 +19,8 @@
     "@hono/swagger-ui": "^0.5.2",
     "@hono/zod-openapi": "^1.1.5",
     "hono": "^4.10.7",
+    "drizzle-orm": "^0.45.1",
+    "pstdio-agents": "workspace:*",
     "pstdio-db": "workspace:*",
     "pstdio-storage": "workspace:*"
   },
