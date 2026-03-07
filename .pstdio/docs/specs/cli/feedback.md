@@ -1,4 +1,4 @@
-# CLI Spec: Feedback and Help
+# Feedback and Help
 
 ## Purpose
 
@@ -16,7 +16,7 @@ User invokes a command group without a subcommand.
 
 - Show group help text instead of throwing an error.
 - Applies to command groups such as `agents` and `projects`.
-- Does not apply to leaf commands that have no subcommands (for example, `close` and `tui`).
+- Does not apply to leaf commands that have no subcommands (for example, `close`).
 
 ### Example
 

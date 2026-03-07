@@ -1,21 +1,29 @@
 import { Box, Icon as ChakraIcon, Flex, IconButton, Menu, Stack } from "@chakra-ui/react";
 import { MenuItem, Tooltip } from "@pstdio/ui";
-import { Link, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
+import { Link, useParams, useRouterState } from "@tanstack/react-router";
 import {
   ArrowUpRight,
   BookOpen,
-  BookOpenText,
   CircleHelp,
   KanbanSquare,
+  ListTreeIcon,
   MessageCircle,
+  Newspaper,
   SettingsIcon,
 } from "lucide-react";
 import { ProjectMenu } from "./project-menu";
 
 const projectSections = [
+  { id: "docs", label: "Documentation", icon: ListTreeIcon, path: "docs" },
   { id: "tickets", label: "Tickets", icon: KanbanSquare, path: "tickets" },
-  { id: "docs", label: "Documentation", icon: BookOpenText, path: "docs" },
 ] as const;
+
+const projectChangelogSection = {
+  id: "changelog",
+  label: "Changelog",
+  icon: Newspaper,
+  path: "changelog",
+} as const;
 
 const projectSettingsSection = {
   id: "settings",
@@ -24,12 +32,17 @@ const projectSettingsSection = {
   path: "settings",
 } as const;
 
-const documentationPath = "/docs";
+const documentationUrl = "https://prompt.studio/docs";
+const discordUrl = "https://discord.gg/qH5dAqbNad";
+
+const openExternalLink = (url: string) => {
+  window.open(url, "_blank", "noopener,noreferrer");
+};
 
 export const ProjectSidebar = () => {
   const { location } = useRouterState();
   const { projectId } = useParams({ strict: false });
-  const navigate = useNavigate();
+
   const projectNavItems = projectId
     ? projectSections.map((item) => ({
         id: item.id,
@@ -38,6 +51,16 @@ export const ProjectSidebar = () => {
         to: `/projects/${projectId}/${item.path}`,
       }))
     : [];
+
+  const projectChangelogItem = projectId
+    ? {
+        id: projectChangelogSection.id,
+        label: projectChangelogSection.label,
+        icon: projectChangelogSection.icon,
+        to: `/projects/${projectId}/${projectChangelogSection.path}`,
+      }
+    : null;
+
   const projectSettingsItem = projectId
     ? {
         id: projectSettingsSection.id,
@@ -52,15 +75,15 @@ export const ProjectSidebar = () => {
   };
 
   const handleOpenDocumentation = () => {
-    navigate({ to: documentationPath });
+    openExternalLink(documentationUrl);
   };
 
   const handleOpenDiscord = () => {
-    navigate({ to: documentationPath });
+    openExternalLink(discordUrl);
   };
 
   return (
-    <Flex as="nav" borderRightWidth="1px" borderColor="border.subtle" hideBelow="md" direction="column">
+    <Flex as="nav" borderRightWidth="1px" hideBelow="md" direction="column">
       <Stack justify="space-between" flex="1" gap="lg" p="xs" align="center">
         <Stack gap="lg" align="center">
           <ProjectMenu />
@@ -78,7 +101,7 @@ export const ProjectSidebar = () => {
                         aria-label={item.label}
                         aria-current={isActive ? "page" : undefined}
                         variant="ghost"
-                        bg={isActive ? "background.secondary" : undefined}
+                        bg={isActive ? "bg.muted" : undefined}
                         size="sm"
                       >
                         <ChakraIcon as={Icon} boxSize="18px" />
@@ -92,6 +115,24 @@ export const ProjectSidebar = () => {
         </Stack>
 
         <Stack gap="xs" align="center">
+          {projectChangelogItem ? (
+            <Tooltip positioning={{ placement: "right" }} content={projectChangelogItem.label}>
+              <Flex as="li">
+                <Link to={projectChangelogItem.to} preload="intent" style={{ textDecoration: "none" }}>
+                  <IconButton
+                    aria-label={projectChangelogItem.label}
+                    aria-current={isPathActive(projectChangelogItem.to) ? "page" : undefined}
+                    variant="ghost"
+                    bg={isPathActive(projectChangelogItem.to) ? "bg.muted" : undefined}
+                    size="sm"
+                  >
+                    <ChakraIcon as={projectChangelogItem.icon} boxSize="18px" />
+                  </IconButton>
+                </Link>
+              </Flex>
+            </Tooltip>
+          ) : null}
+
           <Menu.Root>
             <Menu.Trigger asChild>
               <Box>
@@ -103,7 +144,7 @@ export const ProjectSidebar = () => {
               </Box>
             </Menu.Trigger>
             <Menu.Positioner>
-              <Menu.Content minW="220px" bg="background.primary">
+              <Menu.Content minW="220px" bg="bg">
                 <MenuItem
                   onClick={handleOpenDocumentation}
                   primaryLabel="Documentation"
@@ -128,7 +169,7 @@ export const ProjectSidebar = () => {
                     aria-label={projectSettingsItem.label}
                     aria-current={isPathActive(projectSettingsItem.to) ? "page" : undefined}
                     variant="ghost"
-                    bg={isPathActive(projectSettingsItem.to) ? "background.secondary" : undefined}
+                    bg={isPathActive(projectSettingsItem.to) ? "bg.muted" : undefined}
                     size="sm"
                   >
                     <ChakraIcon as={projectSettingsItem.icon} boxSize="18px" />

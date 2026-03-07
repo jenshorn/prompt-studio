@@ -1,21 +1,31 @@
 {
   "name": "@pstdio/ui",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.0.4",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     },
     "./rich-text": {
-      "import": "./src/components/rich-text/index.ts",
-      "types": "./src/components/rich-text/index.ts"
+      "import": "./dist/rich-text.js",
+      "types": "./dist/components/rich-text/index.d.ts"
     },
     "./theme": {
-      "import": "./src/theme/index.ts",
-      "types": "./src/theme/index.ts"
-    }
+      "import": "./dist/theme.js",
+      "types": "./dist/theme/index.d.ts"
+    },
+    "./chat-ui": {
+      "import": "./dist/chat-ui.js",
+      "types": "./dist/components/chat-ui/index.d.ts"
+    },
+    "./style.css": "./dist/style.css"
   },
   "scripts": {
     "build": "vite build",
@@ -23,9 +33,10 @@
     "lint": "bunx biome check .",
     "typegen:tokens": "chakra typegen ./src/theme/theme.ts",
     "test": "echo 'no tests — use storybook for UI'",
-    "test-storybook": "vitest --project=storybook",
+    "test-storybook": "test-storybook",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "prepublishOnly": "bun run build"
   },
   "peerDependencies": {
     "@chakra-ui/react": "^3.0.0",
@@ -68,7 +79,6 @@
   },
   "devDependencies": {
     "@storybook/addon-themes": "^10.1.10",
-    "@storybook/addon-vitest": "^10.2.12",
     "@storybook/react": "^10.1.9",
     "@storybook/react-vite": "^10.1.9",
     "@types/react": "^19.2.0",
@@ -81,9 +91,6 @@
     "vite-plugin-dts": "^4.5.4",
     "vite-plugin-externalize-deps": "^0.8.0",
     "vite-plugin-svgr": "^4.3.0",
-    "vitest": "^4.0.18",
-    "playwright": "^1.58.2",
-    "@vitest/browser-playwright": "^4.0.18",
-    "@vitest/coverage-v8": "^4.0.18"
+    "@storybook/test-runner": "^0.22.0"
   }
 }

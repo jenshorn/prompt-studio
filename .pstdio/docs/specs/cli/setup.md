@@ -1,4 +1,4 @@
-# CLI Spec: Runtime and API Setup
+# Runtime and API Setup
 
 ## Purpose
 
@@ -26,7 +26,6 @@ Commands that auto-start the API:
 
 Commands that do not auto-start:
 
-- `tui`
 - `close`
 
 ---
