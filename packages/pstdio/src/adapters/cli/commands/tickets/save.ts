@@ -3,10 +3,12 @@ import { API_URL } from "@/features/api-url";
 import { resolveProjectId as defaultResolveProjectId } from "@/features/projects/resolve-project-id";
 import { updateTicket as defaultUpdateTicket } from "@/features/tickets/api/update-ticket";
 import { uploadTicketFile as defaultUploadTicketFile } from "@/features/tickets/api/upload-ticket-file";
+import { extractDisplayTitle } from "@/features/tickets/display-title";
 import { listTicketFiles, readTicketAttachment, readTicketFile } from "@/features/tickets/local-ticket";
 import { resolveStatusId as defaultResolveStatusId } from "@/features/tickets/resolve-status-id";
 import { resolveTagIds as defaultResolveTagIds } from "@/features/tickets/resolve-tag-ids";
 import { resolveTicketByShorthand as defaultResolveTicketByShorthand } from "@/features/tickets/resolve-ticket-by-shorthand";
+import { parseFrontmatter, stripFrontmatter } from "@/features/tickets/ticket-frontmatter";
 
 export const command = "save";
 export const describe = "Save local ticket content and files to the database";
@@ -73,14 +75,28 @@ export const createHandler =
     const ticket = await deps.resolveTicketByShorthand(API_URL, projectId, argv.id);
     if (!ticket) throw new Error(`Ticket not found: ${argv.id}`);
 
+    const frontmatter = parseFrontmatter(content);
+
+    const statusName = argv.status ?? frontmatter.status;
     const tagIds = argv.tag?.length ? await deps.resolveTagIds(API_URL, projectId, argv.tag) : undefined;
-    const statusId = argv.status ? await deps.resolveStatusId(API_URL, projectId, argv.status) : undefined;
+    const statusId = statusName ? await deps.resolveStatusId(API_URL, projectId, statusName) : undefined;
+
+    const bodyContent = stripFrontmatter(content).replace(/^\n+/, "");
+    const contentBase64 = Buffer.from(bodyContent).toString("base64");
+    const uploaded = await deps.uploadTicketFile(API_URL, ticket.id, {
+      file_name: "ticket.md",
+      content_base64: contentBase64,
+      mime_type: "text/markdown",
+    });
 
     await deps.updateTicket(API_URL, ticket.id, {
-      input: content,
+      file_id: uploaded.id,
+      display_title: extractDisplayTitle(bodyContent),
       draft: false,
       tag_ids: tagIds,
       status_id: statusId,
+      priority: frontmatter.priority,
+      complexity: frontmatter.complexity,
     });
 
     const uploadedCount = await uploadLocalTicketFiles(deps, root, argv.id, ticket.id);

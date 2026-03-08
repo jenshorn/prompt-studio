@@ -1,23 +1,24 @@
-import { existsSync } from "node:fs";
 import type { Arguments, Argv } from "yargs";
 import { API_URL } from "@/features/api-url";
 import { resolveProjectId as defaultResolveProjectId } from "@/features/projects/resolve-project-id";
 import { getTicket as defaultGetTicket } from "@/features/tickets/api/get-ticket";
 import { getTicketFileContent as defaultGetTicketFileContent } from "@/features/tickets/api/get-ticket-file-content";
 import { listTicketFiles as defaultListTicketFiles } from "@/features/tickets/api/list-ticket-files";
-import { ticketFilePath, writeTicketAttachment, writeTicketFile } from "@/features/tickets/local-ticket";
+import { listTickets as defaultListTickets } from "@/features/tickets/api/list-tickets";
+import { writeTicketAttachment, writeTicketFile } from "@/features/tickets/local-ticket";
 import { resolveTicketByShorthand as defaultResolveTicketByShorthand } from "@/features/tickets/resolve-ticket-by-shorthand";
+import { applyFrontmatter, buildTicketFrontmatter } from "@/features/tickets/ticket-frontmatter";
 
 export const command = "pull";
 export const describe = "Pull ticket content and files from the database";
 
 export const builder = (yargs: Argv) =>
   yargs
-    .option("id", { type: "string", demandOption: true, describe: "Ticket shorthand (e.g. PS-12)" })
+    .option("id", { type: "string", describe: "Ticket shorthand (e.g. PS-12). Omit to pull all non-archived tickets" })
     .option("force", { type: "boolean", default: false, describe: "Overwrite existing local files" });
 
 type PullArgs = {
-  id: string;
+  id?: string;
   force: boolean;
 };
 
@@ -28,6 +29,7 @@ type Deps = {
   getTicket: typeof defaultGetTicket;
   listTicketFiles: typeof defaultListTicketFiles;
   getTicketFileContent: typeof defaultGetTicketFileContent;
+  listTickets: typeof defaultListTickets;
   log: (msg: string) => void;
 };
 
@@ -38,7 +40,56 @@ const defaultDeps: Deps = {
   getTicket: defaultGetTicket,
   listTicketFiles: defaultListTicketFiles,
   getTicketFileContent: defaultGetTicketFileContent,
+  listTickets: defaultListTickets,
   log: console.log,
+};
+
+type PullTicketOpts = {
+  deps: Deps;
+  root: string;
+  ticketId: string;
+  shorthand: string;
+  statusName: string | null;
+  force: boolean;
+};
+
+const pullSingleTicket = async ({ deps, root, ticketId, shorthand, statusName, force }: PullTicketOpts) => {
+  const ticket = await deps.getTicket(API_URL, ticketId);
+  if (!ticket) throw new Error(`Ticket not found: ${shorthand}`);
+
+  const frontmatter = buildTicketFrontmatter({
+    shorthand,
+    created_at: ticket.created_at,
+    status_name: statusName,
+    parent_id: ticket.parent_id,
+    user_prompt: ticket.user_prompt ?? null,
+    priority: ticket.priority,
+    complexity: ticket.complexity,
+    depends_on: ticket.depends_on,
+    parallelizable: ticket.parallelizable,
+    blocked_reason: ticket.blocked_reason,
+  });
+
+  let bodyContent = "";
+  if (ticket.file_id) {
+    const fileBuffer = await deps.getTicketFileContent(API_URL, ticket.id, ticket.file_id);
+    bodyContent = fileBuffer.toString("utf-8");
+  }
+
+  const content = applyFrontmatter(frontmatter, bodyContent);
+  const filePath = writeTicketFile(root, shorthand, content, force);
+  const ticketDir = filePath.replace(/\/ticket\.md$/, "").replace(`${root}/`, "");
+
+  const files = await deps.listTicketFiles(API_URL, ticket.id);
+  const attachments = files.filter((f) => f.id !== ticket.file_id);
+
+  for (const file of attachments) {
+    const fileContent = await deps.getTicketFileContent(API_URL, ticket.id, file.id);
+    writeTicketAttachment(root, shorthand, file.file_name, fileContent, force);
+  }
+
+  deps.log(`Pulled ticket ${shorthand} to ${ticketDir}`);
+  if (attachments.length > 0) deps.log(`Downloaded ${attachments.length} ticket files`);
 };
 
 export const createHandler =
@@ -47,29 +98,39 @@ export const createHandler =
     const { root, projectId } = deps.resolveProjectId(deps.cwd());
     if (!root) throw new Error("Not inside a pstdio project. Run 'pstdio projects create' first.");
 
-    const ticketListItem = await deps.resolveTicketByShorthand(API_URL, projectId, argv.id);
-    if (!ticketListItem) throw new Error(`Ticket not found: ${argv.id}`);
-
-    const ticket = await deps.getTicket(API_URL, ticketListItem.id);
-    if (!ticket) throw new Error(`Ticket not found: ${argv.id}`);
-
-    const localTicketFile = ticketFilePath(root, argv.id);
-    if (!argv.force && localTicketFile && existsSync(localTicketFile)) {
-      throw new Error(`Local ticket already exists: ${argv.id}. Use --force to overwrite.`);
+    if (argv.id) {
+      const ticketListItem = await deps.resolveTicketByShorthand(API_URL, projectId, argv.id);
+      if (!ticketListItem) throw new Error(`Ticket not found: ${argv.id}`);
+      await pullSingleTicket({
+        deps,
+        root,
+        ticketId: ticketListItem.id,
+        shorthand: argv.id,
+        statusName: ticketListItem.status_name,
+        force: argv.force,
+      });
+      return;
     }
 
-    const filePath = writeTicketFile(root, argv.id, ticket.input ?? "");
-    const ticketDir = filePath.replace(/\/ticket\.md$/, "").replace(`${root}/`, "");
+    const tickets = await deps.listTickets(API_URL, { project_id: projectId, archived: false });
 
-    const files = await deps.listTicketFiles(API_URL, ticket.id);
-
-    for (const file of files) {
-      const content = await deps.getTicketFileContent(API_URL, ticket.id, file.id);
-      writeTicketAttachment(root, argv.id, file.file_name, content, argv.force);
+    if (tickets.length === 0) {
+      deps.log("No tickets to pull.");
+      return;
     }
 
-    deps.log(`Pulled ticket ${argv.id} to ${ticketDir}`);
-    if (files.length > 0) deps.log(`Downloaded ${files.length} ticket files`);
+    for (const ticket of tickets) {
+      await pullSingleTicket({
+        deps,
+        root,
+        ticketId: ticket.id,
+        shorthand: ticket.shorthand,
+        statusName: ticket.status_name,
+        force: argv.force,
+      });
+    }
+
+    deps.log(`Pulled ${tickets.length} tickets`);
   };
 
 export const handler = createHandler();

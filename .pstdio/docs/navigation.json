@@ -47,6 +47,10 @@
               "link": "/specs/cli/tickets"
             },
             {
+              "text": "Update",
+              "link": "/specs/cli/update"
+            },
+            {
               "text": "Workspaces",
               "link": "/specs/cli/workspaces"
             }
@@ -58,6 +62,10 @@
             {
               "text": "Documentation",
               "link": "/specs/dashboard/documentation"
+            },
+            {
+              "text": "Tickets",
+              "link": "/specs/dashboard/tickets"
             }
           ]
         },
@@ -71,8 +79,20 @@
           ]
         },
         {
+          "text": "Customizable Templates",
+          "link": "/specs/customizable-templates"
+        },
+        {
+          "text": "Skill Installation",
+          "link": "/specs/skill-installation"
+        },
+        {
           "text": "Real-time Updates",
           "link": "/specs/realtime-updates"
+        },
+        {
+          "text": "Versioning and Releases",
+          "link": "/specs/versioning-and-releases"
         }
       ]
     },

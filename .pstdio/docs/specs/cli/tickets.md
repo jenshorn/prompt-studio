@@ -46,12 +46,12 @@ The maximum length of the full directory name (`<shorthand>_<display_title>`) is
 
 ### Examples
 
-| Markdown content (first heading)  | Display Title      | Directory Name            |
-| --------------------------------- | ------------------ | ------------------------- |
-| `# Fix login bug`                 | `fix-login-bug`    | `PS-12_fix-login-bug`     |
-| `# Add dark mode`                 | `add-dark-mode`    | `PS-13_add-dark-mode`     |
-| `# Update **all** docs`           | `update-all-docs`  | `PS-14_update-all-docs`   |
-| `# [Link](http://x.com) cleanup` | `link-cleanup`     | `PS-15_link-cleanup`      |
+| Markdown content (first heading) | Display Title     | Directory Name          |
+| -------------------------------- | ----------------- | ----------------------- |
+| `# Fix login bug`                | `fix-login-bug`   | `PS-12_fix-login-bug`   |
+| `# Add dark mode`                | `add-dark-mode`   | `PS-13_add-dark-mode`   |
+| `# Update **all** docs`          | `update-all-docs` | `PS-14_update-all-docs` |
+| `# [Link](http://x.com) cleanup` | `link-cleanup`    | `PS-15_link-cleanup`    |
 
 ### Lookup
 
@@ -74,8 +74,16 @@ Each ticket lives in its own directory under `.pstdio/tickets/`:
     ticket.md
 ```
 
-- `ticket.md` is the canonical local ticket body.
+- `ticket.md` is the canonical local ticket body. Locally it includes YAML frontmatter; the stored version on the server never contains frontmatter.
 - `files/` contains additional local files associated with the ticket.
+
+### Frontmatter is Local-Only
+
+YAML frontmatter in `ticket.md` is a local convention only. The server stores the ticket body without frontmatter.
+
+- **On save**: strip frontmatter from `ticket.md` before uploading. Actionable fields (`status`, `priority`, `complexity`) are extracted and sent as ticket properties.
+- **On pull**: build frontmatter from the ticket's database fields and prepend it to the downloaded body content.
+- **On write/create**: write frontmatter to the local file. Upload the body content without frontmatter.
 
 ---
 
@@ -83,13 +91,14 @@ Each ticket lives in its own directory under `.pstdio/tickets/`:
 
 Templates contain placeholder tokens that are automatically replaced when a ticket is written locally. The CLI replaces all occurrences before writing the file — the caller does not need to handle substitution.
 
-| Placeholder        | Replaced With                                       | Source             |
-| ------------------ | --------------------------------------------------- | ------------------ |
-| `{{TICKET_ID}}`    | The generated ticket shorthand (e.g. `PS-12`).      | Auto-generated     |
-| `{{TICKET_TITLE}}` | Value of `--title`.                                 | `--title` flag     |
-| `{{CREATED_AT}}`   | ISO 8601 timestamp at creation time.                | Auto-generated     |
-| `{{INPUT}}`        | Value of `--input`, or empty string if omitted.     | `--input` flag     |
-| `{{PARENT_ID}}`    | Value of `--parent-id`, or empty string if omitted. | `--parent-id` flag |
+| Placeholder        | Replaced With                                         | Source               |
+| ------------------ | ----------------------------------------------------- | -------------------- |
+| `{{TICKET_ID}}`    | The generated ticket shorthand (e.g. `PS-12`).        | Auto-generated       |
+| `{{TICKET_TITLE}}` | Value of `--title`.                                   | `--title` flag       |
+| `{{CREATED_AT}}`   | ISO 8601 timestamp at creation time.                  | Auto-generated       |
+| `{{USER_PROMPT}}`  | Value of `--user-prompt`, or empty string if omitted. | `--user-prompt` flag |
+| `{{PARENT_ID}}`    | Value of `--parent-id`, or empty string if omitted.   | `--parent-id` flag   |
+| `{{STATUS}}`       | Value of `--status`, or `"backlog"` if omitted.       | `--status` flag      |
 
 Additional template variables can be passed as flags and are matched by name (e.g. `--priority P1` replaces `{{PRIORITY}}`).
 
@@ -100,26 +109,26 @@ Additional template variables can be passed as flags and are matched by name (e.
 ### Usage
 
 ```sh
-pstdio tickets write --title <title> --template <template-name> --tag <tag>... [--status <status>] [--input <input>] [--parent-id <parent-id>]
+pstdio tickets write --title <title> --template <template-name> --tag <tag>... [--status <status>] [--user-prompt <user-prompt>] [--parent-id <parent-id>]
 ```
 
 ### Flags
 
-| Flag          | Type       | Required | Description                                                        |
-| ------------- | ---------- | -------- | ------------------------------------------------------------------ |
-| `--title`     | `string`   | yes      | The ticket title. Replaces `{{TICKET_TITLE}}` in the template.     |
-| `--template`  | `string`   | no       | Name of a template to use for the ticket body.                     |
-| `--tag`       | `string[]` | no       | One or more tags to assign. Repeatable.                            |
-| `--status`    | `string`   | no       | Status name to assign. Defaults to the project's default status.   |
-| `--input`     | `string`   | no       | User input or description. Replaces `{{INPUT}}` in the template.   |
-| `--parent-id` | `string`   | no       | Parent ticket shorthand. Replaces `{{PARENT_ID}}` in the template. |
+| Flag            | Type       | Required | Description                                                             |
+| --------------- | ---------- | -------- | ----------------------------------------------------------------------- |
+| `--title`       | `string`   | yes      | The ticket title. Replaces `{{TICKET_TITLE}}` in the template.          |
+| `--template`    | `string`   | no       | Name of a template to use for the ticket body.                          |
+| `--tag`         | `string[]` | no       | One or more tags to assign. Repeatable.                                 |
+| `--status`      | `string`   | no       | Status name to assign. Defaults to the project's default status.        |
+| `--user-prompt` | `string`   | no       | User prompt or description. Replaces `{{USER_PROMPT}}` in the template. |
+| `--parent-id`   | `string`   | no       | Parent ticket shorthand. Replaces `{{PARENT_ID}}` in the template.      |
 
 ### Behavior
 
 1. Must be run inside a linked project (`.pstdio/config.json` must exist).
 2. Create a ticket in the database with `draft=true`. Assign the status from `--status` if provided, otherwise assign the project's default status.
 3. Create the ticket directory at `.pstdio/tickets/<shorthand>_<display_title>/` (see [Display Title](#display-title)).
-4. If `--template` is provided, populate `ticket.md` with the template content after replacing all placeholders (`{{TICKET_ID}}`, `{{TICKET_TITLE}}`, `{{CREATED_AT}}`, `{{INPUT}}`, `{{PARENT_ID}}`).
+4. If `--template` is provided, fetch the template from the API and populate `ticket.md` with the template content after replacing all placeholders (`{{TICKET_ID}}`, `{{TICKET_TITLE}}`, `{{CREATED_AT}}`, `{{USER_PROMPT}}`, `{{PARENT_ID}}`, `{{STATUS}}`).
 5. If no `--template`, write a minimal `ticket.md` with the title.
 6. If `--tag` values are provided, assign matching tags to the ticket. Tags must already exist in the project.
 
@@ -158,8 +167,10 @@ pstdio tickets create --content <content> [--project-id <project-id>] [--status 
 ### Behavior
 
 1. Resolve the project: use `--project-id` if provided, otherwise fall back to `.pstdio/config.json`.
-2. Create a ticket directly in the database. Assign the status from `--status` if provided, otherwise assign the project's default status. Does not write a local file.
-3. If `--tag` values are provided, assign matching tags to the ticket.
+2. Create a ticket in the database with `draft=false`. Assign the status from `--status` if provided, otherwise assign the project's default status.
+3. Upload the ticket content (without frontmatter) as a file to the database and link it to the ticket.
+4. If `--tag` values are provided, assign matching tags to the ticket.
+5. If running inside a linked project (`.pstdio/config.json` exists), write a local `ticket.md` with YAML frontmatter and the ticket title. See [Frontmatter Fields](#frontmatter-fields) for the frontmatter format. If not inside a linked project, no local file is written.
 
 ### Output
 
@@ -243,11 +254,15 @@ pstdio tickets save --id <ticket-shorthand> [--status <status>] [--tag <tag>...]
 
 1. Must be run inside a linked project.
 2. Find the local ticket directory matching `<ticket-shorthand>_*` and read `ticket.md` from it.
-3. Update the ticket in the database with the local file content.
-4. Set `draft=false` to publish the ticket.
-5. If `--status` is provided, look up the status by name and assign its ID.
-6. If `.pstdio/tickets/<ticket-shorthand>/files/` exists, upload every file under it and associate it with the ticket.
-7. If `--tag` values are provided, update the tag assignments.
+3. Parse YAML frontmatter from `ticket.md` and extract actionable fields (`status`, `priority`, `complexity`).
+4. Strip frontmatter from `ticket.md` and upload the body content (without frontmatter) as the ticket file. Apply extracted frontmatter fields as ticket properties.
+5. Set `draft=false` to publish the ticket.
+6. Resolve the ticket status: use `--status` flag if provided, otherwise use `status` from frontmatter. Look up the status by name and assign its ID.
+7. Set `priority` and `complexity` from frontmatter values when present.
+8. If `.pstdio/tickets/<ticket-shorthand>/files/` exists, upload every file under it and associate it with the ticket.
+9. If `--tag` values are provided, update the tag assignments.
+
+CLI flags always override frontmatter values. When neither a flag nor a frontmatter value is present, the field is left unchanged in the database.
 
 ### Output
 
@@ -273,26 +288,58 @@ If no files were uploaded, omit the second line.
 ### Usage
 
 ```sh
-pstdio tickets pull --id <ticket-shorthand> [--force]
+pstdio tickets pull [--id <ticket-shorthand>] [--force]
 ```
 
 ### Flags
 
-| Flag      | Type      | Required | Description                                                          |
-| --------- | --------- | -------- | -------------------------------------------------------------------- |
-| `--id`    | `string`  | yes      | The ticket shorthand (e.g. `PS-12`).                                 |
-| `--force` | `boolean` | no       | Overwrite local files if they already exist at the destination path. |
+| Flag      | Type      | Required | Description                                                                        |
+| --------- | --------- | -------- | ---------------------------------------------------------------------------------- |
+| `--id`    | `string`  | no       | The ticket shorthand (e.g. `PS-12`). When omitted, pulls all non-archived tickets. |
+| `--force` | `boolean` | no       | Overwrite local files if they already exist at the destination path.               |
 
 ### Behavior
+
+#### With `--id`
 
 1. Must be run inside a linked project.
 2. Fetch the ticket from the database by shorthand.
 3. Create the local ticket directory at `.pstdio/tickets/<ticket-shorthand>/` when missing.
-4. Write the ticket content to `.pstdio/tickets/<ticket-shorthand>/ticket.md`.
-5. Fetch all files linked to the ticket in the database and write them to `.pstdio/tickets/<ticket-shorthand>/files/`.
-6. If a target file path already exists and `--force` is not set, fail without overwriting that file.
+4. Build YAML frontmatter from the ticket's database fields and prepend it to the ticket body content (replacing any existing frontmatter). See [Frontmatter Fields](#frontmatter-fields).
+5. Write the result to `.pstdio/tickets/<ticket-shorthand>/ticket.md`.
+6. Fetch all files linked to the ticket in the database and write them to `.pstdio/tickets/<ticket-shorthand>/files/`.
+7. If a target file path already exists and `--force` is not set, fail without overwriting that file.
+
+#### Without `--id`
+
+1. Must be run inside a linked project.
+2. Fetch all non-archived tickets for the project from the database.
+3. For each ticket, perform the same steps as the single-ticket pull (steps 3–7 above).
+4. Log a summary of how many tickets were pulled.
+
+#### Frontmatter Fields
+
+The following fields are always written:
+
+| Field     | Source               |
+| --------- | -------------------- |
+| `created` | `created_at` from DB |
+
+The following fields are included only when non-null:
+
+| Field            | Source                         |
+| ---------------- | ------------------------------ |
+| `status`         | Status name (resolved from ID) |
+| `parent_id`      | `parent_id` from DB            |
+| `priority`       | `priority` from DB             |
+| `complexity`     | `complexity` from DB           |
+| `depends_on`     | `depends_on` from DB           |
+| `parallelizable` | `parallelizable` from DB       |
+| `blocked_reason` | `blocked_reason` from DB       |
 
 ### Output
+
+Single ticket:
 
 ```text
 Pulled ticket PS-12 to .pstdio/tickets/PS-12
@@ -301,10 +348,22 @@ Downloaded 2 ticket files
 
 If no files are linked to the ticket, omit the second line.
 
+All tickets:
+
+```text
+Pulled 5 tickets
+```
+
+If no non-archived tickets exist:
+
+```text
+No tickets to pull.
+```
+
 ### Errors
 
 - `"Not inside a pstdio project. Run 'pstdio projects create' first."`: no `.pstdio/config.json` found.
-- `"Ticket not found: <ticket-shorthand>"`: the ticket does not exist in the database.
+- `"Ticket not found: <ticket-shorthand>"`: the ticket does not exist in the database (single-ticket mode).
 - `"Local file already exists: <path>. Use --force to overwrite."`: local file conflict during pull.
 
 ---
@@ -443,7 +502,7 @@ No tickets found.
 
 ### Errors
 
-- `"Not inside a pstdio project. Run 'pstdio projects create' first."`: no `--project-id` flag and no `.pstdio/config.json` found.
+- `"No project specified. Provide --project-id or run inside a linked project."`: no `--project-id` flag and no `.pstdio/config.json` found.
 - `"Project not found: <project-id>"`: the given project ID does not exist.
 
 ---
@@ -600,9 +659,9 @@ Archived ticket PS-12
 
 ## Local Side Effects
 
-| Path                                                            | Description                                                                                   |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `.pstdio/tickets/<shorthand>_<display_title>/ticket.md`         | Local ticket file created by `write`/`pull`, read by `save`.                                  |
-| `.pstdio/tickets/<shorthand>_<display_title>/files/`            | Local directory for ticket-associated files written by `pull`, read by `save`/`files`.        |
-| `.pstdio/tickets/<shorthand>_<display_title>/files/<filename>`  | Individual ticket-associated files synced between local project and DB.                       |
-| `.pstdio/workspaces/<workspace-shorthand>/`                     | Git worktree path referenced by `pstdio tickets workspaces` for ticket-associated workspaces. |
+| Path                                                           | Description                                                                                   |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `.pstdio/tickets/<shorthand>_<display_title>/ticket.md`        | Local ticket file created by `write`/`pull`, read by `save`.                                  |
+| `.pstdio/tickets/<shorthand>_<display_title>/files/`           | Local directory for ticket-associated files written by `pull`, read by `save`/`files`.        |
+| `.pstdio/tickets/<shorthand>_<display_title>/files/<filename>` | Individual ticket-associated files synced between local project and DB.                       |
+| `.pstdio/workspaces/<workspace-shorthand>/`                    | Git worktree path referenced by `pstdio tickets workspaces` for ticket-associated workspaces. |

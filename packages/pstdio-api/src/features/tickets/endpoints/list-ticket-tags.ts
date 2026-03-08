@@ -1,6 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
-import { ticket_tags } from "pstdio-db";
+import { eq, ticket_tags } from "pstdio-db";
 import type { AppRouteHandler } from "../../../types";
 import type { RouteDeps } from "../../deps";
 
@@ -16,9 +15,12 @@ export const listTicketTagsRoute = createRoute({
   description: "List ticket tags for a project.",
   tags: ["Tickets"],
   request: {
-    params: z.object({
-      projectId: z.string().openapi({ description: "Project ID" }),
-    }),
+    query: z.object({}).strict(),
+    params: z
+      .object({
+        projectId: z.string().openapi({ description: "Project ID" }),
+      })
+      .strict(),
   },
   responses: {
     200: {

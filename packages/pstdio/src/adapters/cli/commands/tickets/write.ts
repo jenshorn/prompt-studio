@@ -7,6 +7,7 @@ import { createTicket as defaultCreateTicket } from "@/features/tickets/api/crea
 import { writeTicketFile } from "@/features/tickets/local-ticket";
 import { resolveStatusId as defaultResolveStatusId } from "@/features/tickets/resolve-status-id";
 import { resolveTagIds as defaultResolveTagIds } from "@/features/tickets/resolve-tag-ids";
+import { applyFrontmatter, buildTicketFrontmatter } from "@/features/tickets/ticket-frontmatter";
 
 export const command = "write";
 export const describe = "Create a draft ticket with a local file";
@@ -17,7 +18,7 @@ export const builder = (yargs: Argv) =>
     .option("template", { type: "string", describe: "Template name" })
     .option("tag", { type: "array", string: true, describe: "Tags to assign" })
     .option("status", { type: "string", describe: "Status name to assign" })
-    .option("input", { type: "string", describe: "User input or description" })
+    .option("user-prompt", { type: "string", describe: "User prompt for the ticket" })
     .option("parent-id", { type: "string", describe: "Parent ticket shorthand" });
 
 type WriteArgs = {
@@ -25,7 +26,7 @@ type WriteArgs = {
   template?: string;
   tag?: string[];
   status?: string;
-  input?: string;
+  "user-prompt"?: string;
   "parent-id"?: string;
 };
 
@@ -54,9 +55,9 @@ const renderTemplate = (templateContent: string, shorthand: string, argv: Argume
     TICKET_ID: shorthand,
     TICKET_TITLE: argv.title,
     CREATED_AT: createdAt,
-    INPUT: argv.input ?? "",
+    INPUT: argv["user-prompt"] ?? "",
     PARENT_ID: argv["parent-id"] ?? "",
-    USER_PROMPT: argv.input ?? "",
+    USER_PROMPT: argv["user-prompt"] ?? "",
     STATUS: argv.status ?? "backlog",
   });
 
@@ -70,19 +71,34 @@ export const createHandler =
 
     const ticket = await deps.createTicket(API_URL, {
       project_id: projectId,
-      title: argv.title,
-      input: argv.input,
+      content: `# ${argv.title}\n`,
+      user_prompt: argv["user-prompt"],
       parent_id: argv["parent-id"],
       draft: true,
       tag_ids: tagIds,
       status_id: statusId,
     });
 
-    let content = `# ${argv.title}\n`;
+    let content: string;
     if (argv.template) {
       const template = await deps.getTemplate(API_URL, projectId, argv.template);
       if (!template) throw new Error(`Template not found: ${argv.template}`);
       content = renderTemplate(template.content, ticket.shorthand, argv, ticket.created_at);
+    } else {
+      const body = `# ${argv.title}\n`;
+      const frontmatter = buildTicketFrontmatter({
+        shorthand: ticket.shorthand,
+        created_at: ticket.created_at,
+        status_name: argv.status ?? null,
+        parent_id: argv["parent-id"] ?? null,
+        user_prompt: argv["user-prompt"] ?? null,
+        priority: null,
+        complexity: null,
+        depends_on: null,
+        parallelizable: null,
+        blocked_reason: null,
+      });
+      content = applyFrontmatter(frontmatter, body);
     }
 
     const filePath = writeTicketFile(root, ticket.shorthand, content);
