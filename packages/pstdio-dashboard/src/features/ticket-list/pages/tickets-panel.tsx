@@ -1,6 +1,7 @@
 import { Stack, Text } from "@chakra-ui/react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { getStoredAgent } from "@/features/agents/agent-storage";
 import { useProject, useProjectTemplateAssets } from "@/features/project/hooks/use-project";
@@ -18,6 +19,7 @@ import { TicketsBoardView } from "../components/tickets-board-view";
 import { TicketsHeader } from "../components/tickets-header";
 import { TicketsListView } from "../components/tickets-list-view";
 import { type BadgeContext, DEFAULT_DISPLAY_SETTINGS, type DisplaySettings } from "../types";
+import { filterTickets } from "../utils/filter-tickets";
 import { groupTickets, orderTickets } from "../utils/ticket-grouping";
 
 export const TicketsPanel = () => {
@@ -31,15 +33,18 @@ export const TicketsPanel = () => {
   const { data: templateAssets } = useProjectTemplateAssets(projectId);
   const navigate = useNavigate();
 
+  const { t } = useTranslation("tickets");
   const [settings] = useState<DisplaySettings>(DEFAULT_DISPLAY_SETTINGS);
+  const [searchQuery, setSearchQuery] = useState("");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalStatus, setCreateModalStatus] = useState<TicketStatus | null>(null);
 
   const isLoading = isProjectLoading || isTicketsLoading;
   const statusOptions = project?.ticketStatusOptions ?? [];
   const allTickets = (tickets ?? []).filter((t) => !t.archived);
+  const visibleTickets = filterTickets(allTickets, searchQuery);
 
-  const groups = groupTickets(allTickets, settings.grouping, statusOptions).map((group) => ({
+  const groups = groupTickets(visibleTickets, settings.grouping, statusOptions).map((group) => ({
     ...group,
     tickets: orderTickets(group.tickets, settings.ordering),
   }));
@@ -53,7 +58,7 @@ export const TicketsPanel = () => {
   };
 
   const templates = (templateAssets ?? [])
-    .filter((asset) => asset.templateType === "ticket-template")
+    .filter((asset) => asset.templateType === "ticket")
     .map((asset) => ({ id: asset.id, name: asset.name }));
 
   const firstCreatableStatus = statusOptions.find((s) => s.canCreate)?.name ?? null;
@@ -153,7 +158,7 @@ export const TicketsPanel = () => {
     return (
       <Stack gap="lg" height="100%" p="sm">
         <Text textStyle="paragraph/S/regular" color="fg.muted">
-          Loading tickets...
+          {t("loading")}
         </Text>
       </Stack>
     );
@@ -161,7 +166,7 @@ export const TicketsPanel = () => {
 
   return (
     <Stack gap="0" height="100%">
-      <TicketsHeader />
+      <TicketsHeader searchQuery={searchQuery} onSearchChange={setSearchQuery} />
 
       <Stack flex="1" minH="0">
         {settings.viewMode === "board" ? (

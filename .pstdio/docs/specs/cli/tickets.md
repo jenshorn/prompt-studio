@@ -6,6 +6,24 @@ Manage tickets within a pstdio project. Tickets track work items (bugs, features
 
 ---
 
+## Ticket Content Model
+
+Ticket payload fields have distinct meanings and must not be treated as interchangeable:
+
+| Field         | Meaning                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| `user_prompt` | The user's prompt text for tasking an agent. It is instruction context, not the canonical ticket body. |
+| `file_id`     | Reference to the canonical ticket content file stored in the `files` table.                            |
+| `content`     | The actual ticket body text stored in the file referenced by `file_id`.                                |
+
+Rules:
+
+1. `user_prompt` is only for agent tasking context (for example, `tickets write --user-prompt ...` or API `user_prompt`).
+2. Ticket body content is read from and written to the file referenced by `file_id`.
+3. Anywhere this spec says "ticket content", it means the body stored in `file_id`.
+
+---
+
 ## Ticket Shorthand
 
 Every ticket has a unique shorthand of the form `<PROJECT_SHORTHAND>-<N>`, where:
@@ -69,13 +87,17 @@ Each ticket lives in its own directory under `.pstdio/tickets/`:
     ticket.md
     files/
       architecture.md
+      api-schema.json
+    artifacts/
+      test-output.log
       screenshot.png
   PS-13_add-dark-mode/
     ticket.md
 ```
 
 - `ticket.md` is the canonical local ticket body. Locally it includes YAML frontmatter; the stored version on the server never contains frontmatter.
-- `files/` contains additional local files associated with the ticket.
+- `files/` contains supporting files associated with the ticket (research, schemas, specs).
+- `artifacts/` contains change validation outputs (test logs, screenshots, build output).
 
 ### Frontmatter is Local-Only
 
@@ -114,14 +136,14 @@ pstdio tickets write --title <title> --template <template-name> --tag <tag>... [
 
 ### Flags
 
-| Flag            | Type       | Required | Description                                                             |
-| --------------- | ---------- | -------- | ----------------------------------------------------------------------- |
-| `--title`       | `string`   | yes      | The ticket title. Replaces `{{TICKET_TITLE}}` in the template.          |
-| `--template`    | `string`   | no       | Name of a template to use for the ticket body.                          |
-| `--tag`         | `string[]` | no       | One or more tags to assign. Repeatable.                                 |
-| `--status`      | `string`   | no       | Status name to assign. Defaults to the project's default status.        |
-| `--user-prompt` | `string`   | no       | User prompt or description. Replaces `{{USER_PROMPT}}` in the template. |
-| `--parent-id`   | `string`   | no       | Parent ticket shorthand. Replaces `{{PARENT_ID}}` in the template.      |
+| Flag            | Type       | Required | Description                                                                     |
+| --------------- | ---------- | -------- | ------------------------------------------------------------------------------- |
+| `--title`       | `string`   | yes      | The ticket title. Replaces `{{TICKET_TITLE}}` in the template.                  |
+| `--template`    | `string`   | no       | Name of a template to use for the ticket body.                                  |
+| `--tag`         | `string[]` | no       | One or more tags to assign. Repeatable.                                         |
+| `--status`      | `string`   | no       | Status name to assign. Defaults to the project's default status.                |
+| `--user-prompt` | `string`   | no       | Agent-tasking prompt from the user. Replaces `{{USER_PROMPT}}` in the template. |
+| `--parent-id`   | `string`   | no       | Parent ticket shorthand. Replaces `{{PARENT_ID}}` in the template.              |
 
 ### Behavior
 
@@ -157,18 +179,18 @@ pstdio tickets create --content <content> [--project-id <project-id>] [--status 
 
 ### Flags
 
-| Flag           | Type       | Required | Description                                                                 |
-| -------------- | ---------- | -------- | --------------------------------------------------------------------------- |
-| `--content`    | `string`   | yes      | The ticket content (title or body).                                         |
-| `--project-id` | `string`   | no       | Target project. Defaults to the current project from `.pstdio/config.json`. |
-| `--status`     | `string`   | no       | Status name to assign. Defaults to the project's default status.            |
-| `--tag`        | `string[]` | no       | One or more tags to assign. Repeatable.                                     |
+| Flag           | Type       | Required | Description                                                                       |
+| -------------- | ---------- | -------- | --------------------------------------------------------------------------------- |
+| `--content`    | `string`   | yes      | Canonical ticket body content. Stored in the ticket file referenced by `file_id`. |
+| `--project-id` | `string`   | no       | Target project. Defaults to the current project from `.pstdio/config.json`.       |
+| `--status`     | `string`   | no       | Status name to assign. Defaults to the project's default status.                  |
+| `--tag`        | `string[]` | no       | One or more tags to assign. Repeatable.                                           |
 
 ### Behavior
 
 1. Resolve the project: use `--project-id` if provided, otherwise fall back to `.pstdio/config.json`.
 2. Create a ticket in the database with `draft=false`. Assign the status from `--status` if provided, otherwise assign the project's default status.
-3. Upload the ticket content (without frontmatter) as a file to the database and link it to the ticket.
+3. Upload the ticket content (without frontmatter) as a file to the database, set `ticket.file_id` to that file, and treat that file body as the ticket's canonical content.
 4. If `--tag` values are provided, assign matching tags to the ticket.
 5. If running inside a linked project (`.pstdio/config.json` exists), write a local `ticket.md` with YAML frontmatter and the ticket title. See [Frontmatter Fields](#frontmatter-fields) for the frontmatter format. If not inside a linked project, no local file is written.
 
@@ -260,6 +282,7 @@ pstdio tickets save --id <ticket-shorthand> [--status <status>] [--tag <tag>...]
 6. Resolve the ticket status: use `--status` flag if provided, otherwise use `status` from frontmatter. Look up the status by name and assign its ID.
 7. Set `priority` and `complexity` from frontmatter values when present.
 8. If `.pstdio/tickets/<ticket-shorthand>/files/` exists, upload every file under it and associate it with the ticket.
+9. If `.pstdio/tickets/<ticket-shorthand>/artifacts/` exists, upload every file under it and associate it with the ticket.
 9. If `--tag` values are provided, update the tag assignments.
 
 CLI flags always override frontmatter values. When neither a flag nor a frontmatter value is present, the field is left unchanged in the database.
@@ -307,7 +330,7 @@ pstdio tickets pull [--id <ticket-shorthand>] [--force]
 3. Create the local ticket directory at `.pstdio/tickets/<ticket-shorthand>/` when missing.
 4. Build YAML frontmatter from the ticket's database fields and prepend it to the ticket body content (replacing any existing frontmatter). See [Frontmatter Fields](#frontmatter-fields).
 5. Write the result to `.pstdio/tickets/<ticket-shorthand>/ticket.md`.
-6. Fetch all files linked to the ticket in the database and write them to `.pstdio/tickets/<ticket-shorthand>/files/`.
+6. Fetch all files linked to the ticket in the database and write them to `.pstdio/tickets/<ticket-shorthand>/files/` (supporting files) and `.pstdio/tickets/<ticket-shorthand>/artifacts/` (validation artifacts).
 7. If a target file path already exists and `--force` is not set, fail without overwriting that file.
 
 #### Without `--id`
@@ -388,7 +411,7 @@ pstdio tickets files --id <ticket-shorthand> [--project-id <project-id>]
 1. Resolve the project: use `--project-id` if provided, otherwise fall back to `.pstdio/config.json`.
 2. Resolve the ticket by shorthand from the database.
 3. List files linked to the ticket in the database.
-4. If running inside a linked project, list local files under `.pstdio/tickets/<ticket-shorthand>/files/`.
+4. If running inside a linked project, list local files under `.pstdio/tickets/<ticket-shorthand>/files/` and `.pstdio/tickets/<ticket-shorthand>/artifacts/`.
 5. Output a merged view showing whether each file exists in DB, locally, or both. When running outside a linked project, the Local column is always `–` .
 
 ### Output
@@ -662,6 +685,8 @@ Archived ticket PS-12
 | Path                                                           | Description                                                                                   |
 | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `.pstdio/tickets/<shorthand>_<display_title>/ticket.md`        | Local ticket file created by `write`/`pull`, read by `save`.                                  |
-| `.pstdio/tickets/<shorthand>_<display_title>/files/`           | Local directory for ticket-associated files written by `pull`, read by `save`/`files`.        |
-| `.pstdio/tickets/<shorthand>_<display_title>/files/<filename>` | Individual ticket-associated files synced between local project and DB.                       |
+| `.pstdio/tickets/<shorthand>_<display_title>/files/`           | Supporting files (research, schemas, specs) written by `pull`, read by `save`/`files`.        |
+| `.pstdio/tickets/<shorthand>_<display_title>/files/<filename>` | Individual supporting files synced between local project and DB.                              |
+| `.pstdio/tickets/<shorthand>_<display_title>/artifacts/`       | Validation artifacts (test output, screenshots, logs) written by `pull`, read by `save`/`files`. |
+| `.pstdio/tickets/<shorthand>_<display_title>/artifacts/<filename>` | Individual validation artifacts synced between local project and DB.                         |
 | `.pstdio/workspaces/<workspace-shorthand>/`                    | Git worktree path referenced by `pstdio tickets workspaces` for ticket-associated workspaces. |

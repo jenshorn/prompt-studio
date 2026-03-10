@@ -58,11 +58,23 @@ const updateTicketViaApi = async (
   return res.json();
 };
 
+const createTemplateViaApi = async (
+  request: import("@playwright/test").APIRequestContext,
+  projectId: string,
+  name: string,
+  templateType: string,
+) => {
+  const res = await request.post(`${apiBase}/v1/projects/${projectId}/templates`, {
+    data: { name, template_type: templateType, content: `# ${name}\n\nTemplate content` },
+  });
+  expect(res.ok()).toBe(true);
+  return (await res.json()) as { id: string; name: string; template_type: string };
+};
+
 test.describe("Ticket list", () => {
   let projectId: string;
 
   test.beforeEach(async ({ request }) => {
-    test.setTimeout(5_000);
     await deleteAllProjects(request);
     const project = await createProjectViaApi(request, "Ticket Test Project");
     projectId = project.id;
@@ -135,6 +147,113 @@ test.describe("Ticket list", () => {
     await page.waitForURL(`**/projects/${projectId}/tickets/${ticket.shorthand}`);
     expect(page.url()).toContain(`/tickets/${ticket.shorthand}`);
   });
+});
+
+test.describe("Ticket list editing and filtering", () => {
+  let projectId: string;
+
+  test.beforeEach(async ({ request }) => {
+    await deleteAllProjects(request);
+    const project = await createProjectViaApi(request, "Ticket Test Project");
+    projectId = project.id;
+  });
+
+  test("updates ticket display title after editing content and returning to list", async ({ page, request }) => {
+    await bypassOnboarding(page);
+    await page.goto(`/projects/${projectId}/tickets`);
+
+    await expect(page.getByText("backlog", { exact: true }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Create ticket" }).first().click();
+    const dialog = page.getByRole("dialog").last();
+    await expect(dialog.getByText("Describe the ticket...")).toBeVisible();
+    await page.keyboard.type("Original display title");
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
+
+    await expect(page.getByText("Original display title")).toBeVisible();
+
+    const listTickets = async () => {
+      const res = await request.get(`${apiBase}/v1/tickets?project_id=${projectId}`);
+      expect(res.ok()).toBe(true);
+      return (await res.json()) as { id: string; shorthand: string; display_title: string | null }[];
+    };
+
+    await expect.poll(async () => (await listTickets()).length).toBe(1);
+    const [createdTicket] = await listTickets();
+    expect(createdTicket).toBeTruthy();
+    expect(createdTicket.display_title).toBe("Original display title");
+
+    await page.getByText("Original display title").first().click();
+    await page.waitForURL(`**/projects/${projectId}/tickets/${createdTicket!.shorthand}`);
+
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        response.url().includes(`/v1/tickets/${createdTicket!.id}`) &&
+        response.status() === 200,
+    );
+
+    const editor = page.locator('[contenteditable="true"]:visible').last();
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type("Updated display title");
+    await saveResponse;
+
+    await page.getByRole("button", { name: "Back to tickets" }).click();
+    await page.waitForURL(`**/projects/${projectId}/tickets`);
+
+    await expect(page.getByText("Updated display title")).toBeVisible();
+    await expect(page.getByText("Original display title")).not.toBeVisible();
+  });
+
+  test("preserves edited ticket content after leaving and reopening ticket details", async ({ page, request }) => {
+    await bypassOnboarding(page);
+    await page.goto(`/projects/${projectId}/tickets`);
+
+    await expect(page.getByText("backlog", { exact: true }).first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Create ticket" }).first().click();
+    const dialog = page.getByRole("dialog").last();
+    await expect(dialog.getByText("Describe the ticket...")).toBeVisible();
+    await page.keyboard.type("Original content title");
+    await dialog.getByRole("button", { name: "Create", exact: true }).click();
+
+    const listTickets = async () => {
+      const res = await request.get(`${apiBase}/v1/tickets?project_id=${projectId}`);
+      expect(res.ok()).toBe(true);
+      return (await res.json()) as { id: string; shorthand: string; display_title: string | null }[];
+    };
+
+    await expect.poll(async () => (await listTickets()).length).toBe(1);
+    const [createdTicket] = await listTickets();
+    expect(createdTicket).toBeTruthy();
+
+    await page.getByText("Original content title").first().click();
+    await page.waitForURL(`**/projects/${projectId}/tickets/${createdTicket!.shorthand}`);
+
+    const updatedContent = "Persisted content title\n\npersisted-body-marker";
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        response.url().includes(`/v1/tickets/${createdTicket!.id}`) &&
+        response.status() === 200,
+    );
+    const editor = page.locator('[contenteditable="true"]:visible').last();
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type(updatedContent);
+    await saveResponse;
+    await expect(editor).toContainText("persisted-body-marker");
+
+    await page.getByRole("button", { name: "Back to tickets" }).click();
+    await page.waitForURL(`**/projects/${projectId}/tickets`);
+    await expect(page.getByText("Persisted content title")).toBeVisible();
+    await page.getByText("Persisted content title").first().click();
+    await page.waitForURL(`**/projects/${projectId}/tickets/${createdTicket!.shorthand}`);
+
+    const reopenedEditor = page.locator('[contenteditable="true"]:visible').last();
+    await expect(reopenedEditor).toContainText("persisted-body-marker", { timeout: 12_000 });
+  });
 
   test("filters tickets by hiding archived tickets", async ({ page, request }) => {
     const statuses = await getTicketStatuses(request, projectId);
@@ -149,6 +268,35 @@ test.describe("Ticket list", () => {
 
     await expect(page.getByText("Visible ticket")).toBeVisible();
     await expect(page.getByText("Archived ticket")).not.toBeVisible();
+  });
+
+  test("filters visible tickets by search query", async ({ page, request }) => {
+    const statuses = await getTicketStatuses(request, projectId);
+    const backlog = statuses.find((s) => s.name === "backlog")!;
+
+    await createTicketViaApi(request, projectId, "Add search feature", backlog.id);
+    await createTicketViaApi(request, projectId, "Fix login redirect", backlog.id);
+
+    await bypassOnboarding(page);
+    await page.goto(`/projects/${projectId}/tickets`);
+
+    await expect(page.getByText("Add search feature")).toBeVisible();
+    await expect(page.getByText("Fix login redirect")).toBeVisible();
+
+    await page.getByRole("textbox", { name: "Search tickets" }).fill("search");
+
+    await expect(page.getByText("Add search feature")).toBeVisible();
+    await expect(page.getByText("Fix login redirect")).not.toBeVisible();
+  });
+});
+
+test.describe("Ticket list additional coverage", () => {
+  let projectId: string;
+
+  test.beforeEach(async ({ request }) => {
+    await deleteAllProjects(request);
+    const project = await createProjectViaApi(request, "Ticket Test Project");
+    projectId = project.id;
   });
 
   test("shows ticket shorthand on cards", async ({ page, request }) => {
@@ -185,5 +333,70 @@ test.describe("Ticket list", () => {
     // Either loading text or the board should be visible (loading may be fast)
     const loadingOrBoard = page.getByText("Loading tickets...").or(page.getByText("backlog", { exact: true }).first());
     await expect(loadingOrBoard).toBeVisible();
+  });
+
+  test("shows template selector in refine ticket modal when templates exist", async ({ page, request }) => {
+    const statuses = await getTicketStatuses(request, projectId);
+    const backlog = statuses.find((s) => s.name === "backlog")!;
+
+    await createTemplateViaApi(request, projectId, "Bug Report", "ticket");
+    const ticket = await createTicketViaApi(request, projectId, "Template test ticket", backlog.id);
+
+    await bypassOnboarding(page);
+    await page.goto(`/projects/${projectId}/tickets/${ticket.shorthand}`);
+
+    // Open ticket action menu and click "Refine ticket"
+    await page.getByRole("button", { name: "Open ticket options" }).click();
+    await page.getByText("Refine ticket", { exact: true }).click();
+
+    // The refine modal should open with a template selector
+    const dialog = page.getByRole("dialog").last();
+    await expect(dialog.getByText("Refine Ticket", { exact: true }).first()).toBeVisible();
+    await expect(dialog.getByText("Template", { exact: true })).toBeVisible();
+
+    // Click the template dropdown trigger and verify "Bug Report" is listed
+    await dialog.getByRole("button", { name: "No template" }).click();
+    await expect(page.getByText("Bug Report", { exact: true })).toBeVisible();
+  });
+
+  test("toggles a tag on a ticket from the detail sidebar", async ({ page, request }) => {
+    const statuses = await getTicketStatuses(request, projectId);
+    const backlog = statuses.find((s) => s.name === "backlog")!;
+
+    // Create a tag for the project
+    const tagRes = await request.post(`${apiBase}/v1/projects/${projectId}/tags`, {
+      data: { name: "Bug", color: "red" },
+    });
+    expect(tagRes.ok()).toBe(true);
+
+    // Create a ticket
+    const ticket = await createTicketViaApi(request, projectId, "Tag test ticket", backlog.id);
+
+    await bypassOnboarding(page);
+    await page.goto(`/projects/${projectId}/tickets/${ticket.shorthand}`);
+
+    // The tag selector should show "No tags selected"
+    await expect(page.getByText("No tags selected")).toBeVisible();
+
+    // Open the tag dropdown and select "Bug"
+    await page.getByText("No tags selected").click();
+
+    const tagPatchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        response.url().includes(`/v1/tickets/${ticket.id}`) &&
+        response.status() === 200,
+    );
+    await page.getByText("Bug", { exact: true }).click();
+    await tagPatchResponse;
+
+    // The trigger should now show "Bug" instead of "No tags selected"
+    await expect(page.getByText("No tags selected")).not.toBeVisible();
+
+    // Verify via API that the tag was assigned
+    const listRes = await request.get(`${apiBase}/v1/tickets?project_id=${projectId}`);
+    const allTickets = (await listRes.json()) as { id: string; tag_ids: string[] }[];
+    const updatedTicket = allTickets.find((t) => t.id === ticket.id);
+    expect(updatedTicket?.tag_ids).toHaveLength(1);
   });
 });

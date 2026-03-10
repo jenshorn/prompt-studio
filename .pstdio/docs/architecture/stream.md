@@ -5,14 +5,14 @@ The API streams database changes to connected clients in real time using Server-
 ## Architecture
 
 ```
-┌───────────┐   ┌───────────────┐
-│    CLI    │   │   Dashboard   │
-└─────┬─────┘   └───────┬───────┘
-      │                 │
-      │          EventSource
-      │         ◄───────┘
-      │
-      └──── REST ────►┐
+┌───────────┐           ┌───────────────┐
+│    CLI    │           │   Dashboard   │
+└─────┬─────┘           └───────┬───────┘
+      │                         │
+      │                    fetch + SSE
+      │                         │
+      │                         │
+      └──── REST ────►┐◄──── ───┘
                       │
               ┌───────▼───────┐
               │   pstdio-api  │
@@ -58,7 +58,51 @@ Some mutations create implicit rows (e.g. creating a project auto-creates defaul
 
 ## Client
 
-Each synced table maps to a TanStack DB `Collection`. An `EventSource` connection routes SSE events to collection writers. Auto-reconnects after 1 second with `?since=<lastSeq>`.
+Each synced table maps to a TanStack DB `Collection`. A `fetch`-based SSE reader connects to the stream endpoint and routes events to collection writers. Auto-reconnects after 1 second with `?since=<lastSeq>`.
+
+### Querying collections
+
+Components read synced data with `useLiveQuery`. Every query must use the **spread pattern** in `.select()` to preserve all fields:
+
+```ts
+// Correct — spread preserves all fields
+useLiveQuery((q) =>
+  q.from({ t: getCollection("tickets") })
+   .where(({ t }) => eq(t.project_id, projectId))
+   .select(({ t }) => ({ ...t })),
+  [projectId],
+);
+
+// Wrong — returning the proxy strips unaccessed fields
+.select(({ t }) => t)
+```
+
+TanStack DB's query builder uses JavaScript Proxies to track property access in `.select()`. Returning the proxy directly only includes properties that were explicitly read through it. The spread operator triggers TanStack DB's internal merge mechanism that includes all fields from the source table. See [TanStack DB select proxy](/lessons-learned/tanstack_db_select_proxy) for the full story.
+
+Because all collections use a generic `SyncedRow` type (`{ id: string; [key: string]: unknown }`), the proxy-returned type loses the index signature. The `asSyncedRows()` helper casts the result back.
+
+### Mutations
+
+Mutations go directly to the REST API via `useMutation` + `apiRequest`. They do **not** go through TanStack DB collections. The update flow is:
+
+1. Component calls `mutate()` which sends a REST request (POST/PATCH/DELETE).
+2. The API writes to the database and emits an event to the EventBus.
+3. The SSE stream delivers the event to all connected clients.
+4. The collection writer updates the TanStack DB collection.
+5. `useLiveQuery` re-renders components with the new data.
+
+```
+mutate() ──► REST API ──► DB + EventBus emit
+                                   │
+                        ┌──────────┼──────────┐
+                        ▼          ▼          ▼
+                   this client  client B   client C
+                   (collection  (collection (collection
+                    updated      updated)    updated)
+                    via SSE)
+```
+
+There is no optimistic state layer — the UI updates only after the SSE event arrives. This keeps the implementation simple at the cost of a small delay (typically < 100 ms on localhost) between a mutation and its visible effect.
 
 ## Rules
 

@@ -21,6 +21,7 @@ const listTicketsQuerySchema = z
       .optional(),
     parent_id: z.string().optional(),
     shorthand: z.string().optional(),
+    search: z.string().optional(),
   })
   .strict();
 
@@ -63,6 +64,7 @@ export const listTicketsHandler = (deps: RouteDeps): AppRouteHandler<typeof list
       draft: query.draft,
       parent_id: query.parent_id,
       shorthand: query.shorthand,
+      search: query.search,
     });
 
     const statuses = await deps.db
@@ -78,6 +80,7 @@ export const listTicketsHandler = (deps: RouteDeps): AppRouteHandler<typeof list
         return {
           ...t,
           status_name: t.status_id ? (statusMap.get(t.status_id) ?? null) : null,
+          tag_ids: tags.map((tag) => tag.id),
           tag_names: tags.map((tag) => tag.name),
         };
       }),

@@ -31,7 +31,9 @@
       "selectLabel": "Seleccionar agente",
       "unknown": "Agente desconocido",
       "options": {
-        "opencode": "Opencode"
+        "opencode": "Opencode",
+        "codex": "Codex",
+        "claudeCode": "Claude Code"
       }
     },
     "repo": {
@@ -115,7 +117,12 @@
       "updated": "Actualizado",
       "status": "Estado",
       "blockedReason": "Motivo de bloqueo",
+      "blockedBy": "Bloqueado por",
+      "dependencies": "Dependencias",
+      "archived": "Archivado",
       "dependsOn": "Depende de",
+      "parent": "Padre",
+      "tags": "Etiquetas",
       "complexity": {
         "label": "Complejidad",
         "options": {
@@ -127,8 +134,8 @@
       }
     },
     "title": {
-      "label": "Ticket title",
-      "placeholder": "Untitled ticket"
+      "label": "Título de la tarea",
+      "placeholder": "Tarea sin título"
     },
     "none": "Ninguna",
     "properties": {
@@ -136,9 +143,12 @@
     },
     "options": {
       "ticket": "Abrir opciones de tarea",
-      "refineTicket": "Refine ticket",
-      "archiveTicket": "Archive ticket",
-      "deleteTicket": "Eliminar tarea"
+      "refineTicket": "Refinar tarea",
+      "archiveTicket": "Archivar tarea",
+      "unarchiveTicket": "Desarchivar tarea",
+      "createSubTicket": "Crear subtarea",
+      "deleteTicket": "Eliminar tarea",
+      "breakIntoSubTickets": "Dividir en subtareas"
     },
     "deleteConfirmation": {
       "ticket": {
@@ -184,5 +194,47 @@
     "errors": {
       "missingProjectId": "Se requiere el ID del proyecto para crear un intento."
     }
+  },
+  "sidebar": {
+    "documentation": "Documentación",
+    "tickets": "Tareas",
+    "projectChangelog": "Registro del proyecto",
+    "projectSettings": "Configuración del proyecto",
+    "helpLinks": "Enlaces de ayuda",
+    "documentationLink": "Documentación",
+    "discordLink": "Discord"
+  },
+  "shell": {
+    "loadingProject": "Cargando proyecto...",
+    "notFound": "Proyecto no encontrado",
+    "notFoundDescription": "Elige un proyecto de la lista para continuar."
+  },
+  "projectSettings": {
+    "title": "Configuración del proyecto"
+  },
+  "list": {
+    "projectCreated": "Proyecto creado",
+    "createProjectFailed": "Error al crear el proyecto",
+    "projectCount_one": "Tienes {{count}} proyecto.",
+    "projectCount_other": "Tienes {{count}} proyectos.",
+    "title": "Proyectos",
+    "createProject": "Crear proyecto",
+    "loadingProjects": "Cargando proyectos...",
+    "unableToLoad": "No se pudieron cargar los proyectos",
+    "noProjectsYet": "Aún no hay proyectos",
+    "noProjectsDescription": "Crea tu primer proyecto para comenzar.",
+    "createFirstProject": "Crear tu primer proyecto",
+    "settingsAriaLabel": "Configuración"
+  },
+  "sessions": {
+    "title": "Sesiones",
+    "newSession": "Nueva sesión",
+    "noSessionsYet": "Aún no hay sesiones",
+    "noSessionSelected": "Ninguna sesión seleccionada",
+    "selectSession": "Selecciona una sesión de la barra lateral o inicia una nueva.",
+    "followUpPlaceholder": "Enviar un mensaje de seguimiento...",
+    "downloadSessionJson": "Descargar JSON de la sesión",
+    "archiveSession": "Archivar sesión",
+    "sessionActions": "Acciones de sesión"
   }
 }
