@@ -1,11 +1,13 @@
 import { Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { EmptyState } from "@pstdio/ui";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ProjectSettingsProvider, useProjectSettingsStore } from "@/features/project-settings/store";
 import { SessionAttachedPanel } from "@/features/sessions/components/session-attached-panel";
 import { SessionBubbleContainer } from "@/features/sessions/components/session-bubble.container";
 import { isSessionsRoutePath } from "@/features/sessions/utils/sessions-route";
+import { isWorkspaceRoutePath } from "@/features/workspaces/utils/workspace-route";
 import { ProjectSidebar } from "../components/project-sidebar";
 import { useProject } from "../hooks/use-project";
 
@@ -15,7 +17,18 @@ const ProjectShellContent = () => {
   const { data: project, isLoading } = useProject(projectId);
   const { t } = useTranslation("projects");
   const sessionModalState = useProjectSettingsStore((s) => s.sessionModalState);
+  const setLastNonSessionsPath = useProjectSettingsStore((s) => s.setLastNonSessionsPath);
   const isSessionsRoute = isSessionsRoutePath(location.pathname, projectId);
+  const isWorkspaceRoute = isWorkspaceRoutePath(location.pathname, projectId);
+
+  useEffect(() => {
+    if (isSessionsRoute) return;
+    const currentPath =
+      typeof window === "undefined"
+        ? location.pathname
+        : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    setLastNonSessionsPath(currentPath);
+  }, [isSessionsRoute, location.pathname, setLastNonSessionsPath]);
 
   return (
     <Flex height="100%" width="100%" minH="0">
@@ -34,7 +47,7 @@ const ProjectShellContent = () => {
         </Box>
       </Stack>
       {sessionModalState === "attached" && !isSessionsRoute ? <SessionAttachedPanel /> : null}
-      {!isSessionsRoute ? <SessionBubbleContainer /> : null}
+      {!isSessionsRoute && !isWorkspaceRoute ? <SessionBubbleContainer /> : null}
     </Flex>
   );
 };

@@ -17,6 +17,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      NPM_CONFIG_PROVENANCE: true
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +31,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.14.0"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Upgrade npm for trusted publishing
         run: npm i -g npm@latest
@@ -60,8 +61,6 @@ jobs:
       - name: Publish platform packages
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: bun run scripts/publish-platform-packages.ts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create release PR or publish to npm
         id: changesets
@@ -72,7 +71,6 @@ jobs:
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Upload binaries to GitHub Release
         if: steps.changesets.outputs.published == 'true'
