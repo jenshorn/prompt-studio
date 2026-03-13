@@ -1,16 +1,14 @@
 import { Box, Container, Heading, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
-import type { HeadFC } from "gatsby";
 import { useEffect, useRef, useState } from "react";
-import Footer from "@/components/footer";
-import Header from "@/components/header";
-import { SEO } from "@/components/seo";
-import { CopyCommandIcon } from "../components/copy-command-icon";
 import { createCopyFeedbackController } from "../utils/copy-feedback";
+import { CopyCommandIcon } from "./copy-command-icon";
+import Footer from "./footer";
+import Header from "./header";
+import { RootProvider } from "./root-provider";
 
 const command = "npx pstdio@latest";
-const githubUrl = "https://github.com/pufflyai/prompt-studio";
 
-const IndexPage = () => {
+const IndexPageContent = () => {
   const [isCopied, setIsCopied] = useState(false);
   const copyFeedbackControllerRef = useRef<ReturnType<typeof createCopyFeedbackController> | null>(null);
 
@@ -35,10 +33,10 @@ const IndexPage = () => {
     <Box minH="100vh" bg="bg" color="fg" display="flex" flexDirection="column">
       <Header />
       <Box as="main" flex="1" display="flex">
-        <Container maxW="4xl" py={{ base: "20", md: "28" }} flex="1" display="flex">
+        <Container maxW="4xl" px={{ base: "8", md: "4" }} py={{ base: "20", md: "28" }} flex="1" display="flex">
           <Stack gap="10" align="center" justify="center" textAlign="center" width="100%">
             <Heading as="h1" textStyle="heading/XL" maxW="4xl">
-              Plan, delegate, and manage tasks for your AI coding agents.
+              Plan and delegate tasks to AI coding agents at scale.
             </Heading>
             <HStack px="lg" py="xs" rounded="sm" borderWidth="1px" borderColor="border" bg="bg.subtle">
               <Text as="code" fontFamily="mono">
@@ -53,26 +51,20 @@ const IndexPage = () => {
       </Box>
       <Footer
         links={[
-          {
-            list: [
-              { item: "GitHub", url: githubUrl },
-              { item: "Discord", url: "https://discord.gg/PYjnYVgR" },
-            ],
-            variant: "inline",
-          },
-          {
-            list: [
-              { item: "Privacy Policy", url: "/privacy-policy/" },
-              { item: "Terms", url: "/terms/" },
-            ],
-            variant: "inline",
-          },
+          { item: "GitHub", url: "https://github.com/pufflyai/prompt-studio" },
+          { item: "Discord", url: "https://discord.gg/PYjnYVgR" },
+          { item: "Privacy Policy", url: "/privacy-policy/" },
+          { item: "Terms", url: "/terms/" },
         ]}
       />
     </Box>
   );
 };
 
-export default IndexPage;
-
-export const Head: HeadFC = () => <SEO />;
+export const IndexPage = () => {
+  return (
+    <RootProvider>
+      <IndexPageContent />
+    </RootProvider>
+  );
+};

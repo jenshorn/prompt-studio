@@ -1,3 +1,8 @@
+---
+layout: ../layouts/markdown-layout.astro
+title: Terms
+---
+
 # Terms of Service
 
 _Current as of March 21, 2025_

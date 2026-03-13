@@ -67,10 +67,14 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: bunx changeset publish
-          version: bunx changeset version && bun run scripts/sync-platform-versions.ts
+          version: bash -c "bunx changeset version && bun run scripts/sync-platform-versions.ts"
           createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push tags
+        if: steps.changesets.outputs.published == 'true'
+        run: git push --tags
 
       - name: Upload binaries to GitHub Release
         if: steps.changesets.outputs.published == 'true'
