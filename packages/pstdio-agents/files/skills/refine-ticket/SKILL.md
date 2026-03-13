@@ -1,6 +1,6 @@
 ---
 name: refine-ticket
-description: "Refine an existing ticket into the a ticket template. Use when asked to refine, improve, expand, or structure an existing ticket."
+description: "Provide additional information to a ticket by researching the codebase and documentation, and/or format a ticket given a template. Use when asked to refine, improve, expand, or format an existing ticket."
 ---
 
 ## User Input
@@ -26,10 +26,9 @@ $ARGUMENTS
    - Steps aligned to Red/Green/Refactor
    - Acceptance criteria with explicit pass/fail conditions
    - Evidence expectations and exact validation commands
-7. Save to DB with `pstdio tickets save --id "<ticket-shorthand>"`.
-8. Stop after refinement and save. Do not implement code changes unless explicitly asked.
+7. If the changes were successful, remove the original file and save your changes with `pstdio tickets save --id "<ticket-shorthand>"`.
+8. Stop after refinement. Do not implement code changes unless explicitly asked.
 
 ## Output Locations
 
 - Ticket: `.pstdio/tickets/<ticket-id>_<slug>/ticket.md`
-- Original backup: `.pstdio/tickets/<ticket-id>_<slug>/ticket.original.md`

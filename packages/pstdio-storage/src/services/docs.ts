@@ -140,20 +140,21 @@ const parseConfigAndValidateLinks = (docsRoot: string, configText: string, avail
 
   const sidebar = parseSidebar(parsed);
   const links = collectSidebarLinks(sidebar);
+  const missingLinks: string[] = [];
   for (const link of links) {
     const fromLink = normalizeSidebarLinkPath(docsRoot, link);
     if (!availableFiles.has(fromLink)) {
-      throw createDocsError("DOCS_DOCUMENT_NOT_FOUND", `Docs link not found in .pstdio/docs: ${link}`);
+      missingLinks.push(link);
     }
   }
 
-  return { sidebar };
+  return { sidebar, missingLinks };
 };
 
 export const isDocsServiceError = (value: unknown): value is Error & { code: DocsErrorCode } =>
   value instanceof Error && "code" in value && typeof value.code === "string";
 
-export const createDocsService = (reposService: ReturnType<typeof createReposService>) => {
+export const createDocsService = (reposService: Pick<ReturnType<typeof createReposService>, "listByProject">) => {
   const resolveDocsDir = async (projectId: string) => {
     const repos = await reposService.listByProject(projectId);
     if (repos.length === 0) {

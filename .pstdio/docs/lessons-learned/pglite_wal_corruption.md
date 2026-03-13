@@ -2,32 +2,39 @@
 
 ## What
 
-PGlite databases can become unrecoverable when the WAL (write-ahead log) checkpoint record gets corrupted. The error is:
+PGlite databases can become unrecoverable when WAL recovery is interrupted or written inconsistently. Common startup errors are:
 
 ```
-PANIC: could not locate a valid checkpoint record
+PANIC: invalid max offset number
+RuntimeError: Aborted(). Build with -sASSERTIONS for more info.
 ```
+
+Confirmed trigger: running Drizzle Studio against the same `PSTDIO_DB_PATH` while `pstdio` is running can corrupt WAL.
 
 ## Why
 
-PGlite uses PostgreSQL's storage engine compiled to WASM. When `bun --watch` reloads a module, it starts a new PGlite instance on the same data directory before the old one closes. Two concurrent PGlite instances writing to the same files produces invalid WAL records. If the process is then killed (Ctrl+C, crash, or another reload), the checkpoint record is left in a corrupted state that PGlite cannot recover from.
+PGlite uses PostgreSQL's storage engine compiled to WASM and does not safely support concurrent writers to the same data directory.
 
-Reproduced reliably: open two `new PGlite(samePath)` instances, write concurrently, then `kill -9` the process.
+Drizzle Studio + `pstdio` against the same DB path creates exactly that unsupported state:
+
+1. `pstdio` opens and writes to the database in one process.
+2. Drizzle Studio opens the same database from a second process.
+3. Both processes can write/checkpoint WAL concurrently, which can produce invalid WAL offsets and unrecoverable startup failures.
 
 ## Risk
 
-All data in the PGlite database becomes inaccessible. The WASM runtime aborts on startup with a misleading error (`Failed query: CREATE SCHEMA IF NOT EXISTS "drizzle"`).
+All data in the PGlite database can become inaccessible until the WAL is repaired or the database is recreated. Running Drizzle Studio concurrently with `pstdio` materially increases this risk.
 
-## Fix
+## Prevention
 
-Signal handlers (`SIGINT`, `SIGTERM`) were added to `pstdio-api` entry points and the `serve` command to call `pglite.close()` before exit. `createApp()` now returns `{ app, close }` so callers can trigger graceful shutdown.
+Do not run Drizzle Studio against `~/.pstdio/pstdio.db` while `pstdio` is running. Stop `pstdio` first, or inspect a copied DB snapshot.
 
 ## Recovery
 
 If corruption occurs, use native PostgreSQL's `pg_resetwal` to reset the WAL:
 
 ```bash
-# Remove stale lock file if present
+# Remove stale runtime files if present
 rm ~/.pstdio/pstdio.db/postmaster.pid
 
 # Reset the WAL (requires matching PG version — PGlite uses PG 17)

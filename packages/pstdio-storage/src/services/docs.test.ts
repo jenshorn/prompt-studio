@@ -18,10 +18,19 @@ const createFixture = () => {
   writeFileSync(join(docsDir, "guide", "getting-started.md"), "# Getting Started\n\nHello world.\n", "utf8");
 
   const reposService = {
-    listByProject: async (_projectId: string) => [{ path: root, id: "repo-1", name: "test-repo" }],
+    listByProject: async (_projectId: string) => [
+      {
+        id: "repo-1",
+        name: "test-repo",
+        display_name: null,
+        path: root,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ],
   };
 
-  const docs = createDocsService(reposService as any);
+  const docs = createDocsService(reposService);
 
   return { root, docsDir, docs };
 };
@@ -69,15 +78,32 @@ test("getIndex throws when navigation.json is invalid JSON", async () => {
   }
 });
 
-test("getIndex throws when sidebar link points to missing file", async () => {
+test("getIndex returns missingLinks when sidebar link points to missing file", async () => {
   const fixture = createFixture();
   try {
     writeFileSync(
       join(fixture.docsDir, "navigation.json"),
-      JSON.stringify({ sidebar: [{ text: "Missing", link: "/nowhere" }] }),
+      JSON.stringify({
+        sidebar: [
+          { text: "Exists", link: "/guide/getting-started" },
+          { text: "Missing", link: "/nowhere" },
+        ],
+      }),
       "utf8",
     );
-    expect(fixture.docs.getIndex("project-1")).rejects.toThrow("not found");
+    const index = await fixture.docs.getIndex("project-1");
+    expect(index.sidebar).toHaveLength(2);
+    expect(index.missingLinks).toEqual(["/nowhere"]);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("getIndex returns empty missingLinks when all links exist", async () => {
+  const fixture = createFixture();
+  try {
+    const index = await fixture.docs.getIndex("project-1");
+    expect(index.missingLinks).toEqual([]);
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -108,6 +134,6 @@ test("getIndex rejects path traversal in sidebar links", async () => {
 
 test("throws when no repo is linked to the project", async () => {
   const reposService = { listByProject: async () => [] };
-  const docs = createDocsService(reposService as any);
+  const docs = createDocsService(reposService);
   expect(docs.getIndex("project-1")).rejects.toThrow("No repo linked");
 });
