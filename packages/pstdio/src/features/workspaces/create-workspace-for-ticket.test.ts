@@ -1,6 +1,4 @@
 import { describe, expect, mock, test } from "bun:test";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { createWorkspaceForTicket } from "./create-workspace-for-ticket";
 
 const mockTicket = {
@@ -25,7 +23,7 @@ const mockWorkspace = {
   name: "PS-1_A1",
   workspace_shorthand: "PS-1_A1",
   branch: "workspace/PS-1_A1",
-  worktree_path: join(homedir(), ".pstdio", "workspaces", "PS-1_A1"),
+  worktree_path: "/tmp/pstdio/workspaces/PS-1_A1",
   status: "active",
   created_at: "2026-03-05T00:00:00.000Z",
   updated_at: "2026-03-05T00:00:00.000Z",
@@ -45,9 +43,6 @@ const mockTicketAttempt = {
 const baseDeps = {
   listTickets: async () => [mockTicket],
   createTicketAttempt: async () => mockTicketAttempt,
-  getStartupScript: async () => null as string | null,
-  setStartupLog: mock(async () => ({ file_id: "f-1" })),
-  exec: mock() as never,
   log: mock() as (...args: unknown[]) => void,
 };
 
@@ -68,9 +63,7 @@ describe("createWorkspaceForTicket", () => {
       base: "HEAD",
       repo_path: "/repo",
     });
-    expect(log).toHaveBeenCalledWith(
-      `Created workspace PS-1_A1 for PS-1 at ${join(homedir(), ".pstdio", "workspaces", "PS-1_A1")}`,
-    );
+    expect(log).toHaveBeenCalledWith("Created workspace PS-1_A1 for PS-1 at /tmp/pstdio/workspaces/PS-1_A1");
     expect(result).toEqual(mockWorkspace);
   });
 

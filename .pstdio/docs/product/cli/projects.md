@@ -266,6 +266,8 @@ A project can define a startup script that runs automatically when a new workspa
 | -------------------------------------- | -------------------------- |
 | `pstdio projects startup-script set`   | Set the startup script.    |
 | `pstdio projects startup-script get`   | Print the startup script.  |
+| `pstdio projects startup-script save`  | Push local `.pstdio/startup.sh` to remote. |
+| `pstdio projects startup-script pull`  | Refresh local `.pstdio/startup.sh` from remote. |
 | `pstdio projects startup-script clear` | Remove the startup script. |
 
 All subcommands require a linked project (`.pstdio/config.json` exists). If missing, they fail with `"Not inside a pstdio project. Run 'pstdio projects create' first."`.
@@ -346,34 +348,85 @@ Startup script cleared for project "my-app".
 
 ---
 
-### Integration with `pstdio workspaces create`
+### `pstdio projects startup-script save`
 
-After `pstdio workspaces create` completes its existing steps (worktree checkout, DB metadata), it adds:
+#### Usage
 
-8. Reads the project's `startup_script` from the database.
-9. If non-null, executes the script inside the workspace worktree directory using the user's default shell.
-10. Streams script stdout/stderr to the terminal.
-11. If the script exits with a non-zero code, prints a warning but does **not** fail workspace creation.
-
-When a startup script runs successfully:
-
-```text
-Created workspace PS-12/A1 for PS-12 at ~/.pstdio/workspaces/PS-12/A1
-Running startup script...
-<script output>
-Startup script completed.
+```sh
+pstdio projects startup-script save
 ```
 
-When the script fails:
+#### Behavior
+
+1. Reads `.pstdio/startup.sh` from the current linked project.
+2. If the file has non-whitespace content, updates `projects.startup_script` with that content.
+3. If the file is empty/whitespace-only, clears `projects.startup_script` to `NULL`.
+
+#### Output
 
 ```text
-Created workspace PS-12/A1 for PS-12 at ~/.pstdio/workspaces/PS-12/A1
-Running startup script...
-<script output>
-Warning: startup script exited with code 1.
+Saved .pstdio/startup.sh to project startup script
 ```
 
-When no startup script is configured, output is unchanged.
+or when empty:
+
+```text
+Saved empty .pstdio/startup.sh and cleared project startup script
+```
+
+#### Errors
+
+- `Local startup script not found: .pstdio/startup.sh`: no local startup script file exists.
+
+---
+
+### `pstdio projects startup-script pull`
+
+#### Usage
+
+```sh
+pstdio projects startup-script pull
+```
+
+#### Behavior
+
+1. Reads `projects.startup_script` from remote storage (authoritative source).
+2. If non-null, overwrites `.pstdio/startup.sh` with the remote value.
+3. If null, removes local `.pstdio/startup.sh`.
+
+#### Output
+
+```text
+Pulled startup script to .pstdio/startup.sh
+```
+
+or when remote is empty:
+
+```text
+Pulled empty startup script and removed .pstdio/startup.sh
+```
+
+---
+
+### Integration with Workspace Creation
+
+Startup script execution is handled by backend workspace creation (`POST /v1/tickets/{id}/attempts`), not by the CLI process itself.
+
+That means one configured startup script behavior applies across all workspace creation entry points:
+
+1. `pstdio workspaces create`
+2. Dashboard attempt/workspace creation
+3. Direct API clients calling `POST /v1/tickets/{id}/attempts`
+
+For worktree mode, the backend behavior is:
+
+1. Create worktree and persist workspace git metadata.
+2. Read `projects.startup_script`.
+3. If configured, run the script in the created worktree directory.
+4. Save stdout/stderr to workspace startup log (`/v1/workspaces/{id}/startup-log`) when output exists.
+5. Continue workspace creation even if the script exits non-zero.
+
+CLI output remains the workspace creation line; startup script output is available via `pstdio workspaces startup-log --id <workspace-shorthand>`.
 
 ---
 
