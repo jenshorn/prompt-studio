@@ -50,6 +50,23 @@ describe("POST /v1/projects/:id/templates", () => {
     expect(body.is_default).toBe(false);
   });
 
+  test("uses placeholder content when content is omitted", async () => {
+    const res = await app.request(`/v1/projects/${projectId}/templates`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "blank-template",
+        template_type: "prompt",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+
+    const getRes = await app.request(`/v1/projects/${projectId}/templates/blank-template`);
+    const body = await getRes.json();
+    expect(body.content).toBe("# blank-template\n");
+  });
+
   test("returns 409 for duplicate name", async () => {
     const res = await app.request(`/v1/projects/${projectId}/templates`, {
       method: "POST",
@@ -71,9 +88,10 @@ describe("GET /v1/projects/:id/templates", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body).toHaveLength(8);
+    expect(body).toHaveLength(9);
     expect(body.map((template: { name: string }) => template.name)).toEqual([
       "adr",
+      "blank-template",
       "cookbook",
       "custom-ticket",
       "lessons-learned",
@@ -150,7 +168,7 @@ describe("DELETE /v1/projects/:id/templates/:name", () => {
 
     const listRes = await app.request(`/v1/projects/${projectId}/templates`);
     const list = await listRes.json();
-    expect(list).toHaveLength(7);
+    expect(list).toHaveLength(8);
     expect(list.find((template: { name: string }) => template.name === "ticket")).toBeUndefined();
   });
 
