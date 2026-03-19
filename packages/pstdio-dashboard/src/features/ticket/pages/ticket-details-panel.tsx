@@ -125,6 +125,7 @@ export const TicketDetailsPanel = () => {
     projectId,
     parentTicketId: ticketId,
     statusOptions: project?.ticketStatusOptions ?? [],
+    tags: project?.ticketTags ?? [],
   });
   const autosave = useContentAutosave({
     scopeKey: ticketId ? `ticket:${ticketId}:${selectedFile.id}` : "ticket:none",
@@ -275,6 +276,7 @@ export const TicketDetailsPanel = () => {
         targetStatus={subTicketCreation.createModalStatus}
         templates={subTicketCreation.templates}
         parentId={subTicketCreation.parentId}
+        tags={subTicketCreation.tags}
         title={t("ticketDetail.createSubTicket")}
         submitLabel={t("ticketDetail.createSubTicket")}
       />
