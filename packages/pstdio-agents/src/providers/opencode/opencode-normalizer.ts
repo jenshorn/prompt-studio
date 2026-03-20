@@ -1,4 +1,5 @@
 import type { SessionMessage, SessionMessagePart, ToolPartActionType, ToolPartStatus } from "../../types";
+import { normalizeErrorPart } from "../normalized-error";
 import type { OpencodeSessionMessage, OpencodeSessionMessagePart } from "./opencode-types";
 
 // --- Part extraction ---
@@ -108,12 +109,30 @@ const normalizePart = (part: OpencodeSessionMessagePart): SessionMessagePart | n
     case "patch":
       return { type: "patch", hash: part.hash, files: part.files };
 
+    case "error":
+      return normalizeErrorPart({
+        errorType: part.errorType,
+        message: typeof part.message === "string" ? part.message : part.text,
+      });
+
     default:
       if (typeof part.text === "string" && part.text.trim().length > 0) {
         return { type: "text", text: part.text };
       }
       return null;
   }
+};
+
+// --- Info error extraction ---
+
+const getInfoError = (message: OpencodeSessionMessage): SessionMessagePart | null => {
+  if (!("info" in message) || !message.info?.error) return null;
+
+  const { name, data } = message.info.error;
+  const errorMessage = data?.message?.trim() || name?.trim() || undefined;
+  if (!errorMessage) return null;
+
+  return normalizeErrorPart({ message: errorMessage });
 };
 
 // --- Message normalization ---
@@ -123,6 +142,11 @@ export const normalizeOpencodeMessage = (message: OpencodeSessionMessage, index:
   const parts = getMessageParts(message);
 
   const normalizedParts = parts.map(normalizePart).filter((p): p is SessionMessagePart => p !== null);
+
+  if (normalizedParts.length === 0) {
+    const infoError = getInfoError(message);
+    if (infoError) normalizedParts.push(infoError);
+  }
 
   const id = (() => {
     if ("info" in message && message.info?.id) {

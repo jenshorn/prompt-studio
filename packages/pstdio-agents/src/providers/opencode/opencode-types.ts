@@ -16,6 +16,8 @@ export type OpencodeSessionMessagePart = {
   tokens?: unknown;
   hash?: string;
   files?: unknown;
+  errorType?: string;
+  message?: string;
 };
 
 export type OpencodeSessionMessageInfo = {
@@ -24,6 +26,10 @@ export type OpencodeSessionMessageInfo = {
   sessionID?: string;
   modelID?: string;
   providerID?: string;
+  error?: {
+    name?: string;
+    data?: { message?: string };
+  };
   tokens?: {
     input?: number;
     output?: number;
