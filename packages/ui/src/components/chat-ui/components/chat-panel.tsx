@@ -24,6 +24,8 @@ interface ChatPanelProps {
   streaming?: boolean;
   emptyStateTitle: string;
   emptyStateDescription: string;
+  emptyStateContent?: ReactNode;
+  loadingContent?: ReactNode;
   chatInputPlaceholder: string;
   chatInputDefaultValue?: string;
   onSubmitMessage?: (text: string, attachments: string[]) => void;
@@ -34,6 +36,7 @@ interface ChatPanelProps {
   onClearAttachments?: () => void;
   attachmentList?: ReactNode;
   approvalPrompt?: ReactNode;
+  workspaceHub?: ReactNode;
 }
 
 const renderMessage = (message: SessionMessage, streaming: boolean) => {
@@ -53,6 +56,8 @@ export const ChatPanel = (props: ChatPanelProps) => {
     streaming = false,
     emptyStateTitle,
     emptyStateDescription,
+    emptyStateContent,
+    loadingContent,
     chatInputPlaceholder,
     chatInputDefaultValue = "",
     onSubmitMessage,
@@ -63,6 +68,7 @@ export const ChatPanel = (props: ChatPanelProps) => {
     onClearAttachments,
     attachmentList,
     approvalPrompt,
+    workspaceHub,
   } = props;
 
   const merged = mergeReasoningToolOnlyMessages(messages);
@@ -70,6 +76,8 @@ export const ChatPanel = (props: ChatPanelProps) => {
   const userMessageCount = merged.reduce((count, message) => count + (message.role === "user" ? 1 : 0), 0);
   const { groups, leadingResponses } = groupMessagesByTurn(merged);
   const [expandedStickyMessageIds, setExpandedStickyMessageIds] = useState(() => new Set<string>());
+  const emptyContent = streaming ? (loadingContent ?? emptyStateContent) : emptyStateContent;
+  const hasWorkspaceHub = Boolean(workspaceHub);
 
   const toggleStickyMessageExpanded = (messageId: string) => {
     setExpandedStickyMessageIds((current) => {
@@ -153,17 +161,20 @@ export const ChatPanel = (props: ChatPanelProps) => {
               })}
             </Stack>
           ) : (
-            <EmptyState
-              icon={<MessageCircleIcon size={48} strokeWidth={1.5} />}
-              title={emptyStateTitle}
-              description={emptyStateDescription}
-            />
+            (emptyContent ?? (
+              <EmptyState
+                icon={<MessageCircleIcon size={48} strokeWidth={1.5} />}
+                title={emptyStateTitle}
+                description={emptyStateDescription}
+              />
+            ))
           )}
         </ChatPrimitives.Viewport>
         <ChatPrimitives.ScrollToBottom aria-label="Scroll to latest message" />
       </ChatPrimitives.Root>
       {approvalPrompt}
-      <Box px="sm">
+      <Stack px="sm" gap={hasWorkspaceHub ? "0" : "xs"}>
+        {workspaceHub}
         <ChatInput
           placeholder={chatInputPlaceholder}
           defaultState={createSerializedPromptState(chatInputDefaultValue)}
@@ -174,8 +185,9 @@ export const ChatPanel = (props: ChatPanelProps) => {
           attachedResources={attachedResources}
           onClearAttachments={onClearAttachments}
           attachmentList={attachmentList}
+          attachedToTop={hasWorkspaceHub}
         />
-      </Box>
+      </Stack>
       <Flex p="2xs" justifyContent="flex-end">
         {repoMenu}
       </Flex>
