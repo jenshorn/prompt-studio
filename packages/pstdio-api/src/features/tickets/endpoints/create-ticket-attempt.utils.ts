@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { eq, ticket_workspaces } from "pstdio-db";
 import { createWorktree, runHook } from "pstdio-wt";
 import type { RouteDeps } from "../../deps";
-import { fireSessionStartHook } from "../../sessions/session-hooks";
+import { fireSessionStartHook, fireSessionStatusHook } from "../../sessions/session-hooks";
 import { spawnAgentSession } from "../../sessions/spawn-agent";
 
 type WorkspaceRecord = Awaited<ReturnType<RouteDeps["workspacesService"]["create"]>>;
@@ -197,6 +197,8 @@ const resolveWorkspaceGitMetadata = async (input: {
   workspaceShorthand: string;
   repoPath: string;
   base: string;
+  projectId: string;
+  ticketShorthand: string;
 }) => {
   if (input.mode !== input.worktreeMode) {
     return { branch: null as string | null, worktreePath: input.repoPath };
@@ -204,6 +206,23 @@ const resolveWorkspaceGitMetadata = async (input: {
 
   const branch = `workspace/${input.workspaceShorthand}`;
   const worktreePath = join(resolveWorkspacesRoot(), input.workspaceShorthand);
+
+  const preResult = await runHook(
+    "pre-worktree-create",
+    {
+      repoPath: input.repoPath,
+      branch,
+      workspace: input.workspaceShorthand,
+      ticketShorthand: input.ticketShorthand,
+      projectId: input.projectId,
+    },
+    input.repoPath,
+  );
+  if (!preResult.skipped && preResult.exitCode !== 0) {
+    throw new Error(
+      `HOOK pre-worktree-create FAILED (exit ${preResult.exitCode})\n${preResult.stderr || preResult.stdout}`,
+    );
+  }
 
   await createWorktree({
     repoRoot: input.repoPath,
@@ -272,17 +291,24 @@ const startAttemptSession = async (
     agent: agentId,
   });
   deps.eventBus.emit("sessions", "set", session);
-  fireSessionStartHook(deps, { id: session.id, project_id: input.ticket.project_id, status: session.status });
 
   const workspaceSessionLink = await deps.workspaceSessionsService.link(input.workspace.id, session.id);
   deps.eventBus.emit("workspace_sessions", "set", workspaceSessionLink);
+
+  // Fire after the workspace-session link so the hook can resolve worktree context
+  fireSessionStartHook(deps, { id: session.id, project_id: input.ticket.project_id, status: session.status });
 
   return { session, agentId, prompt, title };
 };
 
 const failStartedSession = async (deps: RouteDeps, sessionId: string) => {
   const failed = await deps.sessionsService.updateStatus(sessionId, "failed");
-  if (failed) deps.eventBus.emit("sessions", "set", failed);
+  if (failed) {
+    deps.eventBus.emit("sessions", "set", failed);
+    if (failed.project_id) {
+      fireSessionStatusHook(deps, { id: failed.id, project_id: failed.project_id, status: failed.status });
+    }
+  }
 };
 
 const spawnStartedSession = (
@@ -416,6 +442,8 @@ export const createAttemptWorkspace = async (
     workspaceShorthand: workspace.workspace_shorthand,
     repoPath: input.repoPath,
     base: input.base,
+    projectId: input.projectId,
+    ticketShorthand: input.ticketShorthand,
   });
   const workspaceWithGitMetadata =
     (await deps.workspacesService.updateGitMetadata(workspace.id, {
