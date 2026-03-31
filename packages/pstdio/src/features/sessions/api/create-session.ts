@@ -2,9 +2,10 @@ type CreateSessionInput = {
   project_id: string;
   title: string;
   prompt: string;
-  agent: string;
+  agent?: string;
   workspace_id?: string;
   model?: string;
+  original_session_id?: string;
 };
 
 type Session = {

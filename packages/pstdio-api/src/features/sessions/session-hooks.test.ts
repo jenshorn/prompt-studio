@@ -56,7 +56,7 @@ describe("fireSessionStatusHook", () => {
     });
   });
 
-  test("includes attempt status payload when session is linked to a workspace", async () => {
+  test("sends flat payload with workspace enrichment when session is linked", async () => {
     const payloadFile = join(repoDir, "post-session-success.payload.json");
     writeHook("post-session-success", `cat > "${payloadFile}"`);
 
@@ -72,28 +72,6 @@ describe("fireSessionStatusHook", () => {
           worktree_path: repoDir,
           attempt_status_id: "status-review-ready",
         }),
-      } as never,
-      workspacesService: {
-        list: async () => [
-          {
-            id: "ws-1",
-            workspace_shorthand: "TP-5_A1",
-            attempt_status_id: "status-review-ready",
-            ticket_shorthand: "TP-5",
-          },
-          {
-            id: "ws-2",
-            workspace_shorthand: "TP-5_A2",
-            attempt_status_id: "status-running",
-            ticket_shorthand: "TP-5",
-          },
-          {
-            id: "ws-3",
-            workspace_shorthand: "TP-7_A1",
-            attempt_status_id: "status-running",
-            ticket_shorthand: "TP-7",
-          },
-        ],
       } as never,
       attemptStatusesService: {
         list: async () => [
@@ -111,16 +89,72 @@ describe("fireSessionStatusHook", () => {
 
     const content = await waitForHookPayloadFile(payloadFile);
     expect(JSON.parse(content)).toEqual({
-      session: { id: "sess_1", status: "completed" },
-      attempt: { id: "TP-5_A1", status: "review-ready" },
-      ticket: {
-        id: "TP-5",
-        attempts: [
-          { id: "TP-5_A1", status: "review-ready" },
-          { id: "TP-5_A2", status: "running" },
-        ],
-      },
+      session_id: "sess_1",
+      session_status: "completed",
+      project_id: "proj-1",
+      workspace: "TP-5_A1",
+      workspace_id: "ws-1",
+      worktree_path: repoDir,
+      branch: "workspace/TP-5_A1",
+      ticket: "TP-5",
+      attempt_status: "review-ready",
     });
+  });
+
+  test("includes original_session_id in payload when set", async () => {
+    const payloadFile = join(repoDir, "post-session-success-orig.payload.json");
+    writeHook("post-session-success", `cat > "${payloadFile}"`);
+
+    const deps = {
+      reposService: {
+        listByProject: async () => [{ path: repoDir }],
+      } as never,
+      workspaceSessionsService: {
+        getWorkspaceBySessionId: async () => ({
+          id: "ws-1",
+          workspace_shorthand: "TP-5_A1",
+          branch: "workspace/TP-5_A1",
+          worktree_path: repoDir,
+          attempt_status_id: null,
+        }),
+      } as never,
+    };
+
+    fireSessionStatusHook(deps as never, {
+      id: "review_sess_1",
+      project_id: "proj-1",
+      status: "completed",
+      original_session_id: "orig_sess_1",
+    });
+
+    const content = await waitForHookPayloadFile(payloadFile);
+    const payload = JSON.parse(content);
+    expect(payload.original_session_id).toBe("orig_sess_1");
+    expect(payload.project_id).toBe("proj-1");
+  });
+
+  test("omits original_session_id from payload when not set", async () => {
+    const payloadFile = join(repoDir, "post-session-success-no-orig.payload.json");
+    writeHook("post-session-success", `cat > "${payloadFile}"`);
+
+    const deps = {
+      reposService: {
+        listByProject: async () => [{ path: repoDir }],
+      } as never,
+      workspaceSessionsService: {
+        getWorkspaceBySessionId: async () => null,
+      } as never,
+    };
+
+    fireSessionStatusHook(deps as never, {
+      id: "sess_1",
+      project_id: "proj-1",
+      status: "completed",
+    });
+
+    const content = await waitForHookPayloadFile(payloadFile);
+    const payload = JSON.parse(content);
+    expect(payload.original_session_id).toBeUndefined();
   });
 
   test("fires post-session-fail on failed", () => {

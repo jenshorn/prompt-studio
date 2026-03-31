@@ -12,6 +12,8 @@ export const sessionResponseSchema = z.object({
   agent: z.string().nullable(),
   agent_session_id: z.string().nullable(),
   session_file_id: z.string().nullable(),
+  original_session_id: z.string().nullable(),
+  cwd: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -21,19 +23,26 @@ export const createSessionBodySchema = z
     project_id: z.string().min(1),
     title: z.string().min(1),
     prompt: z.string().min(1),
-    agent: z.string().min(1),
+    agent: z.string().min(1).optional(),
     workspace_id: z.string().optional(),
     model: z.string().optional(),
+    original_session_id: z.string().optional(),
   })
   .strict();
 
 export const followUpBodySchema = z
   .object({
-    prompt: z.string().min(1),
+    prompt: z.string().min(1).optional(),
     agent: z.string().optional(),
     model: z.string().optional(),
+    summary_from_session_id: z.string().optional(),
+    summary_format: z.enum(["brief", "detailed"]).default("brief").optional(),
+    summary_role: z.enum(["assistant", "all"]).default("assistant").optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => data.prompt || data.summary_from_session_id, {
+    message: "At least one of 'prompt' or 'summary_from_session_id' is required.",
+  });
 
 export const approveBodySchema = z
   .object({

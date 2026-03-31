@@ -10,6 +10,8 @@ type CreateInput = {
   title: string;
   agent: string;
   workspace_id?: string;
+  original_session_id?: string;
+  cwd?: string;
 };
 
 type ListFilters = {
@@ -22,13 +24,13 @@ type ListFilters = {
 type UpdateInput = Partial<
   Pick<
     SessionRecord,
-    "title" | "agent" | "agent_session_id" | "last_request_started" | "last_request_ended" | "session_file_id"
+    "title" | "agent" | "agent_session_id" | "last_request_started" | "last_request_ended" | "session_file_id" | "cwd"
   >
 >;
 
 const nowTimestamp = () => new Date().toISOString();
 
-export const createSessionsService = (db: DbClient) => {
+export const createSessionsDBService = (db: DbClient) => {
   const create = async (input: CreateInput) => {
     const timestamp = nowTimestamp();
 
@@ -44,6 +46,8 @@ export const createSessionsService = (db: DbClient) => {
       agent: input.agent,
       agent_session_id: null,
       session_file_id: null,
+      original_session_id: input.original_session_id ?? null,
+      cwd: input.cwd ?? null,
       created_at: timestamp,
       updated_at: timestamp,
     };

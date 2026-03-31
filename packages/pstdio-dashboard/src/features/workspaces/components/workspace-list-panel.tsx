@@ -1,7 +1,7 @@
 import { Flex, IconButton, Menu, Stack, Text } from "@chakra-ui/react";
 import type { SessionCompletionStatus } from "@pstdio/ui";
 import { MenuItem, resolveSessionIndicatorColor, resolveSessionIndicatorIcon, Tooltip } from "@pstdio/ui";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Circle, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { WorkspaceSessionEntry } from "../hooks/use-workspace-sessions";
 
@@ -11,6 +11,9 @@ interface WorkspaceListItem {
   shorthand: string;
   updatedAt: string;
   worktreePath: string | null;
+  setupError: string | null;
+  attemptStatusName?: string;
+  attemptStatusColor?: string;
 }
 
 interface WorkspaceListPanelProps {
@@ -19,12 +22,14 @@ interface WorkspaceListPanelProps {
   activeSessionId: string | null;
   onSelectSession: (workspaceShorthand: string, sessionId: string) => void;
   onCreateAttempt?: () => void;
+  onCreateSession?: (workspaceId: string, workspaceShorthand: string) => void;
 }
 
 export type { WorkspaceListItem };
 
 export const WorkspaceListPanel = (props: WorkspaceListPanelProps) => {
-  const { workspaces, sessionsByWorkspaceId, activeSessionId, onSelectSession, onCreateAttempt } = props;
+  const { workspaces, sessionsByWorkspaceId, activeSessionId, onSelectSession, onCreateAttempt, onCreateSession } =
+    props;
 
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(() => new Set(workspaces.map((w) => w.id)));
 
@@ -85,9 +90,33 @@ export const WorkspaceListPanel = (props: WorkspaceListPanelProps) => {
                     size={12}
                     style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "120ms" }}
                   />
-                  <Text textStyle="label/XS/medium" color="foreground.secondary">
+                  <Text textStyle="label/XS/medium" color="foreground.secondary" flex="1">
                     {workspace.shorthand}
                   </Text>
+                  {workspace.attemptStatusName ? (
+                    <Tooltip content={workspace.attemptStatusName}>
+                      <Circle
+                        size={8}
+                        fill="currentColor"
+                        color={`var(--chakra-colors-${workspace.attemptStatusColor}-solid)`}
+                      />
+                    </Tooltip>
+                  ) : null}
+                  {onCreateSession ? (
+                    <Tooltip content="New workspace session">
+                      <IconButton
+                        size="2xs"
+                        variant="ghost"
+                        aria-label="New workspace session"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateSession(workspace.id, workspace.shorthand);
+                        }}
+                      >
+                        <Plus size={12} />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
                 </Flex>
 
                 {isExpanded

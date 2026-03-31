@@ -40,6 +40,63 @@ afterAll(() => {
 });
 
 describe("POST /v1/sessions", () => {
+  test("returns 400 when agent is omitted and no default agent is configured", async () => {
+    const projectRes = await app.request("/v1/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Missing Default Agent Project" }),
+    });
+    expect(projectRes.status).toBe(201);
+    const project = await projectRes.json();
+
+    const createRes = await app.request("/v1/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: project.id,
+        title: "Session Title",
+        prompt: "Run task",
+      }),
+    });
+
+    expect(createRes.status).toBe(400);
+    expect(await createRes.json()).toEqual({
+      error: "No agent configured. Set a default agent with 'pstdio agents setup' first.",
+    });
+  });
+
+  test("uses the configured default agent when agent is omitted", async () => {
+    const projectRes = await app.request("/v1/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Default Agent Project" }),
+    });
+    expect(projectRes.status).toBe(201);
+    const project = await projectRes.json();
+
+    const setupAgentRes = await app.request("/v1/agents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agent_id: "fake" }),
+    });
+    expect(setupAgentRes.status).toBe(201);
+
+    const createRes = await app.request("/v1/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: project.id,
+        title: "Default fake session",
+        prompt: "run fake flow",
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const created = await createRes.json();
+
+    const session = await waitForSessionStatus(created.id, "completed");
+    expect(session.agent).toBe("fake");
+  });
+
   test("returns 201 and marks session failed when agent cannot start", async () => {
     const projectRes = await app.request("/v1/projects", {
       method: "POST",
@@ -136,6 +193,36 @@ describe("POST /v1/sessions", () => {
     expect(body).toContain("event: end");
     expect(body).toContain('"status":"completed"');
     expect(body).toContain("Fake Agent");
+  });
+
+  test("stores resolved cwd on session record at creation time", async () => {
+    const projectRes = await app.request("/v1/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "CWD Project" }),
+    });
+    expect(projectRes.status).toBe(201);
+    const project = await projectRes.json();
+
+    const createRes = await app.request("/v1/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project_id: project.id,
+        title: "CWD session",
+        prompt: "check cwd",
+        agent: "fake",
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const created = await createRes.json();
+
+    await waitForSessionStatus(created.id, "completed");
+
+    const getRes = await app.request(`/v1/sessions/${created.id}`);
+    const session = await getRes.json();
+    // No repo linked so cwd is null, but the field exists on the record
+    expect(session).toHaveProperty("cwd");
   });
 
   test("runs follow-up through fake resume flow and persists appended messages", async () => {
