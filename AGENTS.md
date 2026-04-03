@@ -33,6 +33,7 @@ Follow this loop **every time**:
 
 - Tests for UI changes. Use storybook stories instead.
 - Tests for config only changes.
+- Tests for documentation only changes.
 
 ### 2. Green — Make it pass
 
@@ -56,6 +57,8 @@ Tests must stay green.
 
 ### 4. Prove It Works (Required)
 
+(Skip this for documentation only changes.)
+
 Before completing a task run `bun run validate`. Ensure it passes. Fix any remaining issues.
 
 ### 5. Packaged Artifacts Smoke Test
@@ -63,6 +66,16 @@ Before completing a task run `bun run validate`. Ensure it passes. Fix any remai
 - If bundled runtime artifacts change (for example embedded templates, prompts, skills, or other packaged defaults), update packaged smoke-test expectations accordingly.
 - Keep `packages/e2e/src/packaged/packaged-serve-smoke.test.ts` aligned with the current bundled artifact set.
 - When validating packaged output, run `bun run scripts/verify-packages.ts`.
+
+# 6. Changesets
+
+- If you modify **any package**, include a changeset for **`pstdio`** only; include **`@pstdio/ui`** only when that package itself changes.
+- Run `bun changeset`, choose the semver bump (`patch`, `minor`, `major`), and write a **one-line changelog summary**.
+- **Do not manually edit `package.json` versions**.
+
+❌ Not allowed:
+
+- Changesets for tests and refactor only changes.
 
 ## Coding Style Rules
 
@@ -83,20 +96,15 @@ Before completing a task run `bun run validate`. Ensure it passes. Fix any remai
 
 ### Testing Rules
 
-- Tests must be **located next to the file they test**
-- Avoid mocks, test the real thing when possible
-- Bug fixes must add a regression test first
+- Tests must be **located next to the file they test**.
+- Avoid mocks, test the real thing when possible.
+- Bug fixes must add a regression test first.
 
 ❌ Not allowed:
 
 - Tests for UI changes. Use storybook stories instead.
-- Tests for config only changes.
-
-# Changesets
-
-- If you modify **any package**, include a changeset for **`pstdio`** only; include **`@pstdio/ui`** only when that package itself changes.
-- Run `bun changeset`, choose the semver bump (`patch`, `minor`, `major`), and write a **one-line changelog summary**.
-- Commit the generated `.changeset/*.md` file and **do not manually edit `package.json` versions**.
+- Tests for config changes.
+- Tests for documentation changes.
 
 ---
 
@@ -104,7 +112,6 @@ Before completing a task run `bun run validate`. Ensure it passes. Fix any remai
 
 This project uses `pstdio` to manage tickets and documentation.
 
-- You can find relevant documentation in `.pstdio/docs`.
-- Consider the database at `~/.pstdio/db` as containing production data and do not modify it unless you are granted permission
+Run `pstdio --help` to learn more.
 
 ---

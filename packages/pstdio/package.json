@@ -27,6 +27,7 @@
   "dependencies": {
     "@tanstack/react-db": "^0.1.74",
     "mustache": "^4.2.0",
+    "pstdio-logging": "workspace:*",
     "react": "^19.2.4",
     "yargs": "^18.0.0"
   },
@@ -50,6 +51,7 @@
     "pstdio-api": "workspace:*",
     "pstdio-dashboard": "workspace:*",
     "pstdio-db": "workspace:*",
+    "pstdio-hooks": "workspace:*",
     "pstdio-wt": "workspace:*",
     "typescript": "~5.9.3"
   }

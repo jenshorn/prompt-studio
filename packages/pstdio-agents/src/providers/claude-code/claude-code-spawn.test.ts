@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { PassThrough, Writable } from "node:stream";
+import { createApprovalService } from "../../services/approval-service";
 import { createEventStore } from "../../services/event-store";
 import type { JsonPatch } from "../../types";
 import { buildSpawnArgs, type SpawnDeps, spawnClaudeCodeMessage, spawnClaudeCodeSession } from "./claude-code-spawn";
@@ -101,6 +102,44 @@ describe("spawnClaudeCodeSession", () => {
     expect(userPatch.path).toBe("/messages/0");
     expect((userPatch.value as { role: string }).role).toBe("user");
   });
+
+  test("forwards custom env vars to spawned Claude process", async () => {
+    const stdout = new PassThrough();
+    const stdin = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    });
+
+    const spawnOptions: Array<{ cwd?: string; env?: NodeJS.ProcessEnv }> = [];
+    const deps: SpawnDeps = {
+      spawnProcess: (_args, options) => {
+        spawnOptions.push(options ?? {});
+        queueMicrotask(() => {
+          stdout.write(`${JSON.stringify({ type: "system", session_id: "session-abc" })}\n`);
+          stdout.end();
+        });
+
+        return {
+          stdin,
+          stdout,
+          stderr: new PassThrough(),
+          kill: () => {},
+          onExit: Promise.resolve({ code: 0, signal: null }),
+        };
+      },
+    };
+
+    await spawnClaudeCodeSession(
+      {
+        prompt: "Hello",
+        env: { PSTDIO_SESSION_ID: "s_123" },
+      },
+      deps,
+    );
+
+    expect(spawnOptions[0]?.env?.PSTDIO_SESSION_ID).toBe("s_123");
+  });
 });
 
 describe("spawnClaudeCodeMessage (resume)", () => {
@@ -146,6 +185,42 @@ describe("spawnClaudeCodeMessage (resume)", () => {
     expect(usagePatch.op).toBe("add");
     expect(usagePatch.path).toBe("/messages/7");
     expect((usagePatch.value as { parts: Array<{ type: string }> }).parts[0].type).toBe("token_usage");
+  });
+
+  test("closes stdin after writing the follow-up prompt", async () => {
+    let stdinEnded = false;
+    const stdout = new PassThrough();
+    const stdin = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+      final(callback) {
+        stdinEnded = true;
+        callback();
+      },
+    });
+
+    const approvalService = createApprovalService(() => {});
+    const process = await spawnClaudeCodeMessage(
+      { sessionId: "session-abc", prompt: "Follow up", messageOffset: 0 },
+      createEventStore(),
+      approvalService,
+      {
+        spawnProcess: () => ({
+          stdin,
+          stdout,
+          stderr: new PassThrough(),
+          kill: () => {},
+          onExit: Promise.resolve({ code: 0, signal: null }),
+        }),
+      },
+    );
+
+    stdout.end();
+    await process.onExit;
+
+    expect(stdinEnded).toBe(true);
+    approvalService.dispose();
   });
 
   test("streams events in real-time via historyPlusStream", async () => {

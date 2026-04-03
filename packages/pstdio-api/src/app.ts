@@ -1,6 +1,5 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { type AgentService, createAgentRegistry, resolveDefaultAgents } from "pstdio-agents";
 import {
   createAgentConfigsDBService,
@@ -30,10 +29,12 @@ import { createAttemptStatusRoutes } from "./features/attempt-statuses/routes";
 import { createDocsRoutes } from "./features/docs/routes";
 import { createFilesystemRoutes } from "./features/filesystem/routes";
 import { createHealthRoutes } from "./features/health/routes";
+import { createPostHookStore } from "./features/hooks/post-hook-store";
 import { createHookRoutes } from "./features/hooks/routes";
+import { fireSessionResumeHook, fireSessionStartHook, fireSessionStatusHook } from "./features/hooks/session-hooks";
+import { fireTicketHook, fireTicketHookAsync } from "./features/hooks/ticket-hooks";
 import { createProjectRoutes } from "./features/projects/routes";
 import { createSessionRoutes } from "./features/sessions/routes";
-import { fireSessionResumeHook, fireSessionStartHook, fireSessionStatusHook } from "./features/sessions/session-hooks";
 import { createSkillRoutes } from "./features/skills/routes";
 import { createStatusRoutes } from "./features/statuses/routes";
 import { EventBus } from "./features/sync/event-bus";
@@ -41,9 +42,8 @@ import { createSyncRoutes } from "./features/sync/routes";
 import { createTagRoutes } from "./features/tags/routes";
 import { createTemplateRoutes } from "./features/templates/routes";
 import { createTicketRoutes } from "./features/tickets/routes";
-import { fireTicketHook, fireTicketHookAsync } from "./features/tickets/ticket-hooks";
 import { createWorkspaceRoutes } from "./features/workspaces/routes";
-import { logError, persistErrorLog } from "./lib/error-log";
+import { apiLogger } from "./lib/logger";
 import { createAgentConfigService } from "./services/agent-config-service";
 import { createAttemptStatusService } from "./services/attempt-status-service";
 import { createDocService } from "./services/doc-service";
@@ -98,6 +98,7 @@ export const createApp = async (options?: AppOptions) => {
   const skillsStorageService = createSkillsStorageService();
 
   // --- infrastructure ---
+  const postHookStore = createPostHookStore();
   const eventBus = new EventBus();
   const agentRegistry = createAgentRegistry(resolveDefaultAgents(options?.agents));
 
@@ -121,6 +122,7 @@ export const createApp = async (options?: AppOptions) => {
     reposService: repoService,
     workspaceSessionsService: workspaceSessionService,
     attemptStatusesService: attemptStatusService,
+    postHookStore,
   };
 
   const sessionService = createSessionService({
@@ -166,12 +168,30 @@ export const createApp = async (options?: AppOptions) => {
     fileService,
     docService,
     syncService,
+    postHookStore,
   };
 
   const app = new OpenAPIHono<AppBindings>();
 
   app.use("*", cors());
-  app.use("*", logger());
+  app.use("*", async (c, next) => {
+    const start = performance.now();
+    try {
+      await next();
+    } finally {
+      apiLogger.info(
+        {
+          duration_ms: Math.round(performance.now() - start),
+          event: "api.request.completed",
+          method: c.req.method,
+          path: c.req.path,
+          request_id: c.req.header("x-request-id"),
+          status: c.res.status,
+        },
+        "API request completed",
+      );
+    }
+  });
 
   if (apiToken) {
     app.use("/v1/*", async (c, next) => {
@@ -218,8 +238,7 @@ export const createApp = async (options?: AppOptions) => {
       stack: err.stack,
     };
 
-    logError(entry);
-    persistErrorLog(entry);
+    apiLogger.error({ event: "api.request.error", ...entry }, "API request failed");
 
     return c.json({ error: "Internal server error" }, 500);
   });
@@ -228,7 +247,7 @@ export const createApp = async (options?: AppOptions) => {
 
   const startupAbort = new AbortController();
   const startupDone = runStartupTasks(deps, startupAbort.signal).catch((err) =>
-    console.error("[startup] failed:", err),
+    apiLogger.error({ err, event: "api.startup.error" }, "Startup task failed"),
   );
 
   const close = async () => {
