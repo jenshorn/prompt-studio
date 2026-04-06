@@ -1,9 +1,8 @@
 import { basename } from "node:path";
 import { readConfig, writeConfig } from "@/features/config/config";
 import { scaffoldDocs } from "@/features/docs/scaffold";
-import { scaffoldHooks } from "@/features/hooks/scaffold";
+import { scaffoldPlugins } from "@/features/hooks/scaffold";
 import { installDefaultSkills } from "@/features/skills/install-default-skills";
-import { API_URL } from "../api-url";
 import { createProject } from "./api/create-project";
 import { registerRepo } from "./api/register-repo";
 
@@ -17,18 +16,18 @@ export const createAndInitProject = async (root: string, name: string, options?:
     throw new Error("Project already initialized. Use `pstdio projects link` to switch projects.");
   }
 
-  const project = await createProject(API_URL, name);
+  const project = await createProject(name);
   const repoPaths = options?.repoPaths ?? [];
 
   for (const repoPath of repoPaths) {
-    await registerRepo(API_URL, project.id, { name: basename(repoPath), path: repoPath });
+    await registerRepo(project.id, { name: basename(repoPath), path: repoPath });
   }
 
   if (repoPaths.includes(root)) return project;
 
   writeConfig(root, { project_id: project.id });
   await scaffoldDocs(root);
-  await scaffoldHooks(root);
-  await installDefaultSkills(root, project.id, API_URL, options?.homedir);
+  await scaffoldPlugins(root);
+  await installDefaultSkills(root, project.id, undefined, options?.homedir);
   return project;
 };

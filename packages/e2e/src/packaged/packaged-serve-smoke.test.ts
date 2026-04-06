@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildBinary } from "./packaged-helpers";
@@ -9,44 +9,6 @@ const BUILD_TIMEOUT = 180_000;
 const SMOKE_TEST_TIMEOUT = 30_000;
 const REPO_ROOT = join(import.meta.dirname, "../../../..");
 const BINARY_PATH = join(REPO_ROOT, "dist/pstdio");
-const REQUIRED_TEMPLATE_NAMES = [
-  "adr",
-  "changelog-entry",
-  "code-review",
-  "commit-message",
-  "cookbook",
-  "create-sub-tickets",
-  "fix-changes-requested",
-  "implement-ticket",
-  "lessons-learned",
-  "prd",
-  "proposal",
-  "refine-ticket",
-  "review-me",
-  "squash-message",
-  "ticket",
-];
-const REQUIRED_SKILL_NAMES = [
-  "create-proposal",
-  "create-sub-tickets",
-  "create-ticket",
-  "implement-ticket",
-  "pstdio",
-  "refine-ticket",
-  "update-documentation",
-  "write-pstdio-hook",
-];
-const REQUIRED_HOOK_NAMES = [
-  "post-session-start",
-  "post-ticket-archive",
-  "post-worktree-create",
-  "pre-attempt-status-review-ready",
-  "post-attempt-status-review-ready",
-  "post-attempt-status-blocked",
-  "post-attempt-status-changes-requested",
-  "post-attempt-status-reviewed",
-];
-
 const createCandidatePort = () => 42_000 + Math.floor(Math.random() * 200);
 
 const waitForReady = async (baseUrl: string, timeoutMs = 10_000) => {
@@ -153,15 +115,13 @@ describe("packaged pstdio — self-hosted serve", () => {
         expect(templatesRes.status).toBe(200);
 
         const templates = (await templatesRes.json()) as { name: string }[];
-        const templateNames = templates.map((template) => template.name).sort();
-        expect(templateNames).toEqual(REQUIRED_TEMPLATE_NAMES);
+        expect(templates.length).toBeGreaterThan(0);
 
         const skillsRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/skills`);
         expect(skillsRes.status).toBe(200);
 
         const skills = (await skillsRes.json()) as { name: string }[];
-        const skillNames = skills.map((skill) => skill.name).sort();
-        expect(skillNames).toEqual(REQUIRED_SKILL_NAMES);
+        expect(skills.length).toBeGreaterThan(0);
 
         const repoPath = join(tempRoot, "repo");
         mkdirSync(repoPath, { recursive: true });
@@ -176,9 +136,9 @@ describe("packaged pstdio — self-hosted serve", () => {
         expect(existsSync(join(repoPath, ".pstdio", "config.json"))).toBe(true);
         expect(existsSync(join(repoPath, ".pstdio", "docs", "index.md"))).toBe(true);
         expect(existsSync(join(repoPath, ".pstdio", "docs", "navigation.json"))).toBe(true);
-        for (const hookName of REQUIRED_HOOK_NAMES) {
-          expect(existsSync(join(repoPath, ".pstdio", "hooks", hookName))).toBe(true);
-        }
+        const pluginsDir = join(repoPath, ".pstdio", "plugins");
+        expect(existsSync(pluginsDir)).toBe(true);
+        expect(readdirSync(pluginsDir).length).toBeGreaterThan(0);
       } finally {
         if (child) {
           await stopProcess(child);

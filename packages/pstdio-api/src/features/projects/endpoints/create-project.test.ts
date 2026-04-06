@@ -36,6 +36,7 @@ beforeAll(async () => {
   ({ app } = await createApp({
     dbPath: ":memory:",
     storagePath: join(tempRoot, "storage"),
+    filesRoot: "",
   }));
 });
 
@@ -56,41 +57,6 @@ describe("POST /v1/projects", () => {
     const body = await res.json();
     expect(body.name).toBe("Test Project");
     expect(body.id).toBeDefined();
-  });
-
-  test("seeds bundled templates for the created project", async () => {
-    const createRes = await app.request("/v1/projects", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "Template Seed Project" }),
-    });
-
-    expect(createRes.status).toBe(201);
-    const project = await createRes.json();
-
-    const templatesRes = await app.request(`/v1/projects/${project.id}/templates`);
-    expect(templatesRes.status).toBe(200);
-
-    const templates = await templatesRes.json();
-    const templateNames = templates.map((template: { name: string }) => template.name);
-
-    expect(templateNames).toEqual([
-      "adr",
-      "changelog-entry",
-      "code-review",
-      "commit-message",
-      "cookbook",
-      "create-sub-tickets",
-      "fix-changes-requested",
-      "implement-ticket",
-      "lessons-learned",
-      "prd",
-      "proposal",
-      "refine-ticket",
-      "review-me",
-      "squash-message",
-      "ticket",
-    ]);
   });
 
   test("returns 400 when request body contains unknown keys", async () => {

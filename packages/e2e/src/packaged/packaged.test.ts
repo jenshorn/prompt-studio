@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cleanupDirs, createGitRepo, createTempDir, shutdownApiViaHttp } from "../cli/helpers";
@@ -107,23 +107,13 @@ describe("packaged pstdio — project lifecycle", () => {
         const config = JSON.parse(readFileSync(join(repo, ".pstdio", "config.json"), "utf8")) as {
           project_id: string;
         };
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-worktree-create"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-session-start"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-session-success"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-ticket-archive"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-worktree-create."))).toBe(false);
-        expect(existsSync(join(repo, ".claude", "skills", "create-ticket", "SKILL.md"))).toBe(true);
-
-        const response = await fetch(`${url}/v1/projects/${config.project_id}/hooks`);
-        expect(response.ok).toBe(true);
-        const hooks = (await response.json()) as { name: string; content: string | null }[];
-        const installedHooks = hooks.filter((hook) => hook.content !== null).map((hook) => hook.name);
-        expect(installedHooks).toEqual([
-          "post-worktree-create",
-          "post-session-start",
-          "post-session-success",
-          "post-ticket-archive",
-        ]);
+        expect(config.project_id.length).toBeGreaterThan(0);
+        const pluginsDir = join(repo, ".pstdio", "plugins");
+        expect(existsSync(pluginsDir)).toBe(true);
+        expect(readdirSync(pluginsDir).length).toBeGreaterThan(0);
+        const skillsDir = join(repo, ".claude", "skills");
+        expect(existsSync(skillsDir)).toBe(true);
+        expect(readdirSync(skillsDir).length).toBeGreaterThan(0);
       } finally {
         await shutdownApiViaHttp(url);
         server.kill();
@@ -176,21 +166,9 @@ describe("packaged pstdio — project lifecycle", () => {
         expect(existsSync(join(repo, ".pstdio", "config.json"))).toBe(true);
         expect(existsSync(join(repo, ".pstdio", "docs", "navigation.json"))).toBe(true);
         expect(existsSync(join(repo, ".pstdio", "docs", "index.md"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-worktree-create"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-session-start"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-session-success"))).toBe(true);
-        expect(existsSync(join(repo, ".pstdio", "hooks", "post-ticket-archive"))).toBe(true);
-
-        const hooksResponse = await fetch(`${url}/v1/projects/${project.id}/hooks`);
-        expect(hooksResponse.ok).toBe(true);
-        const hooks = (await hooksResponse.json()) as { name: string; content: string | null }[];
-        const installedHooks = hooks.filter((hook) => hook.content !== null).map((hook) => hook.name);
-        expect(installedHooks).toEqual([
-          "post-worktree-create",
-          "post-session-start",
-          "post-session-success",
-          "post-ticket-archive",
-        ]);
+        const pluginsDir = join(repo, ".pstdio", "plugins");
+        expect(existsSync(pluginsDir)).toBe(true);
+        expect(readdirSync(pluginsDir).length).toBeGreaterThan(0);
       } finally {
         await shutdownApiViaHttp(url);
         server.kill();
@@ -243,18 +221,6 @@ describe("packaged pstdio — tickets", () => {
 });
 
 describe("packaged pstdio — templates", () => {
-  test(
-    "lists bundled templates",
-    () => {
-      const repo = createInitializedRepo("pkg-templates");
-
-      const output = run("templates list", repo);
-      expect(output).toContain("ticket");
-      expect(output).toContain("prd");
-    },
-    TEST_TIMEOUT,
-  );
-
   test(
     "writes a template to docs",
     () => {

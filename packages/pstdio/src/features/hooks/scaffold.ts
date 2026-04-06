@@ -1,14 +1,26 @@
-import { cpSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { resolveFilesRoot } from "../resolve-files-root";
 
-const HOOKS_DIR = join(".pstdio", "hooks");
+const PLUGINS_DIR = join(".pstdio", "plugins");
 
-export const scaffoldHooks = async (root: string) => {
-  const hooksDir = join(root, HOOKS_DIR);
-  if (existsSync(hooksDir)) return;
+export const stripTemplateSuffix = (filename: string) => {
+  if (!filename.endsWith(".txt")) return filename;
+  const stripped = filename.slice(0, -4);
+  return stripped.includes(".") ? stripped : filename;
+};
+
+export const scaffoldPlugins = async (root: string) => {
+  const pluginsDir = join(root, PLUGINS_DIR);
+  if (existsSync(pluginsDir)) return;
 
   const filesRoot = await resolveFilesRoot();
-  cpSync(join(filesRoot, "hooks"), hooksDir, { recursive: true });
+  const defaultPluginsDir = join(filesRoot, "plugins", "pstdio");
+  if (existsSync(defaultPluginsDir)) {
+    mkdirSync(pluginsDir, { recursive: true });
+    for (const entry of readdirSync(defaultPluginsDir)) {
+      copyFileSync(join(defaultPluginsDir, entry), join(pluginsDir, stripTemplateSuffix(entry)));
+    }
+  }
 };

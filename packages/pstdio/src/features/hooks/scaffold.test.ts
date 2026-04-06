@@ -1,84 +1,59 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scaffoldHooks } from "./scaffold";
+import { scaffoldPlugins, stripTemplateSuffix } from "./scaffold";
 
 let tempDir: string;
 
 beforeEach(() => {
-  tempDir = mkdtempSync(join(tmpdir(), "pstdio-scaffold-hooks-"));
+  tempDir = mkdtempSync(join(tmpdir(), "pstdio-scaffold-plugins-"));
 });
 
 afterEach(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-describe("scaffoldHooks", () => {
-  test("repairs a stale compiled-runtime extraction before copying hooks", async () => {
-    const extractedRoot = join(tmpdir(), "pstdio-files");
-    const runtime = Bun as unknown as { embeddedFiles?: (Blob & { name: string })[] };
-    const originalEmbeddedFiles = runtime.embeddedFiles;
+describe("scaffoldPlugins", () => {
+  test("writes default plugins into .pstdio/plugins", async () => {
+    await scaffoldPlugins(tempDir);
 
-    const makeEmbeddedFile = (name: string, content: string) =>
-      Object.assign(new Blob([content], { type: "text/plain" }), { name });
+    const pluginsDir = join(tempDir, ".pstdio", "plugins");
+    const entries = readdirSync(pluginsDir).sort();
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.every((entry) => entry.endsWith(".ts"))).toBe(true);
 
-    rmSync(extractedRoot, { recursive: true, force: true });
+    const bootstrapPath = join(pluginsDir, "worktree-lifecycle.ts");
+    expect(existsSync(bootstrapPath)).toBe(true);
+  });
+
+  test("strips .txt suffix from template files during scaffolding", async () => {
     const { mkdirSync, writeFileSync } = await import("node:fs");
-    mkdirSync(join(extractedRoot, "documentation"), { recursive: true });
-    mkdirSync(join(extractedRoot, "hooks"), { recursive: true });
-    mkdirSync(join(extractedRoot, "templates", "prompts"), { recursive: true });
-    writeFileSync(join(extractedRoot, "documentation", "index.md"), "stale docs");
-    writeFileSync(join(extractedRoot, "hooks", "post-worktree-create."), "#!/bin/sh\necho stale\n");
-    writeFileSync(join(extractedRoot, "hooks", "pre-attempt-status-review-ready."), "#!/bin/sh\necho stale\n");
-    writeFileSync(join(extractedRoot, "templates", "prompts", "review-me.txt"), "stale prompt");
+    const srcDir = join(tempDir, "src-plugins");
+    mkdirSync(srcDir, { recursive: true });
+    writeFileSync(join(srcDir, "my-plugin.ts.txt"), "export default {}");
+    writeFileSync(join(srcDir, "readme.txt"), "plain text");
 
-    runtime.embeddedFiles = [
-      makeEmbeddedFile("../files/documentation/index.md", "# docs"),
-      makeEmbeddedFile("../files/hooks/post-worktree-create.", "#!/bin/sh\necho ok\n"),
-      makeEmbeddedFile("../files/hooks/pre-attempt-status-review-ready.", "#!/bin/sh\necho ok\n"),
-      makeEmbeddedFile("../files/templates/prompts/review-me.txt", "review me"),
-    ];
+    const pluginsDir = join(tempDir, ".pstdio", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
 
-    try {
-      await scaffoldHooks(tempDir);
-
-      expect(existsSync(join(tempDir, ".pstdio", "hooks", "post-worktree-create"))).toBe(true);
-      expect(existsSync(join(tempDir, ".pstdio", "hooks", "pre-attempt-status-review-ready"))).toBe(true);
-      expect(existsSync(join(tempDir, ".pstdio", "hooks", "post-worktree-create."))).toBe(false);
-      expect(existsSync(join(tempDir, ".pstdio", "hooks", "pre-attempt-status-review-ready."))).toBe(false);
-    } finally {
-      runtime.embeddedFiles = originalEmbeddedFiles;
-      rmSync(extractedRoot, { recursive: true, force: true });
+    const { copyFileSync } = await import("node:fs");
+    for (const entry of readdirSync(srcDir)) {
+      copyFileSync(join(srcDir, entry), join(pluginsDir, stripTemplateSuffix(entry)));
     }
+
+    expect(readdirSync(pluginsDir).sort()).toEqual(["my-plugin.ts", "readme.txt"]);
   });
 
-  test("writes default hooks into .pstdio/hooks", async () => {
-    await scaffoldHooks(tempDir);
-
-    const postCreatePath = join(tempDir, ".pstdio", "hooks", "post-worktree-create");
-    expect(existsSync(postCreatePath)).toBe(true);
-
-    const postCreateContent = readFileSync(postCreatePath, "utf8");
-    expect(postCreateContent).toContain("pstdio tickets pull");
-    expect(postCreateContent).toContain("config.json");
-
-    const preReviewReadyPath = join(tempDir, ".pstdio", "hooks", "pre-attempt-status-review-ready");
-    expect(existsSync(preReviewReadyPath)).toBe(true);
-
-    const preReviewReadyContent = readFileSync(preReviewReadyPath, "utf8");
-    expect(preReviewReadyContent).toContain("validate");
-  });
-
-  test("does not overwrite existing hooks directory", async () => {
+  test("does not overwrite existing plugins directory", async () => {
     const { mkdirSync, writeFileSync } = await import("node:fs");
-    const hooksDir = join(tempDir, ".pstdio", "hooks");
-    mkdirSync(hooksDir, { recursive: true });
-    writeFileSync(join(hooksDir, "post-worktree-create"), "custom script");
+    const pluginsDir = join(tempDir, ".pstdio", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, "custom.ts"), "custom plugin");
 
-    await scaffoldHooks(tempDir);
+    await scaffoldPlugins(tempDir);
 
-    const content = readFileSync(join(hooksDir, "post-worktree-create"), "utf8");
-    expect(content).toBe("custom script");
+    const content = readFileSync(join(pluginsDir, "custom.ts"), "utf8");
+    expect(content).toBe("custom plugin");
   });
 });

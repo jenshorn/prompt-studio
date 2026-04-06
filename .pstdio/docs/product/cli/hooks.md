@@ -1,6 +1,6 @@
 # Lifecycle Hooks
 
-Hooks are shell scripts in `.pstdio/hooks/<hook-name>` that run during worktree, session, and ticket lifecycle events.
+Hooks run during worktree, session, and ticket lifecycle events. All hooks are SDK plugins (`definePlugin`) in `.pstdio/plugins/`.
 
 For the full hook contract (interface, payload schemas, attempt status, and cookbook), see [Hooks Reference](../hooks/index.md).
 
@@ -8,90 +8,97 @@ For the full hook contract (interface, payload schemas, attempt status, and cook
 
 ### Worktree hooks
 
-- `pre-worktree-create`
-- `post-worktree-create`
-- `pre-commit`
-- `post-commit`
-- `pre-rebase`
-- `post-rebase`
-- `pre-merge`
-- `post-merge`
-- `pre-worktree-remove`
-- `post-worktree-remove`
-- `on-conflict`
+- `preWorktreeCreate`
+- `postWorktreeCreate`
+- `preCommit`
+- `postCommit`
+- `preRebase`
+- `postRebase`
+- `preMerge`
+- `postMerge`
+- `preWorktreeRemove`
+- `postWorktreeRemove`
+- `onConflict`
 
 ### Session hooks
 
-- `post-session-start`
-- `post-session-success`
-- `post-session-fail`
-- `post-session-resume`
-- `post-session-await-input`
+- `postSessionStart`
+- `postSessionSuccess`
+- `postSessionFail`
+- `postSessionResume`
+- `postSessionAwaitInput`
 
 ### Ticket hooks
 
-- `pre-ticket-creation`
-- `post-ticket-creation`
-- `pre-ticket-status-change`
-- `post-ticket-status-change`
-- `pre-ticket-archive`
-- `post-ticket-archive`
-- `pre-ticket-deletion`
-- `post-ticket-deletion`
+- `preTicketCreation`
+- `postTicketCreation`
+- `preTicketStatusChange`
+- `postTicketStatusChange`
+- `preTicketArchive`
+- `postTicketArchive`
+- `preTicketDeletion`
+- `postTicketDeletion`
+
+### Attempt status hooks
+
+- `preAttemptStatusChange`
+- `postAttemptStatusChange`
 
 ## Blocking Hooks
 
-Non-zero exit codes abort the parent operation for:
+Pre-hooks can reject the parent operation by returning `{ reject: true }`:
 
-- `pre-worktree-create`
-- `post-worktree-create`
-- `pre-commit`
-- `pre-rebase`
-- `pre-merge`
-- `pre-worktree-remove`
-- `pre-ticket-creation`
-- `pre-ticket-status-change`
-- `pre-ticket-archive`
-- `pre-ticket-deletion`
+- `preWorktreeCreate`
+- `preCommit`
+- `preRebase`
+- `preMerge`
+- `preWorktreeRemove`
+- `preTicketCreation`
+- `preTicketStatusChange`
+- `preTicketArchive`
+- `preTicketDeletion`
+- `preAttemptStatusChange`
 
-All other hooks are non-blocking.
+All post-hooks and `onConflict` are non-blocking.
 
-## Environment Variables
+## Context Objects
 
-All hooks receive context as environment variables:
+Plugin hooks receive typed context objects. Each hook type has its own context shape defined in `@pstdio/sdk/plugins` (`PluginHooks`).
 
-| Variable                | Description                    | Available In                  |
-| ----------------------- | ------------------------------ | ----------------------------- |
-| `PSTDIO_HOOK`           | Hook name (e.g. `pre-merge`)   | All                           |
-| `PSTDIO_BRANCH`         | Worktree branch name           | All                           |
-| `PSTDIO_WORKTREE_PATH`  | Absolute path to worktree      | All (except `pre-create`)     |
-| `PSTDIO_REPO_PATH`      | Absolute path to main repo     | All                           |
-| `PSTDIO_WORKSPACE`      | Workspace shorthand            | All                           |
-| `PSTDIO_TICKET`         | Ticket shorthand               | When ticket context exists    |
-| `PSTDIO_ATTEMPT_STATUS` | Attempt status                 | When workspace context exists |
-| `PSTDIO_FROM_STATUS`    | Previous status                | Ticket status change hooks    |
-| `PSTDIO_TO_STATUS`      | New status                     | Ticket status change hooks    |
-| `PSTDIO_TARGET`         | Target branch for merge/rebase | merge and rebase hooks        |
-| `PSTDIO_COMMIT_SHA`     | Commit SHA after commit/merge  | `post-commit`, `post-merge`   |
-| `PSTDIO_COMMIT_MESSAGE` | Commit message                 | `pre-commit`, `post-commit`   |
+Common context fields by hook category:
+
+| Field           | Description                    | Available In                          |
+| --------------- | ------------------------------ | ------------------------------------- |
+| `repoPath`      | Absolute path to main repo     | Worktree hooks                        |
+| `worktreePath`  | Absolute path to worktree      | Worktree hooks                        |
+| `branch`        | Worktree branch name           | Worktree hooks                        |
+| `workspace`     | Workspace shorthand            | Worktree hooks                        |
+| `ticket`        | Ticket shorthand               | Worktree hooks                        |
+| `target`        | Target branch for merge/rebase | merge and rebase hooks                |
+| `commitSha`     | Commit SHA                     | commit hooks                          |
+| `commitMessage` | Commit message                 | commit hooks                          |
+| `projectId`     | Project ID                     | Ticket, session, attempt status hooks |
+| `fromStatus`    | Previous status                | Status change hooks                   |
+| `toStatus`      | New status                     | Status change hooks                   |
+| `client`        | SDK client for API calls       | All hooks fired via API               |
 
 ## CLI Commands
 
 ### `pstdio hooks list`
 
-Show all supported hooks and whether each script file exists.
+Show all supported hooks and whether each one has a matching plugin.
 
 ### `pstdio hooks create <hook-name>`
 
-Create `.pstdio/hooks/<hook-name>`.
+Create `.pstdio/plugins/<hook-name>`.
 
-- Reuses the bundled scaffold when one exists, such as `post-worktree-create`
-- Otherwise writes a minimal shell-script starter
+- Reuses the bundled scaffold when one exists, such as `postWorktreeCreate`
+- Otherwise writes a minimal plugin starter
 - Fails instead of overwriting an existing hook file
 
 ### `pstdio hooks run <hook-name>`
 
-Manually run a hook script. Useful for testing hooks before they fire automatically.
+Manually run a hook. Useful for testing hooks before they fire automatically.
 
 Options:
 
@@ -101,39 +108,68 @@ Options:
 
 ### Install dependencies on workspace creation
 
-```sh
-# .pstdio/hooks/post-worktree-create
-bun install
-```
+```ts
+// .pstdio/plugins/worktree-bootstrap.ts
+import { definePlugin } from "@pstdio/sdk/plugins";
 
-### Copy `.env` files into new worktrees
-
-```sh
-# .pstdio/hooks/post-worktree-create
-for f in .env .env.local .env.test; do
-  if [ -f "$PSTDIO_REPO_PATH/$f" ]; then
-    cp "$PSTDIO_REPO_PATH/$f" "$PSTDIO_WORKTREE_PATH/$f"
-  fi
-done
+export default definePlugin({
+  hooks: {
+    async postWorktreeCreate(ctx) {
+      const proc = Bun.spawn(["bun", "install"], {
+        cwd: ctx.worktreePath,
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      await proc.exited;
+    },
+  },
+});
 ```
 
 ### Run validation before committing
 
-```sh
-# .pstdio/hooks/pre-commit
-bun run validate
+```ts
+// .pstdio/plugins/pre-commit.ts
+import { definePlugin } from "@pstdio/sdk/plugins";
+
+export default definePlugin({
+  hooks: {
+    async preCommit(ctx) {
+      const proc = Bun.spawn(["bun", "run", "validate"], {
+        cwd: ctx.worktreePath,
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      const code = await proc.exited;
+      if (code !== 0) throw new Error("Validation failed");
+    },
+  },
+});
 ```
 
 ### Run tests before merging
 
-```sh
-# .pstdio/hooks/pre-merge
-bun run test
+```ts
+// .pstdio/plugins/pre-merge.ts
+import { definePlugin } from "@pstdio/sdk/plugins";
+
+export default definePlugin({
+  hooks: {
+    async preMerge(ctx) {
+      const proc = Bun.spawn(["bun", "run", "test"], {
+        cwd: ctx.worktreePath,
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      const code = await proc.exited;
+      if (code !== 0) throw new Error("Tests failed");
+    },
+  },
+});
 ```
 
 ## Storage & Configuration
 
-- **Source of truth**: filesystem at `.pstdio/hooks/<hook-name>`
-- **Discovery**: hooks are resolved from the filesystem at execution time
-- **Execution**: `sh <script-path>` — executable permissions are optional
-- **Timeout**: 60 seconds — hooks that exceed this limit are killed
+- **Source of truth**: filesystem at `.pstdio/plugins/`
+- **Discovery**: plugins are resolved from the filesystem at execution time
+- **Runtime**: TypeScript/JavaScript modules loaded via `import()`

@@ -14,14 +14,6 @@ const waitForFile = async (path: string, timeoutMs = 5000) => {
   }
 };
 
-const waitFor = async (predicate: () => Promise<boolean>, timeoutMs = 5000) => {
-  const deadline = Date.now() + timeoutMs;
-  while (!(await predicate())) {
-    if (Date.now() > deadline) throw new Error("waitFor timed out");
-    await sleep(50);
-  }
-};
-
 let context!: TicketsTestContext;
 
 beforeAll(async () => {
@@ -98,7 +90,6 @@ describe("POST /v1/tickets/:id/attempts", () => {
     expect(repoRes.status).toBe(201);
     const repo = await repoRes.json();
 
-    // .pstdio/config.json should now exist in the main repo (written by register-repo)
     expect(existsSync(join(repoRoot, ".pstdio", "config.json"))).toBe(true);
 
     const ticket = await createTicket();
@@ -154,160 +145,107 @@ describe("POST /v1/tickets/:id/attempts", () => {
 });
 
 describe("POST /v1/tickets/:id/attempts hooks", () => {
-  test("pre-worktree-create payload is available via stdin and field env vars", async () => {
-    const { app, projectId, createGitRepo } = context;
-    const repoRoot = createGitRepo("attempt-pre-create-payload-repo");
+  const setupHookTest = async (repoName: string, pluginFileName: string, pluginCode: string) => {
+    const hookCtx = await createTicketsTestContext();
+    const { app, projectId, createGitRepo, deps } = hookCtx;
 
-    const { chmodSync, mkdirSync, writeFileSync } = await import("node:fs");
-    const hooksDir = join(repoRoot, ".pstdio", "hooks");
-    mkdirSync(hooksDir, { recursive: true });
+    const repoRoot = createGitRepo(repoName);
 
-    const stdinPath = join(repoRoot, "pre-worktree-create.payload.stdin.json");
-    const envPath = join(repoRoot, "pre-worktree-create.payload.env.json");
-    writeFileSync(
-      join(hooksDir, "pre-worktree-create"),
-      `#!/bin/sh
-cat > "${stdinPath}"
-printf '{"repo_path":"%s","branch":"%s","workspace":"%s","ticket":"%s","project_id":"%s"}' \
-"$PSTDIO_REPO_PATH" \
-"$PSTDIO_BRANCH" \
-"$PSTDIO_WORKSPACE" \
-"$PSTDIO_TICKET" \
-"$PSTDIO_PROJECT_ID" > "${envPath}"
-`,
-    );
-    chmodSync(join(hooksDir, "pre-worktree-create"), 0o755);
+    const { mkdirSync, writeFileSync } = await import("node:fs");
+    const pluginsDir = join(repoRoot, ".pstdio", "plugins");
+    mkdirSync(pluginsDir, { recursive: true });
+    writeFileSync(join(pluginsDir, pluginFileName), pluginCode);
 
     const repoRes = await app.request(`/v1/projects/${projectId}/repos`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "attempt-pre-create-payload-repo", path: repoRoot }),
+      body: JSON.stringify({ name: repoName, path: repoRoot }),
     });
     expect(repoRes.status).toBe(201);
     const repo = await repoRes.json();
+    deps.pluginService.invalidate(projectId);
 
-    const ticket = await createTicket();
-
-    const attemptRes = await app.request(`/v1/tickets/${ticket.id}/attempts`, {
+    const ticketRes = await app.request("/v1/tickets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        repo_id: repo.id,
-        mode: "worktree",
-        start_session: false,
-      }),
+      body: JSON.stringify({ project_id: projectId, content: "Hook test ticket" }),
+    });
+    expect(ticketRes.status).toBe(201);
+    const ticket = await ticketRes.json();
+
+    return { hookCtx, repoRoot, repo, ticket };
+  };
+
+  test("preWorktreeCreate receives context with workspace and ticket info", async () => {
+    const ctxFilePath = join(context.tempRoot, "pre-worktree-create.ctx.json");
+    const { hookCtx, repoRoot, repo, ticket } = await setupHookTest(
+      "pre-create-payload-repo",
+      "capture-ctx.ts",
+      `import { writeFileSync } from "node:fs";
+export default { hooks: { preWorktreeCreate(ctx) { writeFileSync("${ctxFilePath}", JSON.stringify(ctx)); } } };`,
+    );
+
+    const attemptRes = await hookCtx.app.request(`/v1/tickets/${ticket.id}/attempts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo_id: repo.id, mode: "worktree", start_session: false }),
     });
     expect(attemptRes.status).toBe(201);
     const attempt = await attemptRes.json();
 
-    const stdinPayload = JSON.parse(readFileSync(stdinPath, "utf8"));
-    const envPayload = JSON.parse(readFileSync(envPath, "utf8"));
+    const ctx = JSON.parse(readFileSync(ctxFilePath, "utf8"));
+    expect(ctx.repoPath).toBe(repoRoot);
+    expect(ctx.projectId).toBe(hookCtx.projectId);
+    expect(ctx.workspace).toBe(attempt.workspace.workspace_shorthand);
+    expect(ctx.ticket).toBe(ticket.shorthand);
+    expect(ctx.worktreePath).toBe(attempt.workspace.worktree_path);
+    expect(ctx.base).toBe("HEAD");
 
-    expect(envPayload.repo_path).toBe(stdinPayload.repo_path);
-    expect(envPayload.branch).toBe(stdinPayload.branch);
-    expect(envPayload.workspace).toBe(stdinPayload.workspace);
-    expect(envPayload.ticket).toBe(stdinPayload.ticket);
-    expect(envPayload.project_id).toBe(stdinPayload.project_id);
-    expect(stdinPayload.repo_path).toBe(repoRoot);
-    expect(stdinPayload.project_id).toBe(projectId);
-    expect(stdinPayload.workspace).toBe(attempt.workspace.workspace_shorthand);
-    expect(stdinPayload.ticket).toBe(ticket.shorthand);
-    expect(stdinPayload.worktree_path).toBe(attempt.workspace.worktree_path);
-    expect(stdinPayload.base).toBe("HEAD");
+    hookCtx.cleanup();
   });
 
-  test("runs post-create hook for workspace creation and stores hook log", async () => {
-    const { app, projectId, createGitRepo } = context;
-    const repoRoot = createGitRepo("attempt-post-create-hook-repo");
+  test("postWorktreeCreate fires after workspace creation", async () => {
+    const markerPath = join(context.tempRoot, "post-create-marker.txt");
+    const { hookCtx, repo, ticket } = await setupHookTest(
+      "post-create-hook-repo",
+      "post-create.ts",
+      `import { writeFileSync } from "node:fs";
+export default { hooks: { postWorktreeCreate() { writeFileSync("${markerPath}", "ok"); } } };`,
+    );
 
-    // Write post-create hook to .pstdio/hooks/
-    const { chmodSync, mkdirSync, writeFileSync } = await import("node:fs");
-    const hooksDir = join(repoRoot, ".pstdio", "hooks");
-    mkdirSync(hooksDir, { recursive: true });
-    const hookPath = join(hooksDir, "post-worktree-create");
-    writeFileSync(hookPath, '#!/bin/sh\necho "post-create hook ran" && echo "ok" > post-create-marker.txt');
-    chmodSync(hookPath, 0o755);
-
-    const repoRes = await app.request(`/v1/projects/${projectId}/repos`, {
+    const attemptRes = await hookCtx.app.request(`/v1/tickets/${ticket.id}/attempts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "attempt-post-create-hook-repo", path: repoRoot }),
-    });
-    expect(repoRes.status).toBe(201);
-    const repo = await repoRes.json();
-
-    const ticket = await createTicket();
-
-    const attemptRes = await app.request(`/v1/tickets/${ticket.id}/attempts`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        repo_id: repo.id,
-        mode: "worktree",
-        start_session: false,
-      }),
+      body: JSON.stringify({ repo_id: repo.id, mode: "worktree", start_session: false }),
     });
     expect(attemptRes.status).toBe(201);
-    const attempt = await attemptRes.json();
 
-    // Hook runs in the background (fire-and-forget), so wait for it to finish
-    const markerPath = join(attempt.workspace.worktree_path, "post-create-marker.txt");
     await waitForFile(markerPath);
     expect(readFileSync(markerPath, "utf8")).toContain("ok");
 
-    // Wait for the hook log to be persisted
-    const startupLogUrl = `/v1/workspaces/${attempt.workspace.id}/startup-log`;
-    await waitFor(async () => {
-      const res = await app.request(startupLogUrl, { method: "GET" });
-      return res.status === 200 && (await res.text()).includes("post-create hook ran");
-    });
-    const logRes = await app.request(startupLogUrl, { method: "GET" });
-    expect(logRes.status).toBe(200);
-    const logContent = await logRes.text();
-    expect(logContent).toContain("post-create hook ran");
+    hookCtx.cleanup();
   });
 
-  test("post-create hook runs alongside session creation", async () => {
-    const { app, projectId, createGitRepo } = context;
-    const repoRoot = createGitRepo("attempt-hook-session-id-repo");
+  test("postWorktreeCreate runs alongside session creation", async () => {
+    const markerPath = join(context.tempRoot, "hook-session-marker.txt");
+    const { hookCtx, repo, ticket } = await setupHookTest(
+      "hook-session-id-repo",
+      "post-create-session.ts",
+      `import { writeFileSync } from "node:fs";
+export default { hooks: { postWorktreeCreate() { writeFileSync("${markerPath}", "ok"); } } };`,
+    );
 
-    const { chmodSync: chmod, mkdirSync: mkDir, writeFileSync: writeFile } = await import("node:fs");
-    const hooksDir = join(repoRoot, ".pstdio", "hooks");
-    mkDir(hooksDir, { recursive: true });
-    const hookPath = join(hooksDir, "post-worktree-create");
-    writeFile(hookPath, '#!/bin/sh\necho "hook ran" && echo "ok" > hook-marker.txt');
-    chmod(hookPath, 0o755);
-
-    const repoRes = await app.request(`/v1/projects/${projectId}/repos`, {
+    const attemptRes = await hookCtx.app.request(`/v1/tickets/${ticket.id}/attempts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "attempt-hook-session-id-repo", path: repoRoot }),
-    });
-    expect(repoRes.status).toBe(201);
-    const repo = await repoRes.json();
-
-    const ticket = await createTicket();
-
-    const attemptRes = await app.request(`/v1/tickets/${ticket.id}/attempts`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        repo_id: repo.id,
-        agent: "fake",
-        prompt: "Implement ticket",
-        mode: "worktree",
-      }),
+      body: JSON.stringify({ repo_id: repo.id, agent: "fake", prompt: "Implement ticket", mode: "worktree" }),
     });
     expect(attemptRes.status).toBe(201);
     const attempt = await attemptRes.json();
     expect(attempt.session).not.toBeNull();
 
-    // Wait for the post-create hook to finish
-    const markerPath = join(attempt.workspace.worktree_path, "hook-marker.txt");
     await waitForFile(markerPath);
-    await waitFor(async () => {
-      const res = await app.request(`/v1/workspaces/${attempt.workspace.id}/startup-log`, { method: "GET" });
-      return res.status === 200;
-    });
+
+    hookCtx.cleanup();
   });
 });

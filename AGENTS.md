@@ -34,6 +34,8 @@ Follow this loop **every time**:
 - Tests for UI changes. Use storybook stories instead.
 - Tests for config only changes.
 - Tests for documentation only changes.
+- Tests that assert literal bundled copy.
+- Tests that assert generated file wording.
 
 ### 2. Green — Make it pass
 
@@ -69,7 +71,7 @@ Before completing a task run `bun run validate`. Ensure it passes. Fix any remai
 
 # 6. Changesets
 
-- If you modify **any package**, include a changeset for **`pstdio`** only; include **`@pstdio/ui`** only when that package itself changes.
+- If you modify **any package**, include a changeset for **`pstdio`** only; include **`@pstdio/ui`** or **`@pstdio/sdk`** only when those packages themselves change.
 - Run `bun changeset`, choose the semver bump (`patch`, `minor`, `major`), and write a **one-line changelog summary**.
 - **Do not manually edit `package.json` versions**.
 
@@ -110,6 +112,8 @@ Before completing a task run `bun run validate`. Ensure it passes. Fix any remai
 - Tests for UI changes. Use storybook stories instead.
 - Tests for config changes.
 - Tests for documentation changes.
+- Tests that assert literal bundled copy.
+- Tests that assert generated file wording.
 
 ---
 

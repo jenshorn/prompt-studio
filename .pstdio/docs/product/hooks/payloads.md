@@ -1,8 +1,8 @@
 # Payload Schemas
 
-Payloads are flat JSON objects.
+All hooks are SDK plugins. The payload is passed as a typed context object with camelCase fields (e.g. `ctx.repoPath`, `ctx.worktreePath`, `ctx.sessionId`). See [SDK Plugins — Hook Contexts](../sdk/plugins.md#hook-contexts) for the typed context definitions.
 
-Each hook receives exactly one payload object on stdin.
+The flat JSON schemas below document the underlying payload structure.
 
 ## Worktree Payloads
 
@@ -31,19 +31,19 @@ All worktree payloads include workspace context:
 
 | Hook                     | Additional fields |
 | ------------------------ | ----------------- |
-| `pre-worktree-create`    | `base` |
-| `post-worktree-create`   | none |
-| `pre-commit`             | `commit_message`, `stage_policy` |
-| `post-commit`            | pre-commit fields + `commit_sha` |
-| `pre-merge`              | `target`, `squash`, `commit_message` |
-| `post-merge`             | pre-merge fields + `commit_sha` |
-| `pre-rebase`             | `target` |
-| `post-rebase`            | `target` |
-| `on-conflict`            | `target`, `operation`, `squash`, `commit_message` |
-| `pre-worktree-remove`    | none |
-| `post-worktree-remove`   | none |
+| `preWorktreeCreate`    | `base` |
+| `postWorktreeCreate`   | none |
+| `preCommit`            | `commit_message`, `stage_policy` |
+| `postCommit`           | preCommit fields + `commit_sha` |
+| `preMerge`             | `target`, `squash`, `commit_message` |
+| `postMerge`            | preMerge fields + `commit_sha` |
+| `preRebase`            | `target` |
+| `postRebase`           | `target` |
+| `onConflict`           | `target`, `operation`, `squash`, `commit_message` |
+| `preWorktreeRemove`    | none |
+| `postWorktreeRemove`   | none |
 
-`on-conflict` notes:
+`onConflict` notes:
 
 - `operation` is `merge` or `rebase`
 - For `operation = "rebase"`, `squash` and `commit_message` are `null`
@@ -77,7 +77,7 @@ When the session is linked to a ticket workspace, payload also includes:
 
 Attempt-status hooks receive workspace context plus transition metadata.
 
-Base fields for `pre-attempt-status-*` and `post-attempt-status-*`:
+Base fields for `preAttemptStatusChange` and `postAttemptStatusChange`:
 
 - `workspace_id`
 - `workspace`
@@ -89,7 +89,7 @@ Base fields for `pre-attempt-status-*` and `post-attempt-status-*`:
 - `attempt_status_to`
 - `session_id` (when provided by caller)
 
-Additional field for `post-attempt-status-*`:
+Additional field for `postAttemptStatusChange`:
 
 - `status_change_id`
 
@@ -118,7 +118,7 @@ Status transition hooks also include:
 - `from_status`
 - `to_status`
 
-### `pre-ticket-creation`
+### `preTicketCreation`
 
 ```json
 {
@@ -139,7 +139,7 @@ Status transition hooks also include:
 
 `id` and `ticket` are `null` because the ticket is not yet persisted.
 
-### `post-ticket-creation`, `pre-ticket-archive`, `post-ticket-archive`, `pre-ticket-deletion`, `post-ticket-deletion`
+### `postTicketCreation`, `preTicketArchive`, `postTicketArchive`, `preTicketDeletion`, `postTicketDeletion`
 
 ```json
 {
@@ -157,7 +157,7 @@ Status transition hooks also include:
 }
 ```
 
-### `pre-ticket-status-change`
+### `preTicketStatusChange`
 
 ```json
 {
@@ -177,7 +177,7 @@ Status transition hooks also include:
 }
 ```
 
-### `post-ticket-status-change`
+### `postTicketStatusChange`
 
 ```json
 {
@@ -199,9 +199,19 @@ Status transition hooks also include:
 
 ## Querying Related Data
 
-If a hook needs related workspaces or sessions, query via CLI commands inside the script.
+Use `ctx.client` to query related workspaces or sessions inside a plugin hook.
 
-Example:
+## SDK Plugin Context
 
-- `pstdio tickets workspaces --id "$PSTDIO_TICKET"`
-- `pstdio sessions list --workspace-id "<workspace-or-id>"` where `--workspace-id` accepts either workspace shorthand or workspace ID.
+Plugin hook handlers receive typed `ctx` objects with camelCase fields. Import context types from `@pstdio/sdk/hooks`:
+
+```ts
+import type { TicketStatusChangeContext, SessionHookContext } from "@pstdio/sdk/hooks";
+```
+
+Examples:
+
+- Ticket hooks: `ctx.id`, `ctx.shorthand`, `ctx.status`, `ctx.tagIds`, ...
+- Session hooks: `ctx.sessionId`, `ctx.sessionStatus`, `ctx.workspace`, `ctx.ticket`, ...
+- Attempt hooks: `ctx.workspace`, `ctx.ticket`, `ctx.fromStatus`, `ctx.toStatus`, ...
+- Worktree hooks: `ctx.repoPath`, `ctx.worktreePath`, `ctx.branch`, `ctx.workspace`, ...

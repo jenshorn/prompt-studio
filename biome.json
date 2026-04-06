@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -13,6 +13,7 @@
       "!!**/coverage",
       "!!**/dist",
       "!!**/.nx",
+      "bun.lock",
       "!!packages/pstdio-dashboard/chakra-config.json",
       "!!packages/e2e/playwright-report",
       "!!packages/e2e/test-results",
