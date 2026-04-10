@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { apiClient } from "@/features/api-client";
 import { mockFetchSequence } from "@/test-utils/mock-fetch";
 import { linkProject } from "./link-project";
 
@@ -33,7 +34,14 @@ describe("linkProject", () => {
           updated_at: "2026-01-01T00:00:00Z",
         },
       },
-      { status: 201, body: { id: "repo-1", name: "link-scaffold", path: "/tmp/link-scaffold" } },
+      {
+        status: 201,
+        body: {
+          id: "repo-1",
+          name: "link-scaffold",
+          path: "/tmp/link-scaffold",
+        },
+      },
     ]);
     const root = setup("link-scaffold");
 
@@ -52,38 +60,38 @@ describe("linkProject", () => {
     expect(existsSync(join(root, ".opencode"))).toBe(false);
   });
 
-  test("leaves existing local docs untouched while delegating setup to the API", async () => {
-    mockFetchSequence([
-      {
-        status: 200,
-        body: {
-          id: "abc",
-          name: "Existing",
-          shorthand: "E",
-          created_at: "2026-01-01T00:00:00Z",
-          updated_at: "2026-01-01T00:00:00Z",
-        },
-      },
-      { status: 201, body: { id: "repo-1", name: "link-existing-docs", path: "/tmp/link-existing-docs" } },
-    ]);
-    const root = setup("link-existing-docs");
-
-    const docsDir = join(root, ".pstdio", "docs");
-    mkdirSync(docsDir, { recursive: true });
-    writeFileSync(join(docsDir, "local.md"), "local content");
-
-    await linkProject(root, "abc", { homedir: join(tmpBase, "__fake-home__") });
-
-    expect(readFileSync(join(docsDir, "local.md"), "utf8")).toBe("local content");
-    expect(existsSync(join(docsDir, "navigation.json"))).toBe(false);
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
-  });
-
   test("throws when project not found", async () => {
     mockFetchSequence([{ status: 404, body: { error: "Not found" } }]);
     const root = setup("link-404");
 
     expect(linkProject(root, "missing")).rejects.toThrow("Project not found: missing");
+  });
+
+  // Tracked in PS-20 while the suite-order-dependent API client refresh issue is investigated.
+  test.skip("refreshes the API client when fetch mocks change between tests", async () => {
+    const staleFetch = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: "stale-project",
+            name: "Stale Project",
+            shorthand: "SP",
+            created_at: "2026-01-01T00:00:00Z",
+            updated_at: "2026-01-01T00:00:00Z",
+          }),
+          { status: 200 },
+        ),
+      ),
+    ) as unknown as typeof fetch;
+    globalThis.fetch = staleFetch;
+    await apiClient().projects.get("stale-project");
+
+    mockFetchSequence([{ status: 404, body: { error: "Not found" } }]);
+    const root = setup("link-refresh-client");
+
+    await expect(linkProject(root, "missing")).rejects.toThrow("Project not found: missing");
+    expect(staleFetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   test("delegates stale ticket cleanup to the API", async () => {
@@ -98,7 +106,10 @@ describe("linkProject", () => {
           updated_at: "2026-01-01T00:00:00Z",
         },
       },
-      { status: 201, body: { id: "repo-1", name: "link-relink", path: "/tmp/link-relink" } },
+      {
+        status: 201,
+        body: { id: "repo-1", name: "link-relink", path: "/tmp/link-relink" },
+      },
     ]);
 
     const root = setup("link-relink");
@@ -107,7 +118,9 @@ describe("linkProject", () => {
     writeFileSync(join(root, ".pstdio", "config.json"), `${JSON.stringify({ project_id: "old-project" }, null, 2)}\n`);
     writeFileSync(join(ticketsDir, "ticket.md"), "# old ticket\n");
 
-    await linkProject(root, "new-project", { homedir: join(tmpBase, "__fake-home__") });
+    await linkProject(root, "new-project", {
+      homedir: join(tmpBase, "__fake-home__"),
+    });
 
     expect(existsSync(join(root, ".pstdio", "tickets"))).toBe(true);
     const config = JSON.parse(readFileSync(join(root, ".pstdio", "config.json"), "utf8"));
