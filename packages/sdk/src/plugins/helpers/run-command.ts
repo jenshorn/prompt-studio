@@ -1,5 +1,3 @@
-import { spawn as nodeSpawn } from "node:child_process";
-
 type CommandOutputOptions = {
   quiet?: boolean;
 };
@@ -8,21 +6,28 @@ export const runCommand = async (cwd: string, command: string[], options: Comman
   const [cmd, ...args] = command;
   const stdio = options.quiet ? "ignore" : "pipe";
 
-  return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
-    const proc = nodeSpawn(cmd, args, { cwd, stdio: ["ignore", stdio, stdio] });
-
-    const stdout: string[] = [];
-    const stderr: string[] = [];
-
-    proc.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk.toString()));
-    proc.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk.toString()));
-
-    proc.on("close", (code) => {
-      resolve({
-        exitCode: code ?? 1,
-        stdout: stdout.join("").trim(),
-        stderr: stderr.join("").trim(),
-      });
+  let proc: ReturnType<typeof Bun.spawn>;
+  try {
+    proc = Bun.spawn([cmd, ...args], {
+      cwd,
+      stdin: "ignore",
+      stdout: stdio,
+      stderr: stdio,
     });
-  });
+  } catch (error) {
+    return { exitCode: 1, stdout: "", stderr: (error as Error).message };
+  }
+
+  const readStream = (stream: ReturnType<typeof Bun.spawn>["stdout"]) =>
+    stream && typeof stream !== "number" ? new Response(stream).text() : Promise.resolve("");
+
+  const [stdout, stderr] = await Promise.all([readStream(proc.stdout), readStream(proc.stderr)]);
+
+  const exitCode = await proc.exited;
+
+  return {
+    exitCode,
+    stdout: stdout.trim(),
+    stderr: stderr.trim(),
+  };
 };
