@@ -13,11 +13,13 @@ import type {
   SessionMessage,
   SessionMessageInput,
   SessionMessagesInput,
+  SessionReattachInput,
   SessionStartInput,
 } from "../../types";
 import { normalizeErrorPart } from "../normalized-error";
 import { normalizeOpencodeMessage } from "./opencode-normalizer";
-import { createOpencodeService } from "./opencode-service";
+import { createOpencodeService, isTransportTimeout } from "./opencode-service";
+import type { OpencodeSessionMessage } from "./opencode-types";
 
 // --- Dependency injection ---
 
@@ -134,7 +136,7 @@ export const createOpencodeAgent = (
     return ids.map((id) => ({ id }));
   };
 
-  const capabilities = (): AgentCapability[] => ["SessionFork", "ContextUsage"];
+  const capabilities = (): AgentCapability[] => ["SessionFork", "ContextUsage", "SessionReattach"];
 
   const getMessages = async (sessionId: string, input?: SessionMessagesInput): Promise<SessionMessage[]> => {
     const cwd = input?.cwd ?? undefined;
@@ -152,6 +154,7 @@ export const createOpencodeAgent = (
     let latestMessages: SessionMessage[] = [];
     let done = false;
     let failed = false;
+    let timedOut = false;
     let failureMessage = "";
 
     messageComplete
@@ -160,8 +163,12 @@ export const createOpencodeAgent = (
       })
       .catch((error: unknown) => {
         done = true;
-        failed = true;
-        failureMessage = toErrorMessage(error);
+        if (isTransportTimeout(error)) {
+          timedOut = true;
+        } else {
+          failed = true;
+          failureMessage = toErrorMessage(error);
+        }
       });
 
     while (!done) {
@@ -205,6 +212,11 @@ export const createOpencodeAgent = (
       eventStore.push({ op: "replace", path: "/messages", value: nextMessages });
     }
 
+    if (timedOut) {
+      eventStore.push({ op: "replace", path: "/status", value: "disconnected" });
+      return { code: null as number | null, signal: "TIMEOUT" as string | null };
+    }
+
     const status = failed ? "failed" : "completed";
     eventStore.push({ op: "replace", path: "/status", value: status });
 
@@ -228,6 +240,55 @@ export const createOpencodeAgent = (
         stdin: new PassThrough(),
         kill: () => {},
         onExit,
+        timeoutStrategy: "provider" as const,
+      },
+    };
+  };
+
+  const isTurnInFlight = (rawMessages: OpencodeSessionMessage[]) => {
+    const tail = rawMessages.at(-1);
+    if (!tail || !("info" in tail) || tail.info?.role !== "assistant") return false;
+    return tail.info?.time?.completed === undefined;
+  };
+
+  const pollUntilIdle = async (sessionId: string, cwd: string | undefined, eventStore: EventStore) => {
+    let lastSnapshot = "";
+
+    while (true) {
+      let raw: OpencodeSessionMessage[] = [];
+      try {
+        raw = await opencode.getSessionMessages(sessionId, cwd);
+      } catch {
+        // Transient fetch error — keep looping
+      }
+
+      const normalized = raw.map(normalizeOpencodeMessage);
+      const snapshot = JSON.stringify(normalized);
+      if (snapshot !== lastSnapshot) {
+        eventStore.push({ op: "replace", path: "/messages", value: normalized });
+        lastSnapshot = snapshot;
+      }
+
+      if (!isTurnInFlight(raw)) break;
+
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    eventStore.push({ op: "replace", path: "/status", value: "completed" });
+    return { code: 0 as number | null, signal: null as string | null };
+  };
+
+  const reattachSession = async (input: SessionReattachInput, eventStore: EventStore) => {
+    const cwd = input.cwd ?? undefined;
+    const onExit = pollUntilIdle(input.sessionId, cwd, eventStore);
+
+    return {
+      process: {
+        sessionId: input.sessionId,
+        stdin: new PassThrough(),
+        kill: () => {},
+        onExit,
+        timeoutStrategy: "provider" as const,
       },
     };
   };
@@ -244,6 +305,7 @@ export const createOpencodeAgent = (
         stdin: new PassThrough(),
         kill: () => {},
         onExit,
+        timeoutStrategy: "provider" as const,
       },
     };
   };
@@ -298,6 +360,7 @@ export const createOpencodeAgent = (
     listModels,
     startSession,
     resumeSession,
+    reattachSession,
     getMessages,
     listSessions,
     exportSession,

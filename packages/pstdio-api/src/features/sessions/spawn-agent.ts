@@ -133,7 +133,7 @@ export const spawnAgentSession = async (input: SpawnInput, deps: SpawnDeps) => {
 
   if (result.process) {
     deps.sessionService.store.setProcess(input.sessionId, result.process);
-    trackProcessExit(input.sessionId, result.process, entry.eventStore.subscribe(), deps);
+    trackProcessLifecycle(input.sessionId, result.process, entry.eventStore.subscribe(), deps);
   }
 
   return result;
@@ -184,7 +184,7 @@ export const resumeAgentSession = async (input: ResumeInput, deps: SpawnDeps) =>
 
   if (result.process) {
     deps.sessionService.store.setProcess(input.sessionId, result.process);
-    trackProcessExit(input.sessionId, result.process, entry.eventStore.subscribe(), deps);
+    trackProcessLifecycle(input.sessionId, result.process, entry.eventStore.subscribe(), deps);
   } else {
     sessionLogger.warn(
       {
@@ -198,13 +198,49 @@ export const resumeAgentSession = async (input: ResumeInput, deps: SpawnDeps) =>
   return result;
 };
 
-const trackProcessExit = (
+type ReattachInput = {
+  sessionId: string;
+  agentSessionId: string;
+  agentId: string;
+  cwd?: string;
+};
+
+// Reattaches to an existing opencode session that was orphaned (e.g. by a server restart)
+export const reattachAgentSession = async (input: ReattachInput, deps: SpawnDeps) => {
+  const agent = deps.agentRegistry.get(input.agentId as AgentId);
+  if (!agent?.reattachSession) throw new Error(`Agent does not support reattach: ${input.agentId}`);
+
+  const entry = deps.sessionService.store.create(input.sessionId, (request: ApprovalRequest) => {
+    entry.eventStore.push({ op: "add", path: "/approval_request", value: request });
+  });
+
+  const result = await agent.reattachSession({ sessionId: input.agentSessionId, cwd: input.cwd }, entry.eventStore);
+
+  if (result.process) {
+    deps.sessionService.store.setProcess(input.sessionId, result.process);
+    trackProcessLifecycle(input.sessionId, result.process, entry.eventStore.subscribe(), deps);
+  }
+
+  return result;
+};
+
+const trackProcessLifecycle = (
   sessionId: string,
-  process: Pick<SpawnedProcess, "kill" | "onExit">,
+  process: Pick<SpawnedProcess, "kill" | "onExit" | "timeoutStrategy">,
   activity: AsyncIterable<unknown>,
   deps: SpawnDeps,
 ) => {
-  withProcessExitTimeout(sessionId, process, activity, deps.processExitTimeoutMs ?? DEFAULT_PROCESS_EXIT_TIMEOUT_MS)
+  const exitPromise =
+    process.timeoutStrategy === "provider"
+      ? process.onExit
+      : withProcessExitTimeout(
+          sessionId,
+          process,
+          activity,
+          deps.processExitTimeoutMs ?? DEFAULT_PROCESS_EXIT_TIMEOUT_MS,
+        );
+
+  exitPromise
     .then(async ({ code, signal }) => {
       const entry = deps.sessionService.store.get(sessionId);
       if (entry) {
@@ -229,7 +265,7 @@ const trackProcessExit = (
         );
       }
 
-      const status = code === 0 ? "completed" : "failed";
+      const status = signal === "TIMEOUT" ? "disconnected" : code === 0 ? "completed" : "failed";
       if (status === "failed") {
         sessionLogger.error(
           {
