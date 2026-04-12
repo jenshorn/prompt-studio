@@ -1,4 +1,3 @@
-import { rmSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 const apiPort = Number(process.env.E2E_API_PORT ?? "3200");
@@ -63,7 +62,6 @@ const getSessionBubble = (page: import("@playwright/test").Page) =>
 
 test.describe("Sessions page", () => {
   let projectId: string;
-  const repoDirs: string[] = [];
 
   test.beforeEach(async ({ request }) => {
     test.setTimeout(10_000);
@@ -71,13 +69,6 @@ test.describe("Sessions page", () => {
     await configureAgent(request, "fake");
     const project = await createProjectViaApi(request, "Sessions Test Project");
     projectId = project.id;
-  });
-
-  test.afterEach(() => {
-    for (const dir of repoDirs) {
-      rmSync(dir, { recursive: true, force: true });
-    }
-    repoDirs.length = 0;
   });
 
   test("shows empty state when no sessions exist", async ({ page }) => {
@@ -163,5 +154,35 @@ test.describe("Sessions page", () => {
 
     await page.getByRole("button", { name: "Session actions" }).click();
     await expect(page.getByText("Archive session")).toBeVisible();
+  });
+
+  test("shows only the 6 most recent sessions in the chat dropdown and navigates to the sessions page", async ({
+    page,
+    request,
+  }) => {
+    await bypassOnboarding(page);
+
+    await createSessionViaApi(request, projectId, "Session 1");
+    await createSessionViaApi(request, projectId, "Session 2");
+    await createSessionViaApi(request, projectId, "Session 3");
+    await createSessionViaApi(request, projectId, "Session 4");
+    await createSessionViaApi(request, projectId, "Session 5");
+    await createSessionViaApi(request, projectId, "Session 6");
+    await createSessionViaApi(request, projectId, "Session 7");
+
+    await page.goto(`/projects/${projectId}/tickets`);
+
+    await page.locator("button", { hasText: "New session" }).first().click();
+
+    await expect(page.getByText("Session 7")).toBeVisible();
+    await expect(page.getByText("Session 6")).toBeVisible();
+    await expect(page.getByText("Session 5")).toBeVisible();
+    await expect(page.getByText("Session 4")).toBeVisible();
+    await expect(page.getByText("Session 3")).toBeVisible();
+    await expect(page.getByText("Session 2")).toBeVisible();
+    await expect(page.getByText("Session 1")).not.toBeVisible();
+
+    await page.getByRole("option", { name: "View more sessions" }).click();
+    await page.waitForURL(`**/projects/${projectId}/sessions`);
   });
 });
