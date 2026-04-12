@@ -17,6 +17,7 @@ import type { AttemptStatusMapEntry } from "@/features/workspaces/hooks/attempt-
 import type { WorkspaceSessionEntry } from "@/features/workspaces/hooks/use-workspace-sessions";
 import { type SelectableTicketFile, TICKET_CONTENT_ITEM_ID } from "../utils/ticket-file-selection";
 import { buildWorkspaceStatusIndicatorTooltip } from "../utils/workspace-status-indicator";
+import { resolveTicketSidebarActiveNodeIds } from "./ticket-sidebar-selection";
 
 const TICKET_SIDEBAR_STORAGE_KEY = "ticket-sidebar";
 
@@ -30,6 +31,7 @@ interface TicketSidebarProps {
   attemptStatusMap?: Map<string, AttemptStatusMapEntry>;
   sessionsByWorkspaceId: Map<string, WorkspaceSessionEntry[]>;
   selectedWorkspaceId?: string | null;
+  activeSessionId?: string | null;
   onSelectFile: (fileId: string) => void;
   onSelectWorkspace: (workspaceShorthand: string) => void;
   onSelectSession: (workspaceShorthand: string, sessionId: string) => void;
@@ -146,6 +148,7 @@ export const TicketSidebar = (props: TicketSidebarProps) => {
     attemptStatusMap = new Map(),
     sessionsByWorkspaceId,
     selectedWorkspaceId,
+    activeSessionId = null,
     onSelectFile,
     onSelectWorkspace,
     onSelectSession,
@@ -170,7 +173,12 @@ export const TicketSidebar = (props: TicketSidebarProps) => {
       : []),
   ];
 
-  const activeNodeId = selectedWorkspaceId ? `workspace:${selectedWorkspaceId}` : `file:${selectedFileId}`;
+  const activeNodeIds = resolveTicketSidebarActiveNodeIds({
+    selectedFileId,
+    selectedWorkspaceId,
+    activeSessionId,
+    workspaceSessionIds: new Set(sessions.map((session) => session.id)),
+  });
 
   const handleNavigate = (event: SidebarNavigateEvent) => {
     const intent = event.intent;
@@ -195,7 +203,7 @@ export const TicketSidebar = (props: TicketSidebarProps) => {
     <Sidebar
       storageKey={TICKET_SIDEBAR_STORAGE_KEY}
       sections={sections}
-      activeNodeId={activeNodeId}
+      activeNodeId={activeNodeIds}
       defaultExpandedSections={["files", "workspaces", "sessions"]}
       header={<ProjectMenu />}
       footer={<ProjectSidebarFooter />}
