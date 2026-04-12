@@ -15,6 +15,7 @@ export const SessionBubbleContainer = () => {
   const setSessionModalState = useProjectSettingsStore((s) => s.setSessionModalState);
   const selectedSessionId = useProjectSettingsStore((s) => s.selectedSessionId);
   const setSelectedSessionId = useProjectSettingsStore((s) => s.setSelectedSessionId);
+  const pendingWorkspaceSessionWorkspaceId = useProjectSettingsStore((s) => s.pendingWorkspaceSessionWorkspaceId);
   const isWorkspaceRoute = typeof workspaceShorthand === "string" && workspaceShorthand.length > 0;
 
   const { data: sessions = [] } = useProjectSessions(projectId);
@@ -66,6 +67,7 @@ export const SessionBubbleContainer = () => {
     >
       <SessionChatView
         sessionId={selectedSessionId}
+        newSessionWorkspaceId={isWorkspaceRoute ? (pendingWorkspaceSessionWorkspaceId ?? undefined) : undefined}
         onSessionCreated={setSelectedSessionId}
         showWorkspaceHub={!isWorkspaceRoute}
       />
