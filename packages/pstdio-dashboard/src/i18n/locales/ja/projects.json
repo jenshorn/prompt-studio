@@ -176,6 +176,18 @@
       "emptyValue": "-"
     }
   },
+  "workspacePanel": {
+    "options": {
+      "workspace": "ワークスペースオプションを開く",
+      "deleteWorkspace": "ワークスペースを削除"
+    },
+    "deleteConfirmation": {
+      "workspace": {
+        "headline": "ワークスペースを削除しますか？",
+        "notification": "この操作によりワークスペースが削除され、チケットから取り除かれます。"
+      }
+    }
+  },
   "createProjectSession": {
     "errors": {
       "missingProjectId": "セッションを作成するにはプロジェクトIDが必要です。"
