@@ -138,6 +138,7 @@ export const createApp = async (options: AppOptions) => {
 
   const pluginService = createPluginService({
     repoService,
+    listProjectIds: async () => (await projectService.list()).map((project) => project.id),
     filesRoot: options.filesRoot,
     storageRoot,
     clientOptions: {
@@ -283,6 +284,7 @@ export const createApp = async (options: AppOptions) => {
   const close = async () => {
     startupAbort.abort();
     await startupDone;
+    await pluginService.dispose();
     await closeDb();
   };
 
