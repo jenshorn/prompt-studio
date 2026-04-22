@@ -1,6 +1,7 @@
 import "./FloatingTextFormatToolbarPlugin.css";
 
 import { IconButton, Stack, Text } from "@chakra-ui/react";
+import { $createCodeNode } from "@lexical/code";
 import {
   INSERT_CHECK_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
@@ -22,7 +23,7 @@ import {
   type LexicalEditor,
   SELECTION_CHANGE_COMMAND,
 } from "lexical";
-import { List, ListOrdered, ListTodo } from "lucide-react";
+import { Code2, List, ListOrdered, ListTodo } from "lucide-react";
 import type React from "react";
 import { type Dispatch, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -91,6 +92,22 @@ function FloatingTextToolbar({
     editor.dispatchCommand(command, undefined);
   };
 
+  const formatCodeBlock = () => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) {
+        return;
+      }
+
+      if (blockType === "code") {
+        $setBlocksType(selection, $createParagraphNode);
+        return;
+      }
+
+      $setBlocksType(selection, () => $createCodeNode());
+    });
+  };
+
   const updateToolbar = () => {
     const selection = $getSelection();
     if (!$isRangeSelection(selection)) return;
@@ -116,13 +133,12 @@ function FloatingTextToolbar({
 
     const rootElement = editor.getRootElement();
 
-    // Show floating toolbar when there's a non-collapsed text selection
+    // Show floating toolbar when selection is inside the editor
     if (
       selection !== null &&
       $isRangeSelection(selection) &&
-      !selection.isCollapsed() &&
       nativeSelection !== null &&
-      !nativeSelection.isCollapsed &&
+      nativeSelection.rangeCount > 0 &&
       rootElement?.contains(nativeSelection.anchorNode) &&
       editor.isEditable()
     ) {
@@ -295,6 +311,20 @@ function FloatingTextToolbar({
             <Text fontWeight="thin" fontSize=".8rem">
               H3
             </Text>
+          </IconButton>
+        </Tooltip>
+
+        <ToolbarSeparator />
+
+        <Tooltip content="Code Block">
+          <IconButton
+            data-active={blockType === "code" || undefined}
+            variant="ghost"
+            aria-label="Code Block"
+            size="xs"
+            onClick={formatCodeBlock}
+          >
+            <Code2 size={14} />
           </IconButton>
         </Tooltip>
 
