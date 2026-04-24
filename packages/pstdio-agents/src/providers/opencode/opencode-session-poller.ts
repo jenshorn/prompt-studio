@@ -2,31 +2,32 @@ import type { EventStore, SessionMessage } from "../../types";
 import { normalizeErrorPart } from "../normalized-error";
 import { normalizeOpencodeMessage } from "./opencode-normalizer";
 import { isTransportTimeout } from "./opencode-service";
-import { isTurnInFlight, isTurnStale, resolveInFlightTurnProgressAt } from "./opencode-turn-state";
+import { isTurnCompleted, isTurnInFlight, isTurnStale, resolveInFlightTurnProgressAt } from "./opencode-turn-state";
 import type { OpencodeSessionMessage } from "./opencode-types";
 
-interface PostState {
+export interface PostState {
   settled: boolean;
   timedOut: boolean;
   failed: boolean;
   failureMessage: string;
 }
 
-interface PollSnapshot {
+export interface PollSnapshot {
   snapshotChanged: boolean;
   lastObserved: OpencodeSessionMessage[];
   lastSnapshot: string;
   latestMessages: SessionMessage[];
 }
 
-type SessionMessagesLoader = (sessionId: string, cwd?: string) => Promise<OpencodeSessionMessage[]>;
+export type SessionMessagesLoader = (sessionId: string, cwd?: string) => Promise<OpencodeSessionMessage[]>;
 
 const OPENCODE_POLL_INTERVAL_MS = 1_000;
-const OPENCODE_STALE_TURN_TIMEOUT_MS = 30 * 60 * 1_000;
+export const OPENCODE_STALE_TURN_TIMEOUT_MS = 30 * 60 * 1_000;
 
-const hasErrorParts = (messages: SessionMessage[]) => messages.some((m) => m.parts.some((p) => p.type === "error"));
+export const hasErrorParts = (messages: SessionMessage[]) =>
+  messages.some((m) => m.parts.some((p) => p.type === "error"));
 
-const waitForNextPoll = (abortSignal?: AbortSignal) =>
+export const waitForNextPoll = (abortSignal?: AbortSignal) =>
   new Promise<void>((resolve) => {
     if (abortSignal?.aborted) {
       resolve();
@@ -54,7 +55,7 @@ const toErrorMessage = (error: unknown) => {
   return "OpenCode session failed.";
 };
 
-const trackPostState = (messageComplete: Promise<void>): PostState => {
+export const trackPostState = (messageComplete: Promise<void>): PostState => {
   const state: PostState = { settled: false, timedOut: false, failed: false, failureMessage: "" };
   messageComplete
     .then(() => {
@@ -72,38 +73,31 @@ const trackPostState = (messageComplete: Promise<void>): PostState => {
   return state;
 };
 
-const disconnectStaleTurn = (eventStore: EventStore) => {
+export const disconnectStaleTurn = (eventStore: EventStore) => {
   eventStore.push({ op: "replace", path: "/status", value: "disconnected" });
   return { code: null as number | null, signal: "TIMEOUT" as string | null };
 };
 
-const cancelTurn = (eventStore: EventStore) => {
+export const cancelTurn = (eventStore: EventStore) => {
   eventStore.push({ op: "replace", path: "/status", value: "cancelled" });
   return { code: null as number | null, signal: "SIGTERM" as string | null };
 };
 
-const getMessageRole = (message: OpencodeSessionMessage) => {
-  if ("role" in message && message.role) return message.role;
-  if ("info" in message && message.info?.role) return message.info.role;
-  return null;
-};
-
-const hasCurrentTurnAssistant = (messages: OpencodeSessionMessage[], baselineCount: number) =>
-  messages.slice(baselineCount).some((message) => getMessageRole(message) === "assistant");
-
 const shouldStopPolling = (input: {
   turnVisible: boolean;
-  turnHasAssistant: boolean;
   inFlight: boolean;
+  turnCompleted: boolean;
   postState: PostState;
 }) => {
-  const { turnVisible, turnHasAssistant, inFlight, postState } = input;
-  if (turnVisible && turnHasAssistant && !inFlight) return true;
+  const { turnVisible, inFlight, turnCompleted, postState } = input;
+  // The assistant finished its turn (completed timestamp or question asked).
+  if (turnVisible && turnCompleted) return true;
   if (postState.failed && !turnVisible) return true;
+  // POST succeeded with no visible effect and nothing in flight.
   return postState.settled && !postState.timedOut && !postState.failed && !inFlight && !turnVisible;
 };
 
-const appendFailureMessage = (input: {
+export const appendFailureMessage = (input: {
   sessionId: string;
   latestMessages: SessionMessage[];
   eventStore: EventStore;
@@ -124,7 +118,7 @@ const appendFailureMessage = (input: {
   return { code: 1 as number | null, signal: null as string | null };
 };
 
-const readSessionSnapshot = async (input: {
+export const readSessionSnapshot = async (input: {
   loadMessages: SessionMessagesLoader;
   sessionId: string;
   cwd: string | undefined;
@@ -206,8 +200,8 @@ export const pollOpencodeMessages = async (input: {
 
     const now = Date.now();
     const inFlight = isTurnInFlight(lastObserved);
+    const turnCompleted = isTurnCompleted(lastObserved);
     const turnVisible = lastObserved.length > baselineCount;
-    const turnHasAssistant = hasCurrentTurnAssistant(lastObserved, baselineCount);
     lastInFlightProgressAt = resolveInFlightTurnProgressAt({
       rawMessages: lastObserved,
       lastProgressAt: lastInFlightProgressAt,
@@ -219,7 +213,7 @@ export const pollOpencodeMessages = async (input: {
       return disconnectStaleTurn(eventStore);
     }
 
-    if (shouldStopPolling({ turnVisible, turnHasAssistant, inFlight, postState })) {
+    if (shouldStopPolling({ turnVisible, inFlight, turnCompleted, postState })) {
       break;
     }
 

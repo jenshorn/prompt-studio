@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { type ComponentProps, useState } from "react";
 import { AttachmentList } from "./attachment-list";
 import { ChatInput } from "./chat-input";
+import type { ChatInputQuestionPrompt } from "./chat-input-question-prompt";
 
 const meta: Meta<typeof ChatInput> = {
   title: "Chat UI/Chat Input",
@@ -109,6 +110,142 @@ export const WithAttachments: Story = {
       console.log("Submitted text:", text);
       console.log("Submitted attachments:", attachments);
       alert(`Submitted: ${text}${attachments.length > 0 ? ` with ${attachments.length} attachments` : ""}`);
+    },
+  },
+};
+
+const singleChoiceQuestionPrompt: ChatInputQuestionPrompt = {
+  questions: [
+    {
+      id: "language",
+      question: "Which language do you want to use?",
+      options: [{ label: "TypeScript" }, { label: "Python" }, { label: "Go" }],
+      multiple: false,
+      required: true,
+    },
+  ],
+};
+
+const multiChoiceQuestionPrompt: ChatInputQuestionPrompt = {
+  questions: [
+    {
+      id: "focus",
+      question: "What should the plan prioritize?",
+      options: [
+        { label: "Performance", description: "runtime and build time" },
+        { label: "Reliability", description: "tests and retries" },
+        { label: "Maintainability", description: "readability and structure" },
+      ],
+      multiple: true,
+      required: true,
+    },
+  ],
+};
+
+const customQuestionPrompt: ChatInputQuestionPrompt = {
+  questions: [
+    {
+      id: "constraints",
+      question: "Select constraints and add custom notes if needed.",
+      options: [{ label: "No backend changes" }, { label: "Keep API stable" }, { label: "Ship today" }],
+      multiple: true,
+      allowCustomAnswer: true,
+    },
+  ],
+};
+
+const freeformQuestionPrompt: ChatInputQuestionPrompt = {
+  questions: [
+    {
+      id: "details",
+      question: "What should I know before continuing?",
+      options: [],
+      required: true,
+      allowCustomAnswer: true,
+    },
+  ],
+};
+
+const multiStepQuestionPrompt: ChatInputQuestionPrompt = {
+  questions: [
+    {
+      id: "goal",
+      question: "What should be built?",
+      options: [],
+      required: true,
+      allowCustomAnswer: true,
+    },
+    {
+      id: "constraints",
+      question: "Select constraints.",
+      options: [{ label: "Keep API stable" }, { label: "No backend changes" }, { label: "Add tests" }],
+      multiple: true,
+      required: true,
+    },
+    {
+      id: "notes",
+      question: "Anything else?",
+      options: [],
+      allowCustomAnswer: true,
+    },
+  ],
+};
+
+export const QuestionSingleChoice: Story = {
+  args: {
+    defaultState: initialState,
+    placeholder: "Add context if needed...",
+    questionPrompt: singleChoiceQuestionPrompt,
+    onSubmit: (text: string) => {
+      console.log("Submitted response:", text);
+      alert(`Submitted response: ${text}`);
+    },
+  },
+};
+
+export const QuestionMultipleChoice: Story = {
+  args: {
+    defaultState: initialState,
+    placeholder: "Optional details...",
+    questionPrompt: multiChoiceQuestionPrompt,
+    onSubmit: (text: string) => {
+      console.log("Submitted response:", text);
+      alert(`Submitted response: ${text}`);
+    },
+  },
+};
+
+export const QuestionWithCustomAnswer: Story = {
+  args: {
+    defaultState: initialState,
+    placeholder: "Add a custom answer...",
+    questionPrompt: customQuestionPrompt,
+    onSubmit: (text: string) => {
+      console.log("Submitted response:", text);
+      alert(`Submitted response: ${text}`);
+    },
+  },
+};
+
+export const QuestionFreeform: Story = {
+  args: {
+    defaultState: initialState,
+    placeholder: "Answer the question...",
+    questionPrompt: freeformQuestionPrompt,
+    onSubmit: (text: string) => {
+      console.log("Submitted response:", text);
+      alert(`Submitted response: ${text}`);
+    },
+  },
+};
+
+export const QuestionMultiStep: Story = {
+  args: {
+    defaultState: initialState,
+    questionPrompt: multiStepQuestionPrompt,
+    onSubmit: (text: string) => {
+      console.log("Submitted response:", text);
+      alert(`Submitted response: ${text}`);
     },
   },
 };

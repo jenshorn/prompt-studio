@@ -7,12 +7,24 @@ import {
   resolveChatInputButtonAction,
   resolveChatInputKeyboardAction,
 } from "./chat-input-actions";
+import {
+  buildQuestionAnswerValues,
+  buildQuestionResponse,
+  type ChatInputQuestion,
+  type ChatInputQuestionCustomAnswers,
+  type ChatInputQuestionPrompt,
+  type ChatInputQuestionResponse,
+  getQuestionPromptSignature,
+  getQuestionSelectionKey,
+  hasMissingRequiredQuestionAnswer,
+  QuestionPromptControls,
+} from "./chat-input-question-prompt";
 import { SendButton } from "./send-button";
 
 interface ChatInputProps {
   defaultState: string;
   placeholder?: string;
-  onSubmit?: (text: string, attachments: string[]) => void;
+  onSubmit?: (text: string, attachments: string[], questionResponse?: ChatInputQuestionResponse) => void;
   onInterrupt?: () => void;
   streaming?: boolean;
   attachedResources?: string[];
@@ -22,6 +34,7 @@ interface ChatInputProps {
   attachmentList?: ReactNode;
   actions?: ReactNode;
   attachedToTop?: boolean;
+  questionPrompt?: ChatInputQuestionPrompt;
 }
 
 export const ChatInput = (props: ChatInputProps) => {
@@ -38,14 +51,18 @@ export const ChatInput = (props: ChatInputProps) => {
     attachmentList,
     actions,
     attachedToTop = false,
+    questionPrompt,
   } = props;
 
   const [isSelected, setIsSelected] = useState(false);
   const [editorState, setEditorState] = useState(defaultState);
   const [editorKey, setEditorKey] = useState(0);
   const [text, setText] = useState(() => getTextFromSerializedEditorState(defaultState));
+  const [selectedOptionsByQuestion, setSelectedOptionsByQuestion] = useState<Record<string, string[]>>({});
+  const [customAnswersByQuestion, setCustomAnswersByQuestion] = useState<ChatInputQuestionCustomAnswers>({});
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onChangeRef = useRef(onChange);
+  const previousQuestionPromptSignatureRef = useRef(getQuestionPromptSignature(questionPrompt));
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -56,8 +73,19 @@ export const ChatInput = (props: ChatInputProps) => {
     setEditorState(defaultState);
     setEditorKey((key) => key + 1);
     setText(resetText);
+    setSelectedOptionsByQuestion({});
+    setCustomAnswersByQuestion({});
     onChangeRef.current?.(resetText);
   }, [defaultState]);
+
+  const questionPromptSignature = getQuestionPromptSignature(questionPrompt);
+
+  useEffect(() => {
+    if (previousQuestionPromptSignatureRef.current === questionPromptSignature) return;
+    previousQuestionPromptSignatureRef.current = questionPromptSignature;
+    setSelectedOptionsByQuestion({});
+    setCustomAnswersByQuestion({});
+  }, [questionPromptSignature]);
 
   const focusEditor = () => {
     const editable = containerRef.current?.querySelector('[contenteditable="true"]');
@@ -76,6 +104,8 @@ export const ChatInput = (props: ChatInputProps) => {
     setEditorKey((key) => key + 1);
     const resetText = getTextFromSerializedEditorState(defaultState);
     setText(resetText);
+    setSelectedOptionsByQuestion({});
+    setCustomAnswersByQuestion({});
     onChangeRef.current?.(resetText);
 
     if (shouldFocus) {
@@ -86,17 +116,33 @@ export const ChatInput = (props: ChatInputProps) => {
   };
 
   const canInterrupt = streaming && Boolean(onInterrupt);
-  const actionState = { canInterrupt, isDisabled, streaming, text };
+  const responseText = questionPrompt
+    ? buildQuestionResponse(questionPrompt, selectedOptionsByQuestion, customAnswersByQuestion)
+    : text.trim();
+  const hasMissingRequiredSelection = hasMissingRequiredQuestionAnswer(
+    questionPrompt,
+    selectedOptionsByQuestion,
+    customAnswersByQuestion,
+  );
+  const actionState = {
+    canInterrupt,
+    isDisabled: isDisabled || hasMissingRequiredSelection,
+    streaming,
+    text: responseText,
+  };
   const buttonAction = resolveChatInputButtonAction(actionState);
 
   const submitMessage = () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!responseText) return;
 
-    onSubmit(trimmed, attachedResources);
+    const questionResponse = questionPrompt
+      ? {
+          answers: buildQuestionAnswerValues(questionPrompt, selectedOptionsByQuestion, customAnswersByQuestion),
+        }
+      : undefined;
 
+    onSubmit(responseText, attachedResources, questionResponse);
     resetEditor(true);
-
     onClearAttachments?.();
   };
 
@@ -117,6 +163,35 @@ export const ChatInput = (props: ChatInputProps) => {
 
   const handleButtonClick = () => {
     runAction(buttonAction);
+  };
+
+  const toggleQuestionOption = (question: ChatInputQuestion, questionIndex: number, optionLabel: string) => {
+    const key = getQuestionSelectionKey(question, questionIndex);
+
+    setSelectedOptionsByQuestion((current) => {
+      const selected = current[key] ?? [];
+      const alreadySelected = selected.includes(optionLabel);
+
+      if (question.multiple) {
+        return {
+          ...current,
+          [key]: alreadySelected ? selected.filter((label) => label !== optionLabel) : [...selected, optionLabel],
+        };
+      }
+
+      return {
+        ...current,
+        [key]: alreadySelected ? [] : [optionLabel],
+      };
+    });
+  };
+
+  const updateQuestionCustomAnswer = (question: ChatInputQuestion, questionIndex: number, answer: string) => {
+    const key = getQuestionSelectionKey(question, questionIndex);
+    setCustomAnswersByQuestion((current) => ({
+      ...current,
+      [key]: answer,
+    }));
   };
 
   const placeholderNode = placeholder ? (
@@ -157,19 +232,29 @@ export const ChatInput = (props: ChatInputProps) => {
     >
       <Flex direction="column" color="fg">
         {attachmentList}
-        <ScrollArea maxH="10rem" showHorizontalScrollbar={false} contentProps={{ pr: "2xs" }}>
-          <PromptEditor
-            key={editorKey}
-            defaultState={editorState}
-            isEditable={!isDisabled}
-            placeholder={placeholderNode}
-            onChange={(t) => {
-              setText(t);
-              onChange?.(t);
-            }}
-            onSubmit={handleKeyboardSubmit}
+        {questionPrompt ? (
+          <QuestionPromptControls
+            questionPrompt={questionPrompt}
+            selectedOptionsByQuestion={selectedOptionsByQuestion}
+            customAnswersByQuestion={customAnswersByQuestion}
+            onToggleOption={toggleQuestionOption}
+            onCustomAnswerChange={updateQuestionCustomAnswer}
           />
-        </ScrollArea>
+        ) : (
+          <ScrollArea maxH="10rem" showHorizontalScrollbar={false} contentProps={{ pr: "2xs" }}>
+            <PromptEditor
+              key={editorKey}
+              defaultState={editorState}
+              isEditable={!isDisabled}
+              placeholder={placeholderNode}
+              onChange={(t) => {
+                setText(t);
+                onChange?.(t);
+              }}
+              onSubmit={handleKeyboardSubmit}
+            />
+          </ScrollArea>
+        )}
         <HStack gap="1" mt="md">
           {actions}
           <Spacer />

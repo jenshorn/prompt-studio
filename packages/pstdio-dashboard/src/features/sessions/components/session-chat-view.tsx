@@ -1,7 +1,7 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { ChatPanel, ChatSkeleton } from "@pstdio/ui/chat-ui";
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AgentBrowserContainer } from "@/features/agents/components/agent-browser.container";
 import { useProjectSettingsStore, useProjectSettingsStoreApi } from "@/features/project-settings/store";
@@ -20,7 +20,11 @@ import {
   type PendingFollowUpState,
   shouldShowPendingFollowUp,
 } from "./session-chat-state";
-import { isSessionInterruptible, resolveNewSessionWorkspaceId } from "./session-chat-view.utils";
+import {
+  getActiveQuestionPrompt,
+  isSessionInterruptible,
+  resolveNewSessionWorkspaceId,
+} from "./session-chat-view.utils";
 import { submitSessionMessage } from "./session-chat-view-actions";
 import {
   useEditActionNotifier,
@@ -95,6 +99,7 @@ export const SessionChatView = (props: SessionChatViewProps) => {
     messages,
     shouldShowPendingFollowUp(pendingFollowUp, sessionId) ? pendingFollowUp : null,
   );
+  const activeQuestionPrompt = useMemo(() => getActiveQuestionPrompt(displayedMessages), [displayedMessages]);
   const workspaceHub = buildSessionWorkspaceHubPanelModel({
     showWorkspaceHub,
     isWorkspaceInitializing,
@@ -127,7 +132,8 @@ export const SessionChatView = (props: SessionChatViewProps) => {
       loadingContent={loadingContent}
       chatInputPlaceholder={t("sessions.followUpPlaceholder")}
       chatInputDefaultValue={chatDraft}
-      onSubmitMessage={(text: string) =>
+      chatInputQuestionPrompt={activeQuestionPrompt}
+      onSubmitMessage={(text: string, _attachments, questionResponse) =>
         submitSessionMessage({
           sessionId,
           projectId,
@@ -135,6 +141,7 @@ export const SessionChatView = (props: SessionChatViewProps) => {
           model,
           workspaceId: effectiveWorkspaceId,
           text,
+          questionResponse,
           messages,
           pendingIdRef,
           clearSessionDraft,

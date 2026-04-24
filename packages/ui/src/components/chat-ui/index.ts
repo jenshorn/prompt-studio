@@ -11,6 +11,7 @@ export { ApprovalPrompt } from "./components/approval-prompt";
 export type { AutoScrollProps } from "./components/auto-scroll";
 export { AutoScroll } from "./components/auto-scroll";
 export { ChatInput } from "./components/chat-input";
+export type { ChatInputQuestionPrompt, ChatInputQuestionResponse } from "./components/chat-input-question-prompt";
 export { ChatPanel } from "./components/chat-panel";
 export { ChatSkeleton } from "./components/chat-skeleton";
 export type { SessionMessage, SessionMessagePart } from "./components/message-types";
