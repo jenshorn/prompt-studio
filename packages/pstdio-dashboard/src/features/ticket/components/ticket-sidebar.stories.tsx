@@ -51,6 +51,10 @@ const meta: Meta<typeof TicketSidebar> = {
   title: "Ticket/TicketSidebar",
   component: TicketSidebar,
   parameters: { layout: "padded" },
+  args: {
+    header: null,
+    footer: null,
+  },
 };
 
 export default meta;
@@ -58,15 +62,65 @@ export default meta;
 type Story = StoryObj<typeof TicketSidebar>;
 
 export const WorkspaceSessionsWithCreateAction: Story = {
-  render: () => (
+  render: (args) => (
     <Box maxW="260px">
       <TicketSidebar
+        {...args}
         files={[]}
         selectedFileId="ticket"
         workspaces={workspaces}
         sessionsByWorkspaceId={sessionsByWorkspaceId}
         selectedWorkspaceId="workspace-1"
         onSelectFile={() => undefined}
+        onSelectWorkspace={() => undefined}
+        onSelectSession={() => undefined}
+        onCreateWorkspaceSessionDraft={() => undefined}
+        onSelectPlanning={() => undefined}
+      />
+    </Box>
+  ),
+};
+
+export const WithSubTickets: Story = {
+  render: (args) => (
+    <Box maxW="260px">
+      <TicketSidebar
+        {...args}
+        files={[]}
+        subTickets={[
+          { id: "ticket-2", shorthand: "PS-13", title: "Set up retries", statusId: null },
+          { id: "ticket-3", shorthand: "PS-14", title: "Add smoke checks", statusId: null },
+        ]}
+        knownSubTicketIds={["ticket-2", "ticket-3"]}
+        selectedFileId="ticket"
+        workspaces={workspaces}
+        sessionsByWorkspaceId={sessionsByWorkspaceId}
+        selectedWorkspaceId="workspace-1"
+        onSelectFile={() => undefined}
+        onSelectSubTicket={() => undefined}
+        onSelectWorkspace={() => undefined}
+        onSelectSession={() => undefined}
+        onCreateWorkspaceSessionDraft={() => undefined}
+        onSelectPlanning={() => undefined}
+      />
+    </Box>
+  ),
+};
+
+export const WithoutSubTickets: Story = {
+  render: (args) => (
+    <Box maxW="260px">
+      <TicketSidebar
+        {...args}
+        files={[]}
+        subTickets={[]}
+        knownSubTicketIds={[]}
+        selectedFileId="ticket"
+        workspaces={workspaces}
+        sessionsByWorkspaceId={sessionsByWorkspaceId}
+        selectedWorkspaceId="workspace-1"
+        onSelectFile={() => undefined}
+        onSelectSubTicket={() => undefined}
         onSelectWorkspace={() => undefined}
         onSelectSession={() => undefined}
         onCreateWorkspaceSessionDraft={() => undefined}

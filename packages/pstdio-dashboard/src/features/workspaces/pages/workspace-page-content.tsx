@@ -16,6 +16,7 @@ import { formatTicketBreadcrumbLabel } from "@/features/ticket/utils/ticket-brea
 import type { buildSelectableTicketFiles } from "@/features/ticket/utils/ticket-file-selection";
 import type { ApiFileDiff, ApiWorkspaceArtifact } from "@/features/ticket-list/data/api/types";
 import type { useProjectTickets } from "@/features/ticket-list/hooks/use-project-tickets";
+import type { TicketSubTicket } from "@/features/ticket-list/types";
 import type { transformFileDiffs } from "@/features/workspaces/utils/transform-diff";
 import { getAttemptLabelFromWorkspaceShorthand } from "@/features/workspaces/utils/workspace-shorthand";
 import { WorkspaceDiffPanel } from "../components/workspace-diff-panel";
@@ -29,6 +30,8 @@ interface WorkspacePageContentProps {
   projectId: string | undefined;
   ticketShorthand: string | undefined;
   ticket: NonNullable<ReturnType<typeof useProjectTickets>["data"]>[number];
+  sidebarSubTickets: TicketSubTicket[];
+  knownTicketIds: string[];
   attemptStatusMap: ReturnType<typeof useAttemptStatusMap>;
   diffTotalsByWorkspaceId: Map<string, { additions: number; deletions: number }>;
   selectedWorkspaceLabel: string;
@@ -48,6 +51,7 @@ interface WorkspacePageContentProps {
   selectTab: (tab: WorkspacePageTab) => void;
   createWorkspaceSessionDraft: (workspaceId: string) => void;
   selectFile: (fileId: string) => void;
+  selectSubTicket: (ticketShorthand: string) => void;
   selectPlanning: () => void;
   createWorkspace: () => void;
   openRunAttempt: () => void;
@@ -132,11 +136,32 @@ const WorkspaceCreationModals = (props: {
   );
 };
 
+const ActionParamsModal = (props: { projectId: string; actionTrigger: ReturnType<typeof usePluginActionTrigger> }) => {
+  const { projectId, actionTrigger } = props;
+
+  if (!actionTrigger.activeParamAction) {
+    return null;
+  }
+
+  return (
+    <ActionParamsDialog
+      open
+      action={actionTrigger.activeParamAction}
+      projectId={projectId}
+      isSubmitting={actionTrigger.activeParamActionIsPending}
+      onClose={actionTrigger.cancelParams}
+      onSubmit={(params) => actionTrigger.submitWithParams(params)}
+    />
+  );
+};
+
 export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
   const {
     projectId,
     ticketShorthand,
     ticket,
+    sidebarSubTickets,
+    knownTicketIds,
     attemptStatusMap,
     diffTotalsByWorkspaceId,
     selectedWorkspaceLabel,
@@ -156,6 +181,7 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
     selectTab,
     createWorkspaceSessionDraft,
     selectFile,
+    selectSubTicket,
     selectPlanning,
     createWorkspace,
     openRunAttempt,
@@ -195,6 +221,8 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
   const sidebar = (
     <TicketSidebar
       files={selectableFiles}
+      subTickets={sidebarSubTickets}
+      knownSubTicketIds={knownTicketIds}
       selectedFileId=""
       workspaces={attempts}
       attemptStatusMap={attemptStatusMap}
@@ -203,6 +231,7 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
       selectedWorkspaceId={selectedWorkspace?.id}
       activeSessionId={activeSessionId}
       onSelectFile={selectFile}
+      onSelectSubTicket={selectSubTicket}
       onSelectWorkspace={selectWorkspace}
       onSelectSession={selectSession}
       onCreateWorkspace={createWorkspace}
@@ -230,7 +259,6 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
       resolveSessionContextMenuItems={resolveSessionContextMenuItems}
     />
   );
-
   return (
     <PanelLayout sidebar={sidebar}>
       <Stack flex="1" gap="0" minH="0">
@@ -307,38 +335,11 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
           createEmptyWorkspace={createEmptyWorkspace}
         />
 
-        {pluginActionTrigger.activeParamAction && projectId ? (
-          <ActionParamsDialog
-            open
-            action={pluginActionTrigger.activeParamAction}
-            projectId={projectId}
-            isSubmitting={pluginActionTrigger.activeParamActionIsPending}
-            onClose={pluginActionTrigger.cancelParams}
-            onSubmit={(params) => pluginActionTrigger.submitWithParams(params)}
-          />
-        ) : null}
+        {projectId ? <ActionParamsModal projectId={projectId} actionTrigger={pluginActionTrigger} /> : null}
 
-        {ticketActionTrigger.activeParamAction && projectId ? (
-          <ActionParamsDialog
-            open
-            action={ticketActionTrigger.activeParamAction}
-            projectId={projectId}
-            isSubmitting={ticketActionTrigger.activeParamActionIsPending}
-            onClose={ticketActionTrigger.cancelParams}
-            onSubmit={(params) => ticketActionTrigger.submitWithParams(params)}
-          />
-        ) : null}
+        {projectId ? <ActionParamsModal projectId={projectId} actionTrigger={ticketActionTrigger} /> : null}
 
-        {sessionActionTrigger.activeParamAction && projectId ? (
-          <ActionParamsDialog
-            open
-            action={sessionActionTrigger.activeParamAction}
-            projectId={projectId}
-            isSubmitting={sessionActionTrigger.activeParamActionIsPending}
-            onClose={sessionActionTrigger.cancelParams}
-            onSubmit={(params) => sessionActionTrigger.submitWithParams(params)}
-          />
-        ) : null}
+        {projectId ? <ActionParamsModal projectId={projectId} actionTrigger={sessionActionTrigger} /> : null}
 
         <DeleteConfirmationModal
           open={isTicketDeleteOpen}
