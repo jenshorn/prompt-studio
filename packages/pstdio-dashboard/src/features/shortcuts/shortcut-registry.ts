@@ -27,7 +27,7 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   {
     id: "open-shortcut-help",
     actionLabel: "Keyboard shortcuts",
-    binding: "Shift+/",
+    binding: "Mod+Shift+H",
     scope: "global",
     whenNotTyping: true,
   },
@@ -63,6 +63,7 @@ type EditableTarget = {
   tagName?: string | null;
   type?: string | null;
   isContentEditable?: boolean;
+  parentElement?: EditableTarget | null;
 };
 
 const NON_TEXT_INPUT_TYPES = new Set([
@@ -83,20 +84,25 @@ export const isEditableEventTarget = (target: EventTarget | EditableTarget | nul
     return false;
   }
 
-  const editableTarget = target as EditableTarget;
-  if (editableTarget.isContentEditable) {
-    return true;
+  let candidate: EditableTarget | null | undefined = target as EditableTarget;
+
+  while (candidate) {
+    if (candidate.isContentEditable) {
+      return true;
+    }
+
+    const tagName = candidate.tagName?.toUpperCase();
+    if (tagName === "TEXTAREA" || tagName === "SELECT") {
+      return true;
+    }
+
+    if (tagName === "INPUT") {
+      const type = candidate.type?.toLowerCase() ?? "text";
+      return !NON_TEXT_INPUT_TYPES.has(type);
+    }
+
+    candidate = candidate.parentElement;
   }
 
-  const tagName = editableTarget.tagName?.toUpperCase();
-  if (tagName === "TEXTAREA" || tagName === "SELECT") {
-    return true;
-  }
-
-  if (tagName !== "INPUT") {
-    return false;
-  }
-
-  const type = editableTarget.type?.toLowerCase() ?? "text";
-  return !NON_TEXT_INPUT_TYPES.has(type);
+  return false;
 };

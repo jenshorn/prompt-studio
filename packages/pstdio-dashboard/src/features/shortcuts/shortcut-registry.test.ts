@@ -14,7 +14,7 @@ describe("shortcut-registry", () => {
     expect(getShortcutDefinition("goto-ticket-list")?.binding).toEqual(["G", "T"]);
     expect(getShortcutDefinition("nav-previous")?.binding).toBe("[");
     expect(getShortcutDefinition("nav-next")?.binding).toBe("]");
-    expect(getShortcutDefinition("open-shortcut-help")?.binding).toBe("Shift+/");
+    expect(getShortcutDefinition("open-shortcut-help")?.binding).toBe("Mod+Shift+H");
     expect(getShortcutDefinition("open-shortcut-help")?.actionLabel).toBe("Keyboard shortcuts");
     expect(SHORTCUT_DEFINITIONS).toHaveLength(7);
   });
@@ -36,9 +36,26 @@ describe("shortcut-registry", () => {
   });
 
   it("identifies editable event targets", () => {
+    const textNodeInsideEditable = {
+      nodeType: 3,
+      parentElement: { isContentEditable: true },
+    } as unknown as EventTarget;
+    const nestedTextNodeInsideEditable = {
+      nodeType: 3,
+      parentElement: {
+        tagName: "SPAN",
+        parentElement: {
+          tagName: "DIV",
+          isContentEditable: true,
+        },
+      },
+    } as unknown as EventTarget;
+
     expect(isEditableEventTarget({ tagName: "INPUT", type: "text" })).toBe(true);
     expect(isEditableEventTarget({ tagName: "TEXTAREA" })).toBe(true);
     expect(isEditableEventTarget({ isContentEditable: true })).toBe(true);
+    expect(isEditableEventTarget(textNodeInsideEditable)).toBe(true);
+    expect(isEditableEventTarget(nestedTextNodeInsideEditable)).toBe(true);
     expect(isEditableEventTarget({ tagName: "INPUT", type: "button" })).toBe(false);
     expect(isEditableEventTarget({ tagName: "DIV", isContentEditable: false })).toBe(false);
   });
