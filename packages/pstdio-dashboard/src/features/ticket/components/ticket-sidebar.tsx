@@ -10,12 +10,13 @@ import {
   type SidebarSection,
   WorkspaceBadge,
 } from "@pstdio/ui";
-import { FileCode, FileImage, FileJson, FileSpreadsheet, FileText, Plus } from "lucide-react";
+import { Circle, FileCode, FileImage, FileJson, FileSpreadsheet, FileText, Plus } from "lucide-react";
 import { createElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ProjectMenu } from "@/features/project/components/project-menu";
 import { ProjectSidebarFooter } from "@/features/project/components/project-sidebar";
 import type { TicketAttempt, TicketSubTicket } from "@/features/ticket-list/types";
+import { resolveTicketStatusForeground } from "@/features/ticket-list/utils/status-color";
 import { toSessionIndicatorStatus } from "@/features/ticket-list/utils/ticket-attempts";
 import type { AttemptStatusMapEntry } from "@/features/workspaces/hooks/attempt-status-map";
 import type { WorkspaceSessionEntry } from "@/features/workspaces/hooks/use-workspace-sessions";
@@ -127,6 +128,11 @@ export const buildSubTicketsSection = (
     return {
       id: `sub-ticket:${subTicket.id}`,
       label,
+      indicator: {
+        icon: <Circle size={10} fill="currentColor" />,
+        color: resolveTicketStatusForeground(subTicket.statusColor),
+        tooltip: subTicket.status,
+      },
       isNavigable: canSelect,
       disabled: !canSelect,
       navigationIntent: canSelect
@@ -138,7 +144,6 @@ export const buildSubTicketsSection = (
   return {
     id: "sub-tickets",
     label,
-    collapsible: false,
     nodes,
   };
 };
