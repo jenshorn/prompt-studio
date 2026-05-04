@@ -4,12 +4,15 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./known-agents": "./src/known-agents.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "bun run typecheck && biome check .",
-    "format": "biome check --write ."
+    "format": "biome check --write .",
+    "test": "bun test --silent",
+    "test:coverage": "bun test --coverage"
   },
   "dependencies": {
     "zod": "^4.3.6"

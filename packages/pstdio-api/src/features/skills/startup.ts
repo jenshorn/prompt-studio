@@ -1,11 +1,15 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { findAgent, getBundledSkills } from "pstdio-agents";
-import type { RouteDeps } from "../deps";
+import { getBundledSkills } from "pstdio-agents";
+import { findAgent } from "pstdio-api-contracts/known-agents";
+import type { SkillsRouteDeps } from "./deps";
 import { installSkillToRepo } from "./install-skill-to-repo";
 
-type Deps = Pick<RouteDeps, "projectService" | "repoService" | "skillService" | "agentConfigService" | "fileService">;
+type Deps = Pick<
+  SkillsRouteDeps,
+  "projectService" | "repoService" | "skillService" | "agentConfigService" | "fileService"
+>;
 
 const isSkillInstalled = (repoPath: string, agentId: string, skillName: string) => {
   const agent = findAgent(agentId);

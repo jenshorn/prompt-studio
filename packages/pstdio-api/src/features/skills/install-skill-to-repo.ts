@@ -2,10 +2,10 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir as defaultHomedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { findAgent } from "pstdio-agents";
 import type { SkillFile } from "pstdio-api-contracts";
+import { findAgent } from "pstdio-api-contracts/known-agents";
 import { setupInstalledAgents } from "../agents/setup-installed-agents";
-import type { RouteDeps } from "../deps";
+import type { SkillsRouteDeps } from "./deps";
 
 type InstallSkillOptions = {
   homedir?: string;
@@ -72,7 +72,9 @@ export const installSkillToRepo = (
   }
 };
 
-const resolveTargetAgents = async (deps: Pick<RouteDeps, "agentConfigService" | "agentRegistry" | "eventBus">) => {
+const resolveTargetAgents = async (
+  deps: Pick<SkillsRouteDeps, "agentConfigService" | "agentRegistry" | "eventBus">,
+) => {
   const configured = await deps.agentConfigService.list();
   if (configured.length > 0) return configured;
 
@@ -80,7 +82,7 @@ const resolveTargetAgents = async (deps: Pick<RouteDeps, "agentConfigService" | 
 };
 
 export const installProjectSkillsToRepo = async (
-  deps: Pick<RouteDeps, "skillService" | "agentConfigService" | "fileService" | "agentRegistry" | "eventBus">,
+  deps: Pick<SkillsRouteDeps, "skillService" | "agentConfigService" | "fileService" | "agentRegistry" | "eventBus">,
   input: { projectId: string; repoPath: string },
 ) => {
   const [skills, agents] = await Promise.all([deps.skillService.list(input.projectId), resolveTargetAgents(deps)]);

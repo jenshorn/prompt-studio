@@ -1,7 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import type { AppRouteHandler } from "../../../types";
-import type { RouteDeps } from "../../deps";
 import { composeSummary } from "../compose-summary";
+import type { SessionsRouteDeps } from "../deps";
 import { followUpBodySchema, notFoundResponseSchema, sessionResponseSchema } from "../dto";
 import { getSessionMessages } from "../get-session-messages";
 import { resolvePrompt } from "../resolve-prompt";
@@ -45,7 +45,7 @@ const buildFollowUpPrompt = async (
     summary_role?: "assistant" | "all";
   },
   projectId: string,
-  deps: RouteDeps,
+  deps: SessionsRouteDeps,
 ) => {
   let prompt = await resolvePrompt(input, projectId, deps);
 
@@ -65,7 +65,7 @@ const buildFollowUpPrompt = async (
   return prompt;
 };
 
-export const followUpSessionHandler = (deps: RouteDeps): AppRouteHandler<typeof followUpSessionRoute> => {
+export const followUpSessionHandler = (deps: SessionsRouteDeps): AppRouteHandler<typeof followUpSessionRoute> => {
   return async (c) => {
     const { id } = c.req.valid("param");
     const input = c.req.valid("json");

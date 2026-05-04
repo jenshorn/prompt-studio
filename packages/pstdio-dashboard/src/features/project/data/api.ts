@@ -29,9 +29,6 @@ export type CreateProjectRepositoryInput = {
 
 // --- Mappers ---
 
-export const DEFAULT_OWNER = "Unassigned";
-export const DEFAULT_PROJECT_STATUS = "active";
-
 export const toProjectRepository = (repo: ApiRepo): ProjectRepository => ({
   id: repo.id,
   name: repo.name,
@@ -66,9 +63,14 @@ export const getProject = async (projectId: string) => {
   return {
     id: project.id,
     name: project.name,
-    status: DEFAULT_PROJECT_STATUS,
-    owner: DEFAULT_OWNER,
-    updatedAt: project.updated_at,
+    shorthand: project.shorthand,
+    selected_agents: project.selected_agents,
+    default_agent_id: project.default_agent_id,
+    default_agent_model: project.default_agent_model,
+    startup_script: project.startup_script,
+    created_at: project.created_at,
+    updated_at: project.updated_at,
+    deleted_at: project.deleted_at,
     ticketStatuses: statusCatalog.names,
     ticketStatusOptions: statusCatalog.options,
     repositories: repositories.map(toProjectRepository),

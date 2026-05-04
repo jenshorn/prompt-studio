@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createRoute, z } from "@hono/zod-openapi";
-import { findAgent, getBundledSkills } from "pstdio-agents";
+import { getBundledSkills } from "pstdio-agents";
+import { findAgent } from "pstdio-api-contracts/known-agents";
 import type { AppRouteHandler } from "../../../types";
-import type { RouteDeps } from "../../deps";
+import type { SkillsRouteDeps } from "../deps";
 import { notFoundResponseSchema, skillWithContentResponseSchema } from "../dto";
 
 export const getSkillRoute = createRoute({
@@ -32,7 +33,7 @@ export const getSkillRoute = createRoute({
   },
 });
 
-export const getSkillHandler = (deps: RouteDeps): AppRouteHandler<typeof getSkillRoute> => {
+export const getSkillHandler = (deps: SkillsRouteDeps): AppRouteHandler<typeof getSkillRoute> => {
   return async (c) => {
     const { projectId, name } = c.req.valid("param");
     const skill = await deps.skillService.getByName(projectId, name);
