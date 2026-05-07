@@ -23,9 +23,7 @@ jobs:
         include:
           - os: ubuntu-latest
             platform_pkg: cli-linux-x64
-          - os: ubuntu-latest
-            platform_pkg: cli-linux-x64-musl
-          - os: macos-13
+          - os: macos-15-intel
             platform_pkg: cli-darwin-x64
           - os: windows-latest
             platform_pkg: cli-win-x64
@@ -51,6 +49,7 @@ jobs:
         run: bun run scripts/verify-packages.ts
 
   release:
+    if: github.ref == 'refs/heads/main'
     needs: verify_packaged_bun_toolchain
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -131,8 +130,6 @@ jobs:
             install -m 755 packages/pstdio/dist/platforms/cli-darwin-x64/bin/pstdio "$RELEASE_ASSETS_DIR/pstdio-darwin-x64"
             install -m 755 packages/pstdio/dist/platforms/cli-linux-x64/bin/pstdio "$RELEASE_ASSETS_DIR/pstdio-linux-x64"
             install -m 755 packages/pstdio/dist/platforms/cli-linux-arm64/bin/pstdio "$RELEASE_ASSETS_DIR/pstdio-linux-arm64"
-            install -m 755 packages/pstdio/dist/platforms/cli-linux-x64-musl/bin/pstdio "$RELEASE_ASSETS_DIR/pstdio-linux-x64-musl"
-            install -m 755 packages/pstdio/dist/platforms/cli-linux-arm64-musl/bin/pstdio "$RELEASE_ASSETS_DIR/pstdio-linux-arm64-musl"
             install -m 755 packages/pstdio/dist/platforms/cli-win-x64/bin/pstdio.exe "$RELEASE_ASSETS_DIR/pstdio-win-x64.exe"
             install -m 755 packages/pstdio/dist/platforms/cli-win-arm64/bin/pstdio.exe "$RELEASE_ASSETS_DIR/pstdio-win-arm64.exe"
             install -m 644 packages/pstdio/dist/platforms/checksums.sha256 "$RELEASE_ASSETS_DIR/checksums.sha256"
