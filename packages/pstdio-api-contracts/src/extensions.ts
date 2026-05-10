@@ -30,6 +30,7 @@ export const extensionCommandRecordSchema = z.object({
   description: z.string().optional(),
   cliPath: z.string().optional(),
   examples: z.array(z.string()).optional(),
+  excludeFromPalette: z.boolean().optional(),
   params: z.record(z.string(), z.object({ type: z.string() }).catchall(z.unknown())).optional(),
 });
 
@@ -75,6 +76,14 @@ const extensionWebviewSchema = z.object({
   entry: packageAssetDescriptorSchema,
   title: z.string().optional(),
   sandbox: z.enum(["default", "strict"]).optional(),
+  /** API-served URL for static HTML package assets mounted directly in an iframe. */
+  assetUrl: z.string().optional(),
+  /** API-served URL of the bridge runtime HTML the dashboard mounts in the iframe. */
+  runtimeUrl: z.string().optional(),
+  /** API-served URL of the bundled extension module the bridge runtime dynamically imports. */
+  moduleUrl: z.string().optional(),
+  /** API-served URLs of CSS files the bridge runtime should inject before mounting the module. */
+  styles: z.array(z.string()).optional(),
 });
 
 export const extensionMenuContributionSchema = z.object({
@@ -156,6 +165,17 @@ export const extensionsCheckResponseSchema = z.object({
   diagnostics: z.array(extensionDiagnosticSchema),
 });
 
+export const dashboardExtensionMetadataSchema = z.object({
+  extensions: z.array(extensionRecordSchema),
+  commands: z.array(extensionCommandRecordSchema),
+  menuContributions: z.array(extensionMenuContributionSchema),
+  views: z.array(extensionViewRecordSchema),
+  routes: z.array(extensionRouteRecordSchema),
+  navigation: z.array(extensionNavigationRecordSchema),
+  settingsPanels: z.array(extensionSettingsPanelRecordSchema),
+  diagnostics: z.array(extensionDiagnosticSchema),
+});
+
 export type ExtensionDiagnostic = z.infer<typeof extensionDiagnosticSchema>;
 export type ExtensionRecord = z.infer<typeof extensionRecordSchema>;
 export type ExtensionCommandRecord = z.infer<typeof extensionCommandRecordSchema>;
@@ -169,6 +189,7 @@ export type ExtensionRouteRecord = z.infer<typeof extensionRouteRecordSchema>;
 export type ExtensionNavigationRecord = z.infer<typeof extensionNavigationRecordSchema>;
 export type ExtensionSettingsPanelRecord = z.infer<typeof extensionSettingsPanelRecordSchema>;
 export type ExtensionsCheckResponse = z.infer<typeof extensionsCheckResponseSchema>;
+export type DashboardExtensionMetadata = z.infer<typeof dashboardExtensionMetadataSchema>;
 
 export const listExtensionCommandsResponseSchema = z.object({
   commands: z.array(extensionCommandRecordSchema),

@@ -49,21 +49,43 @@ const createApp = (input: { cacheRoot: string; sourcePath: string }) => {
 };
 
 describe("extension webview asset routes", () => {
+  test("serves the extension-owned bridge runtime script", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-webview-runtime-"));
+    const sourcePath = join(root, "extension");
+    const cacheRoot = join(root, "cache");
+    writeExtension(sourcePath, "./src/main.tsx");
+
+    try {
+      const app = createApp({ cacheRoot, sourcePath });
+      const html = await app.request("/v1/extensions/runtime");
+      const script = await app.request("/v1/extensions/runtime.js");
+
+      expect(html.status).toBe(200);
+      expect(html.headers.get("content-type")).toContain("text/html");
+      expect(await html.text()).toContain('src="/v1/extensions/runtime.js"');
+      expect(script.status).toBe(200);
+      expect(script.headers.get("content-type")).toContain("application/javascript");
+      expect(await script.text()).not.toContain("esm.sh");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("serves managed webview output from the Prompt Studio cache", async () => {
     const root = mkdtempSync(join(tmpdir(), "pstdio-webview-assets-managed-"));
     const sourcePath = join(root, "extension");
     const cacheRoot = join(root, "cache");
     writeExtension(sourcePath, "./src/main.tsx");
     mkdirSync(join(cacheRoot, "extension-lab", "lab.labPage", "dist"), { recursive: true });
-    writeFileSync(join(cacheRoot, "extension-lab", "lab.labPage", "dist", "index.html"), "<!doctype html>managed");
+    writeFileSync(join(cacheRoot, "extension-lab", "lab.labPage", "dist", "module.js"), "console.log('managed');");
 
     try {
       const app = createApp({ cacheRoot, sourcePath });
       const res = await app.request("/v1/extensions/installed/extension-lab/webviews/lab.labPage");
 
       expect(res.status).toBe(200);
-      expect(res.headers.get("content-type")).toContain("text/html");
-      expect(await res.text()).toBe("<!doctype html>managed");
+      expect(res.headers.get("content-type")).toContain("application/javascript");
+      expect(await res.text()).toBe("console.log('managed');");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

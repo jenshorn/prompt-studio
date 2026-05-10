@@ -19,6 +19,9 @@ import {
   type ShortcutBinding,
   type ShortcutDefinition,
 } from "@/features/shortcuts/shortcut-registry";
+import { getSlotContributions } from "@/shared/extensions/contribution-mapping";
+import { useProjectExtensionMetadata } from "@/shared/extensions/hooks/use-project-extensions";
+import type { DashboardExtensionMetadata } from "@/shared/extensions/types";
 import { ProjectMenu } from "./project-menu";
 
 export const PROJECT_SIDEBAR_STORAGE_KEY = "project-sidebar";
@@ -99,7 +102,11 @@ const copyVersionToClipboard = async (versionLabel: string, title: string) => {
   });
 };
 
-const resolveActiveNodeId = (pathname: string, projectId?: string) => {
+const resolveActiveNodeId = (
+  pathname: string,
+  projectId: string | undefined,
+  extensionNavigation: DashboardExtensionMetadata["navigation"] = [],
+) => {
   if (!projectId) return null;
 
   const base = `/projects/${projectId}`;
@@ -108,15 +115,21 @@ const resolveActiveNodeId = (pathname: string, projectId?: string) => {
   if (pathname.startsWith(`${base}/settings`)) return "settings";
   if (pathname.startsWith(`${base}/sessions`)) return "sessions";
 
-  return null;
+  const extensionNav = getSlotContributions(extensionNavigation, "project.sidebarNav").find((item) => {
+    const href = item.href ?? (item.route ? `${base}/extensions/${item.route}` : null);
+    return href ? pathname === href || pathname.startsWith(`${href}/`) : false;
+  });
+
+  return extensionNav?.id ?? null;
 };
 
 export const buildProjectSidebarSections = (input: {
   projectId?: string;
   searchLabel: string;
   ticketsLabel: string;
+  extensionNavigation?: DashboardExtensionMetadata["navigation"];
 }): TreeListSection[] => {
-  const { projectId, searchLabel, ticketsLabel } = input;
+  const { projectId, searchLabel, ticketsLabel, extensionNavigation = [] } = input;
   const basePath = projectId ? `/projects/${projectId}` : "";
   const topNodes: TreeListNode[] = [
     {
@@ -135,8 +148,21 @@ export const buildProjectSidebarSections = (input: {
       navigationIntent: { id: "navigate", payload: { path: "tickets" } },
     },
   ];
+  const extensionNodes: TreeListNode[] = getSlotContributions(extensionNavigation, "project.sidebarNav").map(
+    (item) => ({
+      id: item.id,
+      label: item.label,
+      isNavigable: true,
+      href: item.href ?? (item.route ? `${basePath}/extensions/${item.route}` : undefined),
+      navigationIntent: item.commandId
+        ? { id: "extension-command", payload: { commandId: item.commandId, params: item.params } }
+        : item.route
+          ? { id: "navigate", payload: { path: `extensions/${item.route}` } }
+          : undefined,
+    }),
+  );
 
-  return [{ id: "top-level", nodes: topNodes }];
+  return [{ id: "top-level", nodes: [...topNodes, ...extensionNodes] }];
 };
 
 export const ProjectSidebar = () => {
@@ -144,11 +170,13 @@ export const ProjectSidebar = () => {
   const { projectId } = useParams({ strict: false });
   const navigate = useNavigate();
   const { t } = useTranslation("projects");
+  const { data: extensionMetadata } = useProjectExtensionMetadata(projectId);
   const openCommandPalette = useOpenCommandPalette();
   const sections = buildProjectSidebarSections({
     projectId,
     searchLabel: t("sidebar.search"),
     ticketsLabel: t("sidebar.tickets"),
+    extensionNavigation: extensionMetadata?.navigation,
   });
 
   const handleNavigate = (event: TreeListNavigateEvent) => {
@@ -168,7 +196,7 @@ export const ProjectSidebar = () => {
     }
   };
 
-  const activeNodeId = resolveActiveNodeId(location.pathname, projectId);
+  const activeNodeId = resolveActiveNodeId(location.pathname, projectId, extensionMetadata?.navigation);
 
   return (
     <Sidebar

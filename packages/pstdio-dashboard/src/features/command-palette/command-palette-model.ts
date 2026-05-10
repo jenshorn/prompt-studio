@@ -1,7 +1,21 @@
 import { defaultThemePreferences, type ThemePreference, type ThemePreferenceOption } from "@pstdio/ui";
 import type { LucideIcon } from "lucide-react";
-import { CircleHelp, KanbanSquare, MessageCircle, Moon, Palette, Plus, SettingsIcon, Sun } from "lucide-react";
+import {
+  CircleHelp,
+  KanbanSquare,
+  MessageCircle,
+  Moon,
+  Palette,
+  Plus,
+  SettingsIcon,
+  Sun,
+  Terminal,
+} from "lucide-react";
+import type { ExtensionCommandRecord, ExtensionMenuContribution, ExtensionRecord } from "pstdio-api-contracts";
 import type { ShortcutBinding } from "@/features/shortcuts/shortcut-registry";
+import { getSlotContributions } from "@/shared/extensions/contribution-mapping";
+
+const EXTENSION_COMMAND_PANEL_SLOT_ID = "project.commandPanel";
 
 export type CommandPaletteMode = "search" | "command";
 export type CommandPaletteView = "main" | "theme";
@@ -20,7 +34,8 @@ export type CommandPaletteAction =
   | { id: "open-shortcut-help"; type: "open-shortcut-help" }
   | { id: "open-theme-menu"; type: "open-theme-menu" }
   | { id: "navigate"; type: "navigate"; path: string }
-  | { id: "theme"; type: "theme"; preference: ThemePreference };
+  | { id: "theme"; type: "theme"; preference: ThemePreference }
+  | { id: string; type: "extension-command"; commandId: string };
 
 export interface CommandPaletteEntry {
   id: string;
@@ -31,6 +46,7 @@ export interface CommandPaletteEntry {
   shortcut?: ShortcutBinding;
   icon: LucideIcon;
   isSelected?: boolean;
+  group?: string;
   action: CommandPaletteAction;
   run: () => void;
 }
@@ -52,6 +68,9 @@ interface BuildCommandPaletteEntriesInput {
   currentTheme: ThemePreference;
   themePreferences?: readonly ThemePreferenceOption[];
   labels?: CommandPaletteLabels;
+  extensions?: ExtensionRecord[];
+  extensionCommands?: ExtensionCommandRecord[];
+  extensionMenuContributions?: ExtensionMenuContribution[];
   run: (action: CommandPaletteAction) => void;
 }
 
@@ -93,9 +112,20 @@ const getEffectiveQuery = (query: string) =>
 const getTicketLabel = (ticket: CommandPaletteTicket) => ticket.displayTitle ?? ticket.title ?? ticket.shorthand;
 
 export const buildCommandPaletteEntries = (input: BuildCommandPaletteEntriesInput): CommandPaletteEntry[] => {
-  const { projectId, tickets, currentTheme, run, themePreferences = defaultThemePreferences } = input;
+  const {
+    projectId,
+    tickets,
+    currentTheme,
+    run,
+    themePreferences = defaultThemePreferences,
+    extensions = [],
+    extensionCommands = [],
+    extensionMenuContributions = [],
+  } = input;
   const labels = input.labels ?? defaultLabels;
   const projectPath = `/projects/${projectId}`;
+  const extensionById = new Map(extensions.map((extension) => [extension.id, extension]));
+  const commandById = new Map(extensionCommands.map((command) => [command.id, command]));
 
   const createEntry = (
     entry: Omit<CommandPaletteEntry, "run"> & { action: CommandPaletteAction },
@@ -103,6 +133,29 @@ export const buildCommandPaletteEntries = (input: BuildCommandPaletteEntriesInpu
     ...entry,
     run: () => run(entry.action),
   });
+
+  const paletteContributions = getSlotContributions(extensionMenuContributions, EXTENSION_COMMAND_PANEL_SLOT_ID);
+
+  const extensionEntries = paletteContributions
+    .map((contribution) => {
+      const command = commandById.get(contribution.commandId);
+      if (!command) return null;
+
+      const label = contribution.label ?? command.title;
+      const description = command.description;
+
+      return createEntry({
+        id: `extension:${command.id}`,
+        mode: "command" as const,
+        label,
+        searchText: `${label} ${description ?? ""} ${command.namespace}`,
+        secondaryLabel: description,
+        icon: Terminal,
+        group: extensionById.get(command.extensionId)?.displayName ?? command.namespace,
+        action: { id: `extension:${command.id}`, type: "extension-command", commandId: command.id },
+      });
+    })
+    .filter((entry): entry is CommandPaletteEntry => entry !== null);
 
   return [
     createEntry({
@@ -172,6 +225,7 @@ export const buildCommandPaletteEntries = (input: BuildCommandPaletteEntriesInpu
       icon: Palette,
       action: { id: "open-theme-menu", type: "open-theme-menu" },
     }),
+    ...extensionEntries,
     ...themePreferences.map(({ id: preference }) =>
       createEntry({
         id: `theme:${preference}`,
