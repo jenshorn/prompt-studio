@@ -2,6 +2,7 @@ import { Flex, Stack } from "@chakra-ui/react";
 import { Breadcrumb, DeleteConfirmationModal, HorizontalMenuStack, PanelLayout } from "@pstdio/ui";
 import { Link } from "@tanstack/react-router";
 import { KanbanSquare } from "lucide-react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionParamsDialog } from "@/features/plugin-actions/components/action-params-dialog";
 import { PluginHeaderActions } from "@/features/plugin-actions/components/plugin-header-actions";
@@ -19,6 +20,7 @@ import type { TicketSubTicket } from "@/features/ticket-list/types";
 import type { transformFileDiffs } from "@/features/workspaces/utils/transform-diff";
 import { getAttemptLabelFromWorkspaceShorthand } from "@/features/workspaces/utils/workspace-shorthand";
 import type { ApiFileDiff, ApiWorkspaceArtifact } from "@/shared/api-types";
+import { markAfterPaint } from "@/shared/performance/mark-after-paint";
 import { OpenSidebarButton } from "@/shared/sidebar/open-sidebar-button";
 import { WorkspaceDiffPanel } from "../components/workspace-diff-panel";
 import type { WorkspaceListItem } from "../components/workspace-list-panel";
@@ -41,6 +43,7 @@ interface WorkspacePageContentProps {
   diffs: ReturnType<typeof transformFileDiffs>;
   artifacts: ApiWorkspaceArtifact[];
   changedFiles: ApiFileDiff[];
+  diffGeneration: number;
   isDiffLoading: boolean;
   attempts: NonNullable<ReturnType<typeof useProjectTickets>["data"]>[number]["attempts"];
   selectableFiles: ReturnType<typeof buildSelectableTicketFiles>;
@@ -151,6 +154,7 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
     diffs,
     artifacts,
     changedFiles,
+    diffGeneration,
     isDiffLoading,
     attempts,
     selectableFiles,
@@ -187,6 +191,12 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
     deleteWorkspace,
   } = props;
   const { t } = useTranslation("projects");
+  const readinessKey = `${projectId ?? ""}:${ticketShorthand ?? ""}:${selectedWorkspace?.id ?? ""}:${selectedTab}`;
+
+  useEffect(() => {
+    void readinessKey;
+    markAfterPaint("app:workspace-page-ready");
+  }, [readinessKey]);
 
   const defaultOverflowActions = buildWorkspaceDeleteOverflowAction({
     t,
@@ -287,9 +297,11 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
         <Flex flex="1" minH="0">
           <WorkspaceDiffPanel
             ticketId={ticket.id}
+            workspaceId={selectedWorkspace?.id ?? null}
             diffs={diffs}
             artifacts={artifacts}
             changedFiles={changedFiles}
+            diffGeneration={diffGeneration}
             loading={isDiffLoading}
             activeTab={selectedTab}
             onTabChange={selectTab}

@@ -1,4 +1,4 @@
-import { Flex, Text } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
 import { EmptyState, ResizableSplitLayout, ThemePreferenceProvider, useThemePreference } from "@pstdio/ui";
 import { Outlet, useParams, useRouterState } from "@tanstack/react-router";
 import { useLayoutEffect } from "react";
@@ -11,6 +11,7 @@ import { ProjectSettingsProvider, useProjectSettingsStore } from "@/shared/store
 import { mergeDashboardThemePreferences } from "../../../theme-preferences";
 import { useExtensionAppearanceThemePreferences } from "../../extensions/use-extension-appearance";
 import { useProject } from "../hooks/use-project";
+import { shouldRenderProjectOutlet } from "./project-shell-readiness";
 
 const ProjectShellContent = () => {
   const { projectId } = useParams({ strict: false });
@@ -21,6 +22,11 @@ const ProjectShellContent = () => {
   const setSessionModalState = useProjectSettingsStore((s) => s.setSessionModalState);
   const setLastNonSessionsPath = useProjectSettingsStore((s) => s.setLastNonSessionsPath);
   const isSessionsRoute = isSessionsRoutePath(location.pathname, projectId);
+  const renderOutlet = shouldRenderProjectOutlet({
+    projectId,
+    hasProject: Boolean(project),
+    isProjectLoading: isLoading,
+  });
 
   useLayoutEffect(() => {
     if (!projectId || isSessionsRoute) return;
@@ -33,14 +39,10 @@ const ProjectShellContent = () => {
 
   const content = (
     <Flex flex="1" minW={0} minH={0} overflow="hidden">
-      {isLoading ? (
-        <Text textStyle="paragraph/S/regular" color="fg.muted" p="md">
-          {t("shell.loadingProject")}
-        </Text>
-      ) : !project ? (
-        <EmptyState title={t("shell.notFound")} description={t("shell.notFoundDescription")} />
-      ) : (
+      {renderOutlet ? (
         <Outlet />
+      ) : (
+        <EmptyState title={t("shell.notFound")} description={t("shell.notFoundDescription")} />
       )}
     </Flex>
   );

@@ -1,6 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { getTicketAttemptDiffSummary } from "@/features/ticket-list/data/api";
 import type { TicketAttempt } from "@/features/ticket-list/types";
+import { ATTEMPT_DIFF_MODE } from "@/shared/workspace-diff-api";
 
 interface AttemptDiffInput {
   workspaceId: string;
@@ -18,8 +19,8 @@ export const useTicketAttemptDiffs = (attempts: AttemptDiffInput[]) => {
 
   const queries = useQueries({
     queries: uniqueIds.map((workspaceId) => ({
-      queryKey: ["ticket-attempt-diff-summary", workspaceId],
-      queryFn: () => getTicketAttemptDiffSummary(workspaceId),
+      queryKey: ["ticket-attempt-diff-summary", workspaceId, ATTEMPT_DIFF_MODE],
+      queryFn: () => getTicketAttemptDiffSummary(workspaceId, ATTEMPT_DIFF_MODE),
     })),
   });
 
