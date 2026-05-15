@@ -1,9 +1,10 @@
 import { Box, Grid, IconButton, Text } from "@chakra-ui/react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { DiffBubble } from "@/components/diff-bubble";
+import { DiffBubble } from "./diff-bubble";
 import { DiffCardContent } from "./diff-card-content";
 import { isGeneratedDiffPath, isLargeDiffContent } from "./diff-size";
+import type { DiffViewMode } from "./types";
 
 export interface Diff {
   change: "added" | "deleted" | "modified" | "renamed" | "copied" | "permissionChange";
@@ -20,14 +21,15 @@ interface DiffCardProps {
   isSelected?: boolean;
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
+  onSelect?: () => void;
   onLoadDiff?: (path: string) => Promise<void>;
   hasOptedIntoLargeDiff?: boolean;
   onShowFullDiff?: () => void;
+  diffViewMode?: DiffViewMode;
 }
 
 interface DiffCardHeaderProps {
   diff: Diff;
-  isSelected?: boolean;
   isExpanded?: boolean;
   onToggleExpanded?: () => void;
 }
@@ -126,9 +128,11 @@ export const DiffCard = (props: DiffCardProps) => {
     isSelected = false,
     isExpanded = true,
     onToggleExpanded,
+    onSelect,
     onLoadDiff,
     hasOptedIntoLargeDiff = false,
     onShowFullDiff,
+    diffViewMode = "unified",
   } = props;
 
   const filePath = diff.newPath || diff.oldPath || "unknown";
@@ -154,13 +158,14 @@ export const DiffCard = (props: DiffCardProps) => {
       borderColor={isSelected ? "border.accent" : "border.muted"}
       borderRadius="xs"
       overflow="visible"
-      bg={isSelected ? "bg.active" : "bg"}
+      bg="bg"
       width="100%"
       maxW="100%"
       transition="border-color 0.14s ease"
       _hover={{ borderColor: "border.accent" }}
+      onClick={onSelect}
     >
-      <DiffCardHeader diff={diff} isSelected={isSelected} isExpanded={isExpanded} onToggleExpanded={onToggleExpanded} />
+      <DiffCardHeader diff={diff} isExpanded={isExpanded} onToggleExpanded={onToggleExpanded} />
 
       <DiffCardContent
         diff={diff}
@@ -178,13 +183,14 @@ export const DiffCard = (props: DiffCardProps) => {
         onLoadDiff={loadDiff}
         hasOptedIntoLargeDiff={hasOptedIntoLargeDiff}
         onShowFullDiff={onShowFullDiff}
+        diffViewMode={diffViewMode}
       />
     </Box>
   );
 };
 
 export const DiffCardHeader = (props: DiffCardHeaderProps) => {
-  const { diff, isSelected = false, isExpanded = true, onToggleExpanded } = props;
+  const { diff, isExpanded = true, onToggleExpanded } = props;
   const filePath = diff.newPath || diff.oldPath || "unknown";
   const additions = diff.additions ?? 0;
   const deletions = diff.deletions ?? 0;
@@ -204,10 +210,10 @@ export const DiffCardHeader = (props: DiffCardHeaderProps) => {
       position="sticky"
       top="0"
       zIndex="1"
-      bg={isSelected ? "bg.active" : "bg"}
+      bg="bg"
       cursor="pointer"
       transition="background 0.14s ease"
-      _hover={{ bg: isSelected ? "bg.active" : "bg.subtle" }}
+      _hover={{ bg: "bg" }}
       onClick={() => onToggleExpanded?.()}
       gap="sm"
     >

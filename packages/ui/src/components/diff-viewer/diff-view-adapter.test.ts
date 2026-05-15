@@ -51,4 +51,37 @@ describe("buildDiffViewData", () => {
     expect(hunkContent).not.toContain("line 30");
     expect(hunkContent).toContain("changed line 16");
   });
+
+  it("counts the rows the renderer actually paints, not the whole file", () => {
+    const lines = Array.from({ length: 200 }, (_, i) => `line ${i + 1}`);
+    const modified = [...lines];
+    modified[10] = "changed line 11";
+    modified[150] = "changed line 151";
+
+    const data = buildDiffViewData({
+      original: lines.join("\n"),
+      modified: modified.join("\n"),
+      oldPath: "big.ts",
+      newPath: "big.ts",
+    });
+
+    // Two small changes in a 200-line file: the renderer collapses everything else, so only
+    // the hunks are counted — not all 200 lines.
+    expect(data.unifiedContentRows).toBeLessThan(40);
+    expect(data.hunkRows).toBe(2);
+    // Unified stacks each modified line as a delete + an add row; split pairs them.
+    expect(data.unifiedContentRows).toBeGreaterThan(data.splitContentRows);
+  });
+
+  it("memoizes results so identical inputs share one instance", () => {
+    const input = {
+      original: "const a = 1;\n",
+      modified: "const a = 2;\n",
+      oldPath: "src/sample.ts",
+      newPath: "src/sample.ts",
+    };
+
+    expect(buildDiffViewData(input)).toBe(buildDiffViewData({ ...input }));
+    expect(buildDiffViewData(input)).not.toBe(buildDiffViewData({ ...input, modified: "const a = 3;\n" }));
+  });
 });
