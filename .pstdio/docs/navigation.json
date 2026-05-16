@@ -192,6 +192,15 @@
       ]
     },
     {
+      "text": "Workbench",
+      "items": [
+        {
+          "text": "API",
+          "link": "/workbench/api"
+        }
+      ]
+    },
+    {
       "text": "Architecture",
       "items": [
         {
