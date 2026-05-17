@@ -16,6 +16,9 @@ describe("workbench built-ins", () => {
     await workbench.commands.executeCommand("workbench.toggleCommandPalette");
     expect(workbench.commandPalette.isOpen()).toBe(true);
 
+    await workbench.commands.executeCommand("workbench.action.changeTheme");
+    expect(workbench.commandPalette.getView()).toBe("theme");
+
     await workbench.commands.executeCommand("workbench.focusPanel");
     expect(workbench.focus.getActiveArea()).toBe("panel");
     expect(workbench.context.get("panelFocus")).toBe(true);
@@ -24,6 +27,11 @@ describe("workbench built-ins", () => {
 
     expect(keybindings).toMatchObject([
       { commandId: "workbench.toggleCommandPalette" },
+      { commandId: "workbench.action.changeTheme" },
+      { commandId: "workbench.action.navigateBack" },
+      { commandId: "workbench.action.navigateForward" },
+      { commandId: "workbench.action.navigatePrevious" },
+      { commandId: "workbench.action.reopenLastClosed" },
       { commandId: "workbench.toggleSideBar" },
       { commandId: "workbench.togglePanel" },
       { commandId: "workbench.focusMain" },

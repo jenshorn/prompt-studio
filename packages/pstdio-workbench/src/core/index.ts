@@ -8,7 +8,9 @@ export type {
   CreateWorkbenchCommandPaletteControllerInput,
   WorkbenchCommandPaletteChangeListener,
   WorkbenchCommandPaletteController,
+  WorkbenchCommandPaletteOpenInput,
   WorkbenchCommandPaletteState,
+  WorkbenchCommandPaletteView,
 } from "./controllers/command-palette/command-palette-controller";
 export { createWorkbenchCommandPaletteController } from "./controllers/command-palette/command-palette-controller";
 export type {
@@ -19,6 +21,26 @@ export type {
   WorkbenchFocusState,
 } from "./controllers/focus/focus-controller";
 export { createWorkbenchFocusController, workbenchFocusAreas } from "./controllers/focus/focus-controller";
+export type {
+  CreateHistoryControllerInput,
+  HistoryController,
+  HistoryEntry,
+  HistoryStoreState,
+} from "./controllers/history/history-controller";
+export { createHistoryController } from "./controllers/history/history-controller";
+export type {
+  CreateKeepAliveControllerInput,
+  KeepAliveController,
+  KeepAliveHostState,
+  KeepAliveRegistration,
+  KeepAliveStoreState,
+  RegisteredKeepAlive,
+  WorkbenchKeepAliveSlotConfig,
+} from "./controllers/keep-alive/keep-alive-controller";
+export {
+  createKeepAliveController,
+  WORKBENCH_KEEP_ALIVE_SLOT_RENDERER_ID,
+} from "./controllers/keep-alive/keep-alive-controller";
 export type {
   CreateWorkbenchPanelsControllerInput,
   PersistedWorkbenchPanels,
@@ -69,6 +91,7 @@ export type {
   CreateLayoutModelInput,
   LayoutModel,
   LayoutPersistenceAdapter,
+  LayoutScope,
   RegisteredAreaPlaceholderContribution,
   RegisteredWidgetContribution,
   WidgetContribution,
@@ -99,8 +122,16 @@ export type {
 } from "./registries/modes/mode-registry";
 export { createWorkbenchModeRegistry } from "./registries/modes/mode-registry";
 export type {
+  CreateNavigationRegistryInput,
+  NavigationDispatcherContext,
   NavigationParser,
   NavigationRegistry,
+  NavigationTarget,
+  NavigationTargetCommand,
+  NavigationTargetCompound,
+  NavigationTargetItem,
+  NavigationTargetResource,
+  NavigationTargetView,
   RegisteredNavigationParser,
   RegisteredResourceNavigator,
   ResourceNavigator,

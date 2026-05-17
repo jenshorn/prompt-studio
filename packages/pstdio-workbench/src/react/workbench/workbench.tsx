@@ -3,10 +3,12 @@ import { ResizableSplitLayout } from "@pstdio/ui";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { TreeViewRole, WorkbenchArea, WorkbenchCore } from "../../core";
 import { WorkbenchCommandPalette } from "../command-palette/command-palette";
+import { WorkbenchKeepAliveLayer } from "../keep-alive/workbench-keep-alive-layer";
 import { WorkbenchKeybindingDispatcher } from "../keybindings/workbench-keybinding-dispatcher";
 import { WorkbenchNotificationHost } from "../notifications/notification-host";
 import { WorkbenchSessionBubbleContainer } from "../session-panel/session-panel";
 import { useWorkbenchStore } from "../shared/use-workbench-store";
+import { workbenchBackgrounds } from "../theme/workbench-theme-background";
 import { WorkbenchThemeScope } from "../theme/workbench-theme-scope";
 import { WorkbenchOverlayLayer } from "./overlay-layer";
 import { WorkbenchBody } from "./workbench-body";
@@ -270,58 +272,66 @@ const WorkbenchContent = (props: WorkbenchProps) => {
   );
 
   const workbenchFrame = (
-    <WorkbenchThemeScope workbench={workbench} h="full" minH="0" minW="0" w="full">
-      <Flex
-        direction="column"
-        position="relative"
-        h="full"
-        minH="0"
-        minW="0"
-        w="full"
-        bg="var(--workbench-main-bg)"
-        color="fg"
-      >
+    <Flex
+      direction="column"
+      position="relative"
+      h="full"
+      minH="0"
+      minW="0"
+      w="full"
+      bg={workbenchBackgrounds.main}
+      color="fg"
+    >
+      <Flex flex="1" minH="0" minW="0" overflow="hidden" position="relative">
+        {hasActivityBarWidgets ? <WorkbenchActivityBar workbench={workbench} /> : null}
         <Flex flex="1" minH="0" minW="0" overflow="hidden" position="relative">
-          {hasActivityBarWidgets ? <WorkbenchActivityBar workbench={workbench} /> : null}
-          <Flex flex="1" minH="0" minW="0" overflow="hidden" position="relative">
-            {contentWithSidePanels}
-          </Flex>
+          {contentWithSidePanels}
         </Flex>
-        {hasStatusWidgets ? <WorkbenchStatusBar workbench={workbench} /> : null}
-        {hasOverlayWidgets ? <WorkbenchOverlayLayer workbench={workbench} /> : null}
-        {hasFloatingPanel ? (
-          <WorkbenchSessionBubbleContainer
-            workbench={workbench}
-            contentSlotRef={setSessionBubbleSlot}
-            header={floatingHeader}
-          />
-        ) : null}
-        <WorkbenchFloatingSessionPortal
-          workbench={workbench}
-          hasFloatingPanel={hasFloatingPanel}
-          activeSessionSlot={activeSessionSlot}
-          sessionHost={sessionHostRef.current}
-        />
-        <WorkbenchCommandPalette
-          workbench={workbench}
-          open={paletteOpen}
-          onClose={() => workbench.commandPalette.close()}
-        />
-        <WorkbenchKeybindingDispatcher workbench={workbench} />
-        <WorkbenchNotificationHost workbench={workbench} />
       </Flex>
-    </WorkbenchThemeScope>
+      {hasStatusWidgets ? <WorkbenchStatusBar workbench={workbench} /> : null}
+      {hasOverlayWidgets ? <WorkbenchOverlayLayer workbench={workbench} /> : null}
+      {hasFloatingPanel ? (
+        <WorkbenchSessionBubbleContainer
+          workbench={workbench}
+          contentSlotRef={setSessionBubbleSlot}
+          header={floatingHeader}
+        />
+      ) : null}
+      <WorkbenchCommandPalette
+        workbench={workbench}
+        open={paletteOpen}
+        onClose={() => workbench.commandPalette.close()}
+      />
+      <WorkbenchKeybindingDispatcher workbench={workbench} />
+      <WorkbenchNotificationHost workbench={workbench} />
+    </Flex>
   );
 
   return (
-    <WorkbenchSessionBoundary
-      workbench={workbench}
-      showAttachedSessionPanel={showAttachedSessionPanel}
-      workbenchFrame={workbenchFrame}
-      floatingHeader={floatingHeader}
-      contentMinSizePx={CONTENT_MIN_SIZE_PX}
-      onAttachedSlotChange={setSessionAttachedSlot}
-    />
+    <WorkbenchThemeScope workbench={workbench} h="full" minH="0" minW="0" w="full">
+      <WorkbenchSessionBoundary
+        workbench={workbench}
+        showAttachedSessionPanel={showAttachedSessionPanel}
+        workbenchFrame={workbenchFrame}
+        floatingHeader={floatingHeader}
+        contentMinSizePx={CONTENT_MIN_SIZE_PX}
+        onAttachedSlotChange={setSessionAttachedSlot}
+      />
+      <WorkbenchFloatingSessionPortal
+        workbench={workbench}
+        hasFloatingPanel={hasFloatingPanel}
+        activeSessionSlot={activeSessionSlot}
+        sessionHost={sessionHostRef.current}
+      />
+      {/*
+        Keep-alive layer must live OUTSIDE WorkbenchSessionBoundary: the
+        boundary reparents `workbenchFrame` (Frame ↔ AttachedSessionLayout)
+        whenever `showAttachedSessionPanel` flips, which would unmount the
+        portal hosts and reset subtree state. Sitting at the root keeps it
+        stable across all session-mode toggles.
+      */}
+      <WorkbenchKeepAliveLayer workbench={workbench} />
+    </WorkbenchThemeScope>
   );
 };
 

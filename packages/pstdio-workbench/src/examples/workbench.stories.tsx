@@ -2,14 +2,16 @@ import { getThemePreferenceMode, Toaster, useThemePreference } from "@pstdio/ui"
 import type { Meta, StoryObj } from "@storybook/react";
 import { useEffect, useRef } from "react";
 import { createWorkbenchCore, type WorkbenchCore } from "../core";
-import { Workbench } from "../react";
-import { useWorkbenchStore } from "../react/shared/use-workbench-store";
+import { useWorkbenchStore, Workbench } from "../react";
 import { createAreaMapModule } from "./area-map/module";
-import { createConsumerExampleModule } from "./consumer/module";
 import { createDashboardExampleModule } from "./dashboard/module";
 import { createDynamicModulesWorkbench } from "./dynamic-modules/module";
 import { createFoundationWorkbench } from "./foundation/module";
 import { createHelloWorldModule } from "./hello-world/module";
+import { createHistoryExampleModule } from "./history/module";
+import { createKeepAliveExampleModule } from "./keep-alive/module";
+import { createLayoutScopeExampleWorkbench } from "./layout-scope/module";
+import { createNavigationExampleModule } from "./navigation/module";
 import { createRandomExampleModule } from "./random/module";
 import { createRendererTypesExampleModule } from "./renderer-types/module";
 import { createWorkbenchModesExampleModule } from "./workbench-modes/module";
@@ -82,9 +84,6 @@ const WorkbenchStory = (props: WorkbenchStoryProps) => {
 const helloWorldWorkbench = createWorkbenchCore();
 helloWorldWorkbench.registerModule(createHelloWorldModule());
 
-const consumerWorkbench = createWorkbenchCore();
-consumerWorkbench.registerModule(createConsumerExampleModule());
-
 const workbenchModesWorkbench = createWorkbenchCore();
 workbenchModesWorkbench.registerModule(createWorkbenchModesExampleModule());
 
@@ -104,12 +103,19 @@ const foundationWorkbench = createFoundationWorkbench();
 const randomWorkbench = createWorkbenchCore();
 randomWorkbench.registerModule(createRandomExampleModule());
 
+const keepAliveWorkbench = createWorkbenchCore({ initialSessionPanelMode: "attached" });
+keepAliveWorkbench.registerModule(createKeepAliveExampleModule());
+
+const navigationWorkbench = createWorkbenchCore();
+navigationWorkbench.registerModule(createNavigationExampleModule());
+
+const historyWorkbench = createWorkbenchCore();
+historyWorkbench.registerModule(createHistoryExampleModule());
+
+const layoutScopeWorkbench = createLayoutScopeExampleWorkbench();
+
 export const HelloWorld: Story = {
   render: () => <WorkbenchStory workbench={helloWorldWorkbench} />,
-};
-
-export const ConsumerWorkbench: Story = {
-  render: () => <WorkbenchStory workbench={consumerWorkbench} />,
 };
 
 export const WorkbenchModes: Story = {
@@ -138,4 +144,20 @@ export const FoundationConcepts: Story = {
 
 export const Random: Story = {
   render: () => <WorkbenchStory workbench={randomWorkbench} />,
+};
+
+export const KeepAlive: Story = {
+  render: () => <WorkbenchStory workbench={keepAliveWorkbench} />,
+};
+
+export const Navigation: Story = {
+  render: () => <WorkbenchStory workbench={navigationWorkbench} />,
+};
+
+export const History: Story = {
+  render: () => <WorkbenchStory workbench={historyWorkbench} />,
+};
+
+export const LayoutScope: Story = {
+  render: () => <WorkbenchStory workbench={layoutScopeWorkbench} />,
 };
