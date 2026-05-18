@@ -28,12 +28,15 @@ export interface WorkbenchAreaSize {
   maxPx?: number;
 }
 
+export type WidgetReusePolicy = "resource" | "none";
+
 export interface WidgetContribution {
   id: string;
   title: string;
   area: WorkbenchArea;
   fallbackArea?: WorkbenchArea;
   singleton?: boolean;
+  reuse?: WidgetReusePolicy;
   closable?: boolean;
   areaSize?: WorkbenchAreaSize;
   areaCollapsible?: boolean;
@@ -45,9 +48,12 @@ export interface WidgetContribution {
   canOpen?(resource: ResourceRef): boolean;
 }
 
-export type RegisteredWidgetContribution = Omit<WidgetContribution, "priority"> & RegisteredContributionMetadata;
+export type RegisteredWidgetContribution = Omit<WidgetContribution, "priority" | "singleton" | "reuse"> & {
+  singleton: boolean;
+  reuse: WidgetReusePolicy;
+} & RegisteredContributionMetadata;
 
-export interface AreaPlaceholderContribution {
+export interface PlaceholderContribution {
   id: string;
   title: string;
   area: WorkbenchArea;
@@ -58,7 +64,7 @@ export interface AreaPlaceholderContribution {
   priority?: number;
 }
 
-export type RegisteredAreaPlaceholderContribution = Omit<AreaPlaceholderContribution, "priority"> &
+export type RegisteredPlaceholderContribution = Omit<PlaceholderContribution, "priority"> &
   RegisteredContributionMetadata;
 
 export interface WorkbenchWidgetPlacement {
@@ -90,7 +96,7 @@ export interface WorkbenchLayout {
 export interface WorkbenchLayoutStoreState {
   layout: WorkbenchLayout;
   widgets: Record<string, RegisteredWidgetContribution>;
-  areaPlaceholders: Partial<Record<WorkbenchArea, RegisteredAreaPlaceholderContribution>>;
+  placeholders: Partial<Record<WorkbenchArea, RegisteredPlaceholderContribution>>;
 }
 
 export interface OpenWidgetInput {

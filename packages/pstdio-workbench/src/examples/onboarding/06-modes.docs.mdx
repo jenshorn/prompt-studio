@@ -1,0 +1,26 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="6. Modes" parameters={{ layout: "padded" }} />
+
+# 6. Switch Between Workspaces
+
+A mode is a bundle of contributions that activate together. Use modes when
+parts of your app have completely different layouts — e.g. a Docs view with
+its own tree, and a Review view with a single widget.
+
+<Canvas of={OnboardingStories.Modes} sourceState="shown" />
+
+Each mode has an `activate(ctx)` callback that registers its widgets, trees,
+and any open placements. Switching with `modes.setActiveMode(id)` disposes
+everything the previous mode registered before activating the new one, so you
+don't manage that yourself.
+
+Use the activity bar (left rail) to switch between Docs and Review. Notice
+that the tree and tab disappear when leaving Docs.
+
+If your app has just one screen, you don't need modes — modules are enough.

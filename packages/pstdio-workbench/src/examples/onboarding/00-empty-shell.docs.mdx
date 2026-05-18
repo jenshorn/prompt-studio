@@ -1,0 +1,18 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="0. Empty shell" parameters={{ layout: "padded" }} />
+
+# 0. Start Here
+
+`createWorkbenchCore()` builds a workbench. `<Workbench workbench={core} />`
+renders it. With no contributions, it draws nothing — see below.
+
+<Canvas of={OnboardingStories.EmptyWorkbench} sourceState="shown" />
+
+The rest of these stories add one contribution at a time, in roughly the order
+you'd add them when building a real workbench.

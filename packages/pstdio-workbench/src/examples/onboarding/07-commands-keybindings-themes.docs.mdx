@@ -1,0 +1,29 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="7. Commands, keybindings, and themes" parameters={{ layout: "padded" }} />
+
+# 7. Add Keyboard Shortcuts And Themes
+
+Two extras that come up on most workbenches:
+
+**Keybindings** bind a key chord to a command id. Same command pattern as
+story 3 — once a command is registered, attach a keybinding with
+`keybindings.registerKeybinding({ commandId, keybinding: "mod+k" })`. The
+workbench dispatches it when the chord fires, no extra handler needed.
+
+**Themes** are named token sets. Register one with `theme.registerTheme({ id,
+tokens })` and switch via `theme.setTheme(id)` (or use the built-in
+`workbench.theme:pick` command to open a picker). The shell applies tokens as
+CSS variables — your components reference the variables, not hardcoded
+colours.
+
+<Canvas of={OnboardingStories.CommandsKeybindingsThemes} sourceState="shown" />
+
+The button rows fire the commands directly so you can see they work. Use the
+keybinding shown on each button to confirm the chord dispatches the same
+command. The theme-picker button opens the palette in theme mode.

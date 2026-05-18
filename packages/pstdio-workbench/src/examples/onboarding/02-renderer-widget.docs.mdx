@@ -1,0 +1,23 @@
+import { Canvas, Meta, Source } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="2. Renderer and widget" parameters={{ layout: "padded" }} />
+
+# 2. Add Your First Widget
+
+A widget is a panel you can open in an area. Two pieces are needed: a renderer
+(the React content) and a `layout.registerWidget` call (the panel's id,
+title, and area).
+
+<Canvas of={OnboardingStories.RendererAndWidget} sourceState="shown" />
+
+<Source of={OnboardingStories.RendererAndWidget} />
+
+`registerWidget` only declares the panel — it doesn't appear until something
+opens it. This story calls `layout.openWidget("guide")` at module activation
+so it shows up on first render. The next story replaces that with a header
+button.

@@ -1,11 +1,11 @@
-import { Badge, Box, Flex, HStack, Text } from "@chakra-ui/react";
+import { Box, Flex, HStack } from "@chakra-ui/react";
 import { Breadcrumb, WorkspaceBadge } from "@pstdio/ui";
 import type { ReactNode } from "react";
 import type { WorkbenchWidgetPlacement } from "../../../core";
 import type { WorkbenchWidgetRenderInput } from "../../../react";
-import { useWorkbenchStore, WorkbenchIcon } from "../../../react";
+import { useWorkbenchStore } from "../../../react";
+import { buildWorkbenchBreadcrumbItems } from "../../../react/workbench/workbench-breadcrumbs";
 import { dashboardTickets, dashboardWidgetIds } from "../mock-data/data";
-import { DashboardTicketControls } from "./dashboard-ticket-controls";
 
 type DashboardTicket = (typeof dashboardTickets)[number];
 
@@ -33,23 +33,6 @@ const toSessionStatus = (status: string) => {
   return undefined;
 };
 
-const BreadcrumbTitle = (props: { icon?: string; title: ReactNode }) => {
-  const { icon, title } = props;
-
-  return (
-    <HStack as="span" gap="2xs" minW="0">
-      {icon ? (
-        <Text as="span" aria-hidden="true" color="fg.muted" display="inline-flex" flexShrink={0}>
-          <WorkbenchIcon name={icon} size={14} />
-        </Text>
-      ) : null}
-      <Text as="span" minW="0" truncate>
-        {title}
-      </Text>
-    </HStack>
-  );
-};
-
 const DashboardBreadcrumb = (props: { input: WorkbenchWidgetRenderInput }) => {
   const { input } = props;
   const items = useWorkbenchStore(input.workbench.breadcrumbs.store, (state) => state.items) ?? [];
@@ -58,11 +41,7 @@ const DashboardBreadcrumb = (props: { input: WorkbenchWidgetRenderInput }) => {
 
   return (
     <Breadcrumb
-      items={items.map((item) => ({
-        title: <BreadcrumbTitle icon={item.icon} title={item.title as ReactNode} />,
-        url: item.url,
-        onClick: item.onClick,
-      }))}
+      items={buildWorkbenchBreadcrumbItems(input.workbench)}
       separator="/"
       separatorGap="xs"
       display="flex"
@@ -70,15 +49,6 @@ const DashboardBreadcrumb = (props: { input: WorkbenchWidgetRenderInput }) => {
     />
   );
 };
-
-const TicketsControls = () => (
-  <HStack gap="xs" flexShrink={0}>
-    <Badge size="sm" variant="outline">
-      {dashboardTickets.length}
-    </Badge>
-    <DashboardTicketControls />
-  </HStack>
-);
 
 const WorkspaceControls = (props: { ticket: DashboardTicket }) => {
   const { ticket } = props;
@@ -111,9 +81,9 @@ export const DashboardMainHeader = (props: { input: WorkbenchWidgetRenderInput }
     activePlacement.contributionId === dashboardWidgetIds.workspacePage
   ) {
     controls = <WorkspaceControls ticket={resolveTicket(activePlacement)} />;
-  } else if (activePlacement.contributionId === dashboardWidgetIds.tickets) {
-    controls = <TicketsControls />;
   }
+  // Tickets widget controls (display/filter/saved-view) live inside the
+  // WorkbenchDataView header now; no main-header pass-through needed.
 
   return (
     <HStack h="full" w="full" minW="0" gap="sm">

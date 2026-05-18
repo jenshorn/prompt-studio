@@ -1,0 +1,21 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="1. Placeholder" parameters={{ layout: "padded" }} />
+
+# 1. Show Something In An Empty Area
+
+A placeholder fills an area when no widget is open in it. Use it for empty
+states — "open a guide to get started" — not for real content.
+
+<Canvas of={OnboardingStories.Placeholder} sourceState="shown" />
+
+You need a renderer (the React content) and a `layout.registerPlaceholder`
+that points at it by id. Open the source on the right to see both calls.
+
+The next story opens an actual widget in `main`; the placeholder disappears
+automatically when it does.

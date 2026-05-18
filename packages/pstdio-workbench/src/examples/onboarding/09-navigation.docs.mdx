@@ -1,0 +1,31 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="9. Navigation" parameters={{ layout: "padded" }} />
+
+# 9. Handle Deep Links
+
+To support URLs or other ingress strings, register a navigation parser that
+turns the string into a target the workbench knows how to dispatch.
+
+<Canvas of={OnboardingStories.Navigation} sourceState="shown" />
+
+A parser returns one of:
+
+- `{ kind: "resource", resource }` — open a resource (uses your openers from
+  story 5).
+- `{ kind: "view", widgetId, area?, resource? }` — reveal a specific widget.
+- `{ kind: "command", commandId, args? }` — run a command.
+- `{ kind: "compound", targets }` — apply multiple targets together. If any
+  one fails, the layout is rolled back, so a deep link either applies fully
+  or not at all.
+
+Then `navigation.openTarget(target)` (or `navigation.openLocation(uri)` for
+strings) is the one entry point — same path regardless of who triggered it.
+
+The story exposes each shape as buttons so you can compare the URL form
+against the equivalent direct target.

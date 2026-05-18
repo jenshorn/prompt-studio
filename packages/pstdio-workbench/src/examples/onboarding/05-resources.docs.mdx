@@ -1,0 +1,30 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="5. Resources" parameters={{ layout: "padded" }} />
+
+# 5. Make Tree Nodes Open Tabs
+
+To make a tree node open a tab when clicked, give it a `resource` ref and tell
+the workbench how to open that kind of resource.
+
+<Canvas of={OnboardingStories.Resources} sourceState="shown" />
+
+Three pieces:
+
+- `resources.registerKind({ kind, label, icon })` — declares the type once.
+- `resources.registerOpener({ canOpen, open })` — says "for resources of this
+  kind, open this widget with the resource attached".
+- Attach `resource: { kind, uri, label }` to each tree node.
+
+Now clicking a node calls `resources.openResource` for you, which routes
+through the opener and opens a tab. Click the same node twice — the existing
+tab activates instead of duplicating, because the resource URI matches.
+
+Build your features around resources whenever there's a "thing you can open".
+Saved views, favorites, history, and navigation all speak resource refs, so
+you get those features for free once your data has refs.

@@ -1,0 +1,30 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as OnboardingStories from "./onboarding.stories";
+
+export const parameters = {
+  layout: "padded",
+};
+
+<Meta of={OnboardingStories} name="4. Tree views" parameters={{ layout: "padded" }} />
+
+# 4. Add A Side-Panel Tree
+
+A tree renderer is a renderer kind specialised for sidebar hierarchies. You
+contribute the data; the workbench renders the tree, handles expand/collapse,
+selection, and scrolling.
+
+<Canvas of={OnboardingStories.TreeViews} sourceState="shown" />
+
+Three callbacks shape the tree:
+
+- `getBody(ctx)` — sections shown in the scrollable body. Required.
+- `getFooter(ctx)` — flat list shown as a compact sticky footer. Optional;
+  use it for "Settings" / "Help" entries that should stay below scroll.
+- `getChildren(node, ctx)` — lazy children when a node expands. Return `[]`
+  if your tree is flat.
+
+`registerTreeRenderer` auto-creates a widget renderer with the same id, so you
+place it with the same `layout.registerWidget` + `layout.openWidget` pair from
+story 2.
+
+Clicking nodes doesn't do anything yet — the next story makes them open tabs.

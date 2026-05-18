@@ -4,6 +4,7 @@ import {
   type WorkbenchModuleContributionContext,
   workbenchCommandPaletteMenuPath,
 } from "../../../core";
+import { registerDashboardCollections } from "../collections/dashboard-collections";
 import { DashboardLeftHeader, registerDashboardWorkbenchRenderers } from "../components/views";
 import {
   dashboardHelpMenuPath,
@@ -75,10 +76,11 @@ const syncBreadcrumbs = (ctx: WorkbenchModuleContributionContext, resource: Reso
       {
         title: "Tickets",
         icon: "KanbanSquare",
+        resource: dashboardResources.tickets,
         onClick: () => openResourceReplacing(ctx, dashboardResources.tickets),
       },
-      { title: `${ticket.id} ${ticket.title}`, icon: "Ticket" },
-      { title: `Attempt ${ticket.workspace.shorthand}`, icon: "GitBranch" },
+      { title: `${ticket.id} ${ticket.title}`, icon: "Ticket", resource: ticket.resource },
+      { title: `Attempt ${ticket.workspace.shorthand}`, icon: "GitBranch", resource: ticket.workspaceResource },
     ]);
     return;
   }
@@ -88,14 +90,15 @@ const syncBreadcrumbs = (ctx: WorkbenchModuleContributionContext, resource: Reso
       {
         title: "Workspaces",
         icon: "GitBranch",
+        resource: dashboardResources.workspaces,
         onClick: () => openResourceReplacing(ctx, dashboardResources.workspaces),
       },
-      { title: resource.label ?? "Workspace", icon: "GitBranch" },
+      { title: resource.label ?? "Workspace", icon: "GitBranch", resource },
     ]);
     return;
   }
 
-  ctx.breadcrumbs.setItems([{ title: resource.label ?? "Dashboard", icon: resource.icon }]);
+  ctx.breadcrumbs.setItems([{ title: resource.label ?? "Dashboard", icon: resource.icon, resource }]);
 };
 
 const openDashboardResource = (
@@ -123,7 +126,8 @@ const registerResourcesAndWidgets = (ctx: WorkbenchModuleContributionContext) =>
   });
 
   registerReactWidget(ctx, dashboardWidgetIds.header, "Dashboard header", "top", 100);
-  registerReactWidget(ctx, dashboardWidgetIds.tickets, "Tickets", "main", 90);
+  // dashboardWidgetIds.tickets is registered via ctx.renderers.registerDataRenderer
+  // in dashboard-collections.ts.
   registerReactWidget(ctx, dashboardWidgetIds.workspaces, "Workspaces", "main", 85);
   registerReactWidget(ctx, dashboardWidgetIds.workspace, "Workspace", "main", 80);
   registerReactWidget(ctx, dashboardWidgetIds.workspacePage, "Workspace", "main", 78);
@@ -234,20 +238,20 @@ const registerCommands = (ctx: WorkbenchModuleContributionContext) => {
 };
 
 const registerMenus = (ctx: WorkbenchModuleContributionContext) => {
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openTickets", order: 10 });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openWorkspaces", order: 20 });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, {
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openTickets", order: 10 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openWorkspaces", order: 20 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, {
     commandId: "dashboard.openCurrentWorkspace",
     order: 30,
   });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openSessions", order: 40 });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openSettings", order: 50 });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.sayHello", order: 60 });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.runHealthScan", order: 70 });
-  ctx.menus.registerMenuAction(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openRepoHealth", order: 80 });
-  ctx.menus.registerMenuAction(dashboardHelpMenuPath, { commandId: "dashboard.openDocs", order: 10 });
-  ctx.menus.registerMenuAction(dashboardHelpMenuPath, { commandId: "dashboard.openShortcuts", order: 20 });
-  ctx.menus.registerMenuAction(dashboardHelpMenuPath, { commandId: "dashboard.contactSupport", order: 30 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openSessions", order: 40 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openSettings", order: 50 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.sayHello", order: 60 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.runHealthScan", order: 70 });
+  ctx.layout.registerMenuItem(workbenchCommandPaletteMenuPath, { commandId: "dashboard.openRepoHealth", order: 80 });
+  ctx.layout.registerMenuItem(dashboardHelpMenuPath, { commandId: "dashboard.openDocs", order: 10 });
+  ctx.layout.registerMenuItem(dashboardHelpMenuPath, { commandId: "dashboard.openShortcuts", order: 20 });
+  ctx.layout.registerMenuItem(dashboardHelpMenuPath, { commandId: "dashboard.contactSupport", order: 30 });
 };
 
 const registerLeftHeader = (ctx: WorkbenchModuleContributionContext) => {
@@ -285,6 +289,7 @@ export const registerDashboardWorkbenchContributions = (ctx: WorkbenchModuleCont
   registerResourceProviders(ctx);
   registerCommands(ctx);
   registerMenus(ctx);
+  const collectionDisposables = registerDashboardCollections(ctx);
   registerLeftHeader(ctx);
   registerPanelModeResourceOpener(ctx);
   registerDashboardWorkbenchRenderers(ctx);
@@ -293,4 +298,6 @@ export const registerDashboardWorkbenchContributions = (ctx: WorkbenchModuleCont
   ctx.layout.openWidget(dashboardWidgetIds.status, { pinned: true });
   ctx.layout.openWidget(dashboardWidgetIds.session, { pinned: true });
   openDashboardResource(ctx, dashboardResources.tickets, {});
+
+  return collectionDisposables;
 };

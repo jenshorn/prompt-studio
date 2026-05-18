@@ -6,7 +6,7 @@ import {
   type Command,
   type MenuPath,
   type RegisteredCommand,
-  type RegisteredMenuAction,
+  type RegisteredMenuItem,
   type ResourceBrowseEntry,
   type WorkbenchCore,
   type WorkbenchThemeId,
@@ -51,7 +51,7 @@ interface WorkbenchThemePreviewState {
 
 interface WorkbenchCommandPaletteRecord {
   record: RegisteredCommand;
-  action?: RegisteredMenuAction;
+  action?: RegisteredMenuItem;
 }
 
 const rollbackThemePreview = (
@@ -77,7 +77,7 @@ const getShortcut = (binding: string | undefined): ReactNode =>
 const createEntry = (input: {
   workbench: WorkbenchCore;
   record: RegisteredCommand;
-  action?: RegisteredMenuAction;
+  action?: RegisteredMenuItem;
   shortcutByCommandId: Map<string, string>;
   onClose: () => void;
 }): WorkbenchCommandPaletteEntry | null => {
@@ -150,14 +150,14 @@ const listCommandRecords = (workbench: WorkbenchCore, menuPath?: MenuPath) => {
     return workbench.commands.listCommands().map((record) => ({ record, action: undefined }));
   }
 
-  return workbench.menus
-    .listMenuActions(menuPath)
+  return workbench.layout
+    .listMenuItems(menuPath)
     .filter((action) => workbench.context.matches(action.when))
     .map((action) => {
       const record = workbench.commands.getCommand(action.commandId);
       return record ? { record, action } : null;
     })
-    .filter((item): item is { record: RegisteredCommand; action: RegisteredMenuAction } => item !== null);
+    .filter((item): item is { record: RegisteredCommand; action: RegisteredMenuItem } => item !== null);
 };
 
 export const createWorkbenchCommandPaletteEntries = (input: {
@@ -252,7 +252,20 @@ export const WorkbenchCommandPalette = (props: WorkbenchCommandPaletteProps) => 
   return (
     <Box
       display="contents"
-      css={{ "& [data-scope=dialog][data-part=content]": { background: workbenchCommandPaletteBackground } }}
+      css={{
+        "& [data-scope=dialog][data-part=backdrop], & [data-scope=dialog][data-part=positioner]": {
+          position: "absolute",
+          inset: "0",
+        },
+        "& [data-scope=dialog][data-part=positioner]": {
+          h: "full",
+          minH: "0",
+          paddingInline: "md",
+          paddingTop: "xl",
+          w: "full",
+        },
+        "& [data-scope=dialog][data-part=content]": { background: workbenchCommandPaletteBackground },
+      }}
     >
       <Palette
         open={open}
