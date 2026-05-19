@@ -1,6 +1,8 @@
 import type {
+  CommandInvocation,
   CommandOutcome,
   CommandSource,
+  EventDeliveryResult,
   ExtensionActivityApi,
   ExtensionArtifactApi,
   ExtensionFilesApi,
@@ -13,6 +15,7 @@ import type {
   ExtensionSettingsApi,
   ExtensionStorageApi,
   ExtensionWorkspacesApi,
+  ExtensionWorktreesApi,
   JsonObject,
   RepoContext,
   ResourceRef,
@@ -27,6 +30,7 @@ export interface CommandRunnerEnvironment {
   files: ExtensionFilesApi;
   sessions: ExtensionSessionsApi;
   workspaces: ExtensionWorkspacesApi;
+  worktrees: ExtensionWorktreesApi;
   repos: ExtensionReposApi;
   activity: ExtensionActivityApi;
   notify: ExtensionNotifyApi;
@@ -63,10 +67,22 @@ export interface CommandExecuteInput {
   metadata?: JsonObject;
 }
 
+export interface HostCommandExecuteInput<TResult = unknown> extends CommandExecuteInput {
+  run(invocation: CommandInvocation): Promise<TResult> | TResult;
+}
+
 export interface CommandRunner {
   execute(input: CommandExecuteInput): Promise<CommandOutcome>;
+  executeHostCommand<TResult = unknown>(input: HostCommandExecuteInput<TResult>): Promise<CommandOutcome<TResult>>;
+  dispatchEvent(input: ExtensionEventDispatchInput): Promise<EventDeliveryResult>;
 }
 
 export interface InternalExecuteInput extends CommandExecuteInput {
   depth: number;
+}
+
+export interface ExtensionEventDispatchInput {
+  eventId: string;
+  projectId: string;
+  payload?: JsonObject;
 }

@@ -9,12 +9,17 @@ export {
   type PropsStore,
 } from "./define-extension-view";
 export {
+  attemptStatusEvents,
+  gitEvents,
   projectEvents,
   projectSlots,
   sessionEvents,
   sessionSlots,
+  ticketEvents,
+  workspaceCommands,
   workspaceEvents,
   workspaceSlots,
+  worktreeEvents,
 } from "./kernel-slots";
 export { packageAsset } from "./package-asset";
 export { params } from "./params";

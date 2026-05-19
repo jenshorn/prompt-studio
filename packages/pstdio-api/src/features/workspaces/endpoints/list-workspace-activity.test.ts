@@ -12,11 +12,12 @@ let projectId: string;
 
 beforeAll(async () => {
   tempRoot = mkdtempSync(join(tmpdir(), "pstdio-api-list-workspace-activity-test-"));
-  ({ app } = await createApp({
+  const created = await createApp({
     dbPath: ":memory:",
     storagePath: join(tempRoot, "storage"),
     filesRoot: "",
-  }));
+  });
+  app = created.app;
 
   const projectRes = await app.request("/v1/projects", {
     method: "POST",

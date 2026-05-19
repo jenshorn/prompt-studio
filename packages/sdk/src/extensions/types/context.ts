@@ -76,11 +76,41 @@ export interface ExtensionSessionsApi {
   followup(input: { sessionId: string; prompt?: string; template?: string; vars?: JsonObject }): Promise<void>;
 }
 
+export interface SetAttemptStatusInput {
+  workspaceId: string;
+  status: string;
+  sessionId?: string;
+}
+
+export interface SetAttemptStatusResult {
+  id: string;
+  attempt_status_id: string | null;
+  from_status: string | null;
+  to_status: string;
+  status_change_id: string;
+}
+
 export interface ExtensionWorkspacesApi {
   get(id: string): Promise<unknown>;
   create(input: JsonObject): Promise<unknown>;
   archive(id: string): Promise<void>;
   delete(id: string): Promise<void>;
+  setAttemptStatus(input: SetAttemptStatusInput): Promise<SetAttemptStatusResult>;
+}
+
+export interface BootstrapWorktreeInput {
+  repoPath: string;
+  worktreePath: string;
+  ticketId?: string;
+}
+
+export interface RemoveWorktreesForTicketInput {
+  ticketId?: string;
+}
+
+export interface ExtensionWorktreesApi {
+  bootstrap(input: BootstrapWorktreeInput): Promise<void>;
+  removeAllForTicket(input: RemoveWorktreesForTicketInput): Promise<number>;
 }
 
 export interface ExtensionReposApi {
@@ -113,13 +143,16 @@ export interface ProcessRunResult {
   stderr: string;
 }
 
+export interface ProcessRunInput {
+  command: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  timeoutMs?: number;
+}
+
 export interface ExtensionProcessApi {
-  run(input: {
-    command: string[];
-    cwd?: string;
-    env?: Record<string, string>;
-    timeoutMs?: number;
-  }): Promise<ProcessRunResult>;
+  run(input: ProcessRunInput): Promise<ProcessRunResult>;
+  runOrThrow(input: ProcessRunInput): Promise<ProcessRunResult>;
   spawnDetached(input: { command: string[]; cwd?: string; env?: Record<string, string> }): Promise<{ pid?: number }>;
 }
 
@@ -152,6 +185,7 @@ export interface ExtensionContextBase {
   files: ExtensionFilesApi;
   sessions: ExtensionSessionsApi;
   workspaces: ExtensionWorkspacesApi;
+  worktrees: ExtensionWorktreesApi;
   repos: ExtensionReposApi;
   commands: CommandHelpersApi;
   events: ExtensionEventsApi;

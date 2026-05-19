@@ -40,6 +40,17 @@ const stubEnvironment = (storage: CommandRunnerEnvironment["storage"]): CommandR
     create: async () => null,
     archive: async () => {},
     delete: async () => {},
+    setAttemptStatus: async () => ({
+      id: "",
+      attempt_status_id: null,
+      from_status: null,
+      to_status: "",
+      status_change_id: "",
+    }),
+  },
+  worktrees: {
+    bootstrap: async () => {},
+    removeAllForTicket: async () => 0,
   },
   repos: {
     list: async () => [],
@@ -51,6 +62,7 @@ const stubEnvironment = (storage: CommandRunnerEnvironment["storage"]): CommandR
   notify: { toast: async () => {} },
   process: {
     run: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
+    runOrThrow: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
     spawnDetached: async () => ({}),
   },
   net: { findFreePort: async () => 0 },
@@ -273,9 +285,127 @@ describe("createCommandRunner: middleware", () => {
     expect(outcome.ok).toBe(true);
     expect(observed).toEqual({ original: true, extra: "added" });
   });
+
+  test("middleware can reject host-owned commands without a registered extension command", async () => {
+    let hostRan = false;
+
+    const runner = makeRunner({
+      middlewares: {
+        rejectHostAttemptStatus: {
+          commandId: "kernel.workspace.setAttemptStatus",
+          async handler(ctx) {
+            expect(ctx.commandId).toBe("kernel.workspace.setAttemptStatus");
+            expect(ctx.extensionId).toBe("pstdio.lab");
+            return ctx.commands.reject({ code: "blocked", reason: "blocked by middleware" });
+          },
+        },
+      },
+    });
+
+    const outcome = await runner.executeHostCommand({
+      commandId: "kernel.workspace.setAttemptStatus",
+      projectId: "p1",
+      params: { workspaceId: "ws-1", status: "done" },
+      async run() {
+        hostRan = true;
+        return { ok: true };
+      },
+    });
+
+    expect(outcome.status).toBe("rejected");
+    expect(hostRan).toBe(false);
+  });
+
+  test("middleware can patch params before a host-owned command runs", async () => {
+    let observed: unknown;
+
+    const runner = makeRunner({
+      middlewares: {
+        rewriteHostStatus: {
+          commandId: "kernel.workspace.setAttemptStatus",
+          async handler(ctx) {
+            return ctx.commands.patchParams({ status: "review-ready" });
+          },
+        },
+      },
+    });
+
+    const outcome = await runner.executeHostCommand({
+      commandId: "kernel.workspace.setAttemptStatus",
+      projectId: "p1",
+      params: { workspaceId: "ws-1", status: "done" },
+      async run(invocation) {
+        observed = invocation.params;
+        return invocation.params;
+      },
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(observed).toEqual({ workspaceId: "ws-1", status: "review-ready" });
+  });
 });
 
 describe("createCommandRunner: hooks and nesting", () => {
+  test("dispatches host events to extension hooks with worktree helpers", async () => {
+    const { api: storage } = makeStorage();
+    const bootstraps: unknown[] = [];
+    const removedTicketRefs: unknown[] = [];
+    const runtime = buildRuntime({
+      hooks: {
+        onWorktreeCreated: {
+          eventId: "worktree.created",
+          async handler(ctx, event) {
+            await ctx.worktrees.bootstrap({
+              repoPath: event.repoPath as string,
+              worktreePath: event.worktreePath as string,
+              ticketId: event.ticket as string,
+            });
+          },
+        },
+        onTicketArchived: {
+          eventId: "ticket.archived",
+          async handler(ctx, event) {
+            await ctx.worktrees.removeAllForTicket({ ticketId: (event.ticket as { id: string }).id });
+          },
+        },
+      },
+    });
+    const runner = createCommandRunner(runtime, {
+      buildEnvironment: () => ({
+        ...stubEnvironment(storage),
+        worktrees: {
+          bootstrap: async (input) => {
+            bootstraps.push(input);
+          },
+          removeAllForTicket: async (input) => {
+            removedTicketRefs.push(input);
+            return 2;
+          },
+        },
+      }),
+    });
+
+    const worktreeResult = await runner.dispatchEvent({
+      eventId: "worktree.created",
+      projectId: "p1",
+      payload: {
+        repoPath: "/repo",
+        worktreePath: "/worktree",
+        ticket: "PS-1",
+      },
+    });
+    const ticketResult = await runner.dispatchEvent({
+      eventId: "ticket.archived",
+      projectId: "p1",
+      payload: { ticket: { id: "ticket-1" } },
+    });
+
+    expect(worktreeResult.delivered).toBe(1);
+    expect(ticketResult.delivered).toBe(1);
+    expect(bootstraps).toEqual([{ repoPath: "/repo", worktreePath: "/worktree", ticketId: "PS-1" }]);
+    expect(removedTicketRefs).toEqual([{ ticketId: "ticket-1" }]);
+  });
+
   test("hook errors are isolated and don't fail the command", async () => {
     const runner = makeRunner({
       commands: {

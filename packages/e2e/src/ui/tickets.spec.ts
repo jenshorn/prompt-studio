@@ -6,6 +6,7 @@ import { expect, test } from "@playwright/test";
 
 const apiPort = Number(process.env.E2E_API_PORT ?? "3200");
 const apiBase = `http://localhost:${apiPort}`;
+
 const QUESTION_PROMPT_TRIGGER = "__fake_question_prompt__";
 
 const openTicketsListFromDetail = async (page: import("@playwright/test").Page) => {

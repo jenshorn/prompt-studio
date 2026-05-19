@@ -1,22 +1,25 @@
 import { readFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { join } from "node:path";
 import type { ExtensionCommandRecord } from "pstdio-api-contracts";
-import type { CommandRunnerEnvironment, RuntimeCommandRecord } from "pstdio-extensions";
-import { loadExtensionSources, normalizeExtensionSources } from "pstdio-extensions";
+import type { CommandRunnerEnvironment, RuntimeArtifactMount, RuntimeCommandRecord } from "pstdio-extensions";
+import { createArtifactMount, loadExtensionSources, normalizeExtensionSources } from "pstdio-extensions";
+import type { SessionsRouteDeps } from "../sessions/deps";
+import { resolvePrompt } from "../sessions/resolve-prompt";
+import { createSessionScheduler } from "../sessions/session-scheduler";
+import { setWorkspaceAttemptStatus } from "../workspaces/attempt-status-transition";
 import type { ExtensionsRouteDeps } from "./deps";
+import { createExtensionWorktreesApi } from "./extension-worktree-environment";
 
 type EnabledSource = Awaited<
   ReturnType<ExtensionsRouteDeps["extensionService"]["listEnabledSourcesForProject"]>
 >[number];
-
-const sourceKindForRuntime = (sourceKind: string) => (sourceKind === "builtin" ? "builtin" : "local");
 
 export const loadProjectExtensionRuntime = async (deps: ExtensionsRouteDeps, projectId: string) => {
   const enabledSources = await deps.extensionService.listEnabledSourcesForProject(projectId);
   const loaded = await loadExtensionSources({
     extensionPackages: enabledSources.map(({ installedSource }) => ({
       path: installedSource.source_path,
-      sourceKind: sourceKindForRuntime(installedSource.source_kind),
     })),
   });
 
@@ -168,36 +171,122 @@ const createReposApi = (deps: ExtensionsRouteDeps, projectId: string): CommandRu
   };
 };
 
-const createProcessApi = (): CommandRunnerEnvironment["process"] => ({
-  async run(input) {
-    const proc = Bun.spawn(input.command, {
-      cwd: input.cwd,
-      env: input.env ? { ...process.env, ...input.env } : process.env,
-      stderr: "pipe",
-      stdout: "pipe",
+const findFreePort = (host = "127.0.0.1") =>
+  new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.once("error", reject);
+    server.listen(0, host, () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close(() => reject(new Error("Failed to allocate a free port")));
+        return;
+      }
+      const port = address.port;
+      server.close(() => resolve(port));
     });
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    return { exitCode, stdout, stderr };
+  });
+
+const createArtifactsApi = (
+  deps: ExtensionsRouteDeps,
+  input: {
+    artifactMounts?: RuntimeArtifactMount[];
+    extensionId: string;
+    name: string;
+    projectId: string;
   },
-  async spawnDetached(input) {
-    const proc = Bun.spawn(input.command, {
-      cwd: input.cwd,
-      env: input.env ? { ...process.env, ...input.env } : process.env,
-      stderr: "ignore",
-      stdout: "ignore",
-    });
-    return { pid: proc.pid };
-  },
-});
+): CommandRunnerEnvironment["artifacts"] => {
+  const resolveMount = (key: string) => {
+    const mount = (input.artifactMounts ?? []).find(
+      (candidate) => candidate.extensionId === input.extensionId && (candidate.localId === key || candidate.id === key),
+    );
+    if (!mount) throw new Error(`Artifact mount not found: ${key}`);
+    return mount;
+  };
+
+  const createForDefaultRepo = async (mount: RuntimeArtifactMount) => {
+    const [repo] = await deps.repoService.listByProject(input.projectId);
+    if (!repo) throw new Error(`Repo not found for project: ${input.projectId}`);
+    return createArtifactMount({ repoRoot: repo.path, name: mount.name, mountPath: mount.relativePath });
+  };
+
+  return {
+    mount(key) {
+      const mount = resolveMount(key);
+      const mountFor = () => createForDefaultRepo(mount);
+
+      return {
+        exists: async (path) => (await mountFor()).exists(path),
+        readText: async (path) => (await mountFor()).readText(path),
+        writeText: async (path, value) => (await mountFor()).writeText(path, value),
+        readBytes: async (path) => (await mountFor()).readBytes(path),
+        writeBytes: async (path, value) => (await mountFor()).writeBytes(path, value),
+        list: async (pattern) => (await mountFor()).list(pattern),
+        listDirs: async (path) => (await mountFor()).listDirs(path),
+        delete: async (path) => (await mountFor()).delete(path),
+      };
+    },
+  };
+};
+
+const resolveExtensionPrompt = async (
+  deps: ExtensionsRouteDeps,
+  projectId: string,
+  input: { prompt?: string; template?: string; vars?: Record<string, unknown> },
+) =>
+  resolvePrompt(
+    {
+      prompt: input.prompt,
+      template: input.template,
+      vars: input.vars as Record<string, string> | undefined,
+    },
+    projectId,
+    deps as SessionsRouteDeps,
+  );
+
+const processOutput = (result: { stdout: string; stderr: string }) =>
+  [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
+
+const createProcessApi = (): CommandRunnerEnvironment["process"] => {
+  const api: CommandRunnerEnvironment["process"] = {
+    async run(input) {
+      const proc = Bun.spawn(input.command, {
+        cwd: input.cwd,
+        env: input.env ? { ...process.env, ...input.env } : process.env,
+        stderr: "pipe",
+        stdout: "pipe",
+      });
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ]);
+      return { exitCode, stdout, stderr };
+    },
+    async runOrThrow(input) {
+      const result = await api.run(input);
+      if (result.exitCode === 0) return result;
+
+      throw new Error(processOutput(result) || `Command failed: ${input.command.join(" ")}`);
+    },
+    async spawnDetached(input) {
+      const proc = Bun.spawn(input.command, {
+        cwd: input.cwd,
+        env: input.env ? { ...process.env, ...input.env } : process.env,
+        stderr: "ignore",
+        stdout: "ignore",
+      });
+      return { pid: proc.pid };
+    },
+  };
+
+  return api;
+};
 
 export const createCommandEnvironment = (
   deps: ExtensionsRouteDeps,
   enabledSources: EnabledSource[],
-  input: { extensionId: string; name: string; projectId: string },
+  input: { artifactMounts?: RuntimeArtifactMount[]; extensionId: string; name: string; projectId: string },
 ): CommandRunnerEnvironment => {
   const enabledSource = findEnabledSource(enabledSources, input.extensionId);
   if (!enabledSource) throw new Error(`Enabled extension instance not found: ${input.extensionId}`);
@@ -209,29 +298,57 @@ export const createCommandEnvironment = (
 
   return {
     storage,
-    artifacts: {
-      mount: () => {
-        throw new Error("Extension artifact mounts are not available for this command context yet");
-      },
-    },
+    artifacts: createArtifactsApi(deps, input),
     files: createFilesApi(deps, input.projectId),
     sessions: {
       create: async (sessionInput) => {
+        const workspace =
+          sessionInput.workspaceId != null
+            ? ((await deps.workspaceService.get(sessionInput.workspaceId)) ??
+              (await deps.workspaceService.getByShorthand(input.projectId, sessionInput.workspaceId)))
+            : null;
+        const repoPath = sessionInput.repoId ? (await deps.repoService.get(sessionInput.repoId))?.path : undefined;
         const session = await deps.sessionService.create({
           project_id: input.projectId,
           title: sessionInput.title,
           agent: "extension",
           original_session_id: sessionInput.originalSessionId,
-          cwd: sessionInput.repoId ? (await deps.repoService.get(sessionInput.repoId))?.path : undefined,
+          cwd: repoPath ?? workspace?.worktree_path ?? undefined,
         });
+        if (workspace) {
+          const link = await deps.workspaceSessionService.link(workspace.id, session.id);
+          deps.eventBus.emit("workspace_sessions", "set", link);
+        }
         return { id: session.id };
       },
-      followup: async () => {},
+      followup: async (followupInput) => {
+        const session = await deps.sessionService.get(followupInput.sessionId);
+        if (!session) throw new Error(`Session not found: ${followupInput.sessionId}`);
+        if (!session.cwd) throw new Error(`Session has no cwd: ${followupInput.sessionId}`);
+        const prompt = await resolveExtensionPrompt(deps, session.project_id ?? input.projectId, followupInput);
+        await createSessionScheduler(deps as SessionsRouteDeps).startOrQueueExisting({
+          session,
+          prompt,
+          cwd: session.cwd,
+          respectCapacity: true,
+        });
+      },
     },
     workspaces: {
       get: (id) => deps.workspaceService.get(id),
-      create: async () => {
-        throw new Error("Extension workspace creation requires a ticket-backed workspace");
+      create: async (workspaceInput) => {
+        const projectId = typeof workspaceInput.project_id === "string" ? workspaceInput.project_id : input.projectId;
+        if (typeof workspaceInput.ticket_id !== "string") throw new Error("Workspace creation requires ticket_id");
+        if (typeof workspaceInput.ticket_shorthand !== "string") {
+          throw new Error("Workspace creation requires ticket_shorthand");
+        }
+        return deps.workspaceService.create({
+          project_id: projectId,
+          ticket_id: workspaceInput.ticket_id,
+          ticket_shorthand: workspaceInput.ticket_shorthand,
+          branch: typeof workspaceInput.branch === "string" ? workspaceInput.branch : undefined,
+          worktree_path: typeof workspaceInput.worktree_path === "string" ? workspaceInput.worktree_path : undefined,
+        });
       },
       archive: async (id) => {
         await deps.workspaceService.archive(id);
@@ -239,7 +356,12 @@ export const createCommandEnvironment = (
       delete: async (id) => {
         await deps.workspaceService.softDelete(id);
       },
+      setAttemptStatus: async ({ workspaceId, status, sessionId }) => {
+        const transition = await setWorkspaceAttemptStatus(deps, { workspaceId, status, sessionId });
+        return transition.result;
+      },
     },
+    worktrees: createExtensionWorktreesApi(deps, { projectId: input.projectId }),
     repos: createReposApi(deps, input.projectId),
     activity: {
       record: async (activity) => {
@@ -260,7 +382,7 @@ export const createCommandEnvironment = (
     },
     notify: { toast: async () => {} },
     process: createProcessApi(),
-    net: { findFreePort: async () => 0 },
+    net: { findFreePort: async (portInput) => findFreePort(portInput?.host) },
     settings: {
       all: async () => ({}),
       get: (key) => storage.scope({ type: "settings" }).get(String(key)),

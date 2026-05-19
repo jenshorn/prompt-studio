@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { createRoute, z } from "@hono/zod-openapi";
+import { attemptStatusEvents, type JsonObject, workspaceCommands } from "@pstdio/sdk/extensions";
 import { updateAttemptStatusResponseSchema } from "pstdio-api-contracts";
 import type { AppRouteHandler } from "../../../types";
-import { buildDiff, emitActivityEvent } from "../../activity/activity-events";
+import { fireExtensionEventAsync, runExtensionHostCommand } from "../../extensions/extension-event-runtime";
 import { firePostAttemptStatusHook, firePreAttemptStatusHook } from "../../hooks/attempt-status-hooks";
+import { setWorkspaceAttemptStatus } from "../attempt-status-transition";
 import type { WorkspacesRouteDeps } from "../deps";
 import { parseTicketShorthand } from "../parse-ticket-shorthand";
 
@@ -40,94 +41,145 @@ export const updateAttemptStatusRoute = createRoute({
       content: { "application/json": { schema: errorSchema } },
     },
     422: {
-      description: "Pre-hook rejected the transition.",
+      description: "Middleware rejected the transition.",
       content: { "application/json": { schema: hookRejectedSchema } },
     },
   },
 });
 
-const createNotFoundResponse = (id: string) => ({ error: `Workspace not found: ${id}` }) as const;
+const notFoundResponse = (id: string) => ({ error: `Workspace not found: ${id}` }) as const;
+const missingStatusResponse = (status: string) => ({ error: `Attempt status not found: "${status}"` }) as const;
+const rejectedResponse = (reason: string) => ({ error: "Pre-hook rejected the transition", hook_output: reason });
 
-const createMissingStatusResponse = (status: string) => ({ error: `Attempt status not found: "${status}"` }) as const;
-
-const createHookRejectedResponse = (stdout?: string, stderr?: string) => ({
-  error: "Pre-hook rejected the transition",
-  hook_output: [stdout, stderr].filter(Boolean).join("\n").trim(),
-});
-
-const resolveFromStatusName = async (deps: WorkspacesRouteDeps, attemptStatusId: string | null) => {
-  if (!attemptStatusId) {
-    return null;
-  }
-
-  const fromStatus = await deps.attemptStatusService.get(attemptStatusId);
-  return fromStatus?.name ?? null;
-};
+type WorkspaceRecord = NonNullable<Awaited<ReturnType<WorkspacesRouteDeps["workspaceService"]["get"]>>>;
 
 const resolveTicketStatusName = async (deps: WorkspacesRouteDeps, projectId: string, statusId: string | null) => {
-  if (!statusId) {
-    return null;
-  }
-
+  if (!statusId) return null;
   const statuses = await deps.statusService.list(projectId);
-  return statuses.find((status) => status.id === statusId)?.name ?? null;
+  return statuses.find((candidate) => candidate.id === statusId)?.name ?? null;
 };
 
-const resolveTransitionSession = async (deps: WorkspacesRouteDeps, projectId: string, sessionId?: string) => {
-  if (!sessionId) {
-    return undefined;
-  }
-
-  const session = await deps.sessionService.get(sessionId);
-  if (!session || session.project_id !== projectId) {
-    return undefined;
-  }
-
-  return session;
-};
-
-const resolveWorkspaceTicket = async (deps: WorkspacesRouteDeps, workspaceId: string) => {
-  const ticketLink = await deps.workspaceService.getTicketWorkspaceLink(workspaceId);
-  if (!ticketLink) {
-    return null;
-  }
-
-  return deps.ticketService.get(ticketLink.ticket_id);
-};
-
-const buildHookPayload = async (
+const resolveAttemptStatusHookPayload = async (
   deps: WorkspacesRouteDeps,
-  input: {
-    workspace: Awaited<ReturnType<WorkspacesRouteDeps["workspaceService"]["get"]>>;
-    attemptStatusName: string | null;
-    sessionId?: string;
-  },
+  workspace: WorkspaceRecord,
+  input: { fromStatusName: string | null; sessionId?: string },
 ) => {
-  const [ticket, session] = await Promise.all([
-    resolveWorkspaceTicket(deps, input.workspace.id),
-    resolveTransitionSession(deps, input.workspace.project_id, input.sessionId),
-  ]);
-  const ticketStatusName = ticket
-    ? await resolveTicketStatusName(deps, input.workspace.project_id, ticket.status_id)
-    : null;
   const ticketShorthand =
-    ticket?.shorthand ??
-    parseTicketShorthand(input.workspace.workspace_shorthand) ??
-    input.workspace.workspace_shorthand;
+    parseTicketShorthand(workspace.workspace_shorthand) ??
+    (workspace as { ticket_shorthand?: string }).ticket_shorthand ??
+    workspace.workspace_shorthand;
+  const ticket = await deps.ticketService.getByShorthand(workspace.project_id, ticketShorthand);
+  const ticketStatusName = ticket ? await resolveTicketStatusName(deps, workspace.project_id, ticket.status_id) : null;
 
   return {
     workspace: {
-      ...input.workspace,
+      ...workspace,
       ticket_shorthand: ticketShorthand,
-      attempt_status_name: input.attemptStatusName,
+      attempt_status_name: input.fromStatusName,
     },
-    workspaceId: input.workspace.id,
-    ticket: ticket ? { ...ticket, status_name: ticketStatusName } : undefined,
-    worktreePath: input.workspace.worktree_path ?? undefined,
-    branch: input.workspace.branch ?? undefined,
-    ...(input.sessionId && { sessionId: input.sessionId }),
-    ...(session?.original_session_id && { originalSessionId: session.original_session_id }),
+    workspaceId: workspace.id,
+    prompts: {},
+    worktreePath: workspace.worktree_path ?? undefined,
+    branch: workspace.branch ?? undefined,
+    ...(ticket ? { ticket: { ...ticket, status_name: ticketStatusName } } : {}),
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
   };
+};
+
+const resolveAttemptStatusHookContext = async (
+  deps: WorkspacesRouteDeps,
+  workspace: WorkspaceRecord,
+  input: { status: string; sessionId?: string },
+) => {
+  const fromAttemptStatus = workspace.attempt_status_id
+    ? await deps.attemptStatusService.get(workspace.attempt_status_id)
+    : null;
+  const fromStatusName = fromAttemptStatus?.name ?? null;
+
+  if (fromStatusName === input.status) return { fromStatusName, payload: null };
+
+  return {
+    fromStatusName,
+    payload: await resolveAttemptStatusHookPayload(deps, workspace, { fromStatusName, sessionId: input.sessionId }),
+  };
+};
+
+const runPreAttemptStatusHook = async (
+  deps: WorkspacesRouteDeps,
+  workspace: WorkspaceRecord,
+  status: string,
+  hookContext: Awaited<ReturnType<typeof resolveAttemptStatusHookContext>>,
+) => {
+  if (!hookContext.payload) return null;
+
+  const preHook = await firePreAttemptStatusHook(deps, {
+    projectId: workspace.project_id,
+    fromStatus: hookContext.fromStatusName ?? "",
+    toStatus: status,
+    payload: hookContext.payload,
+  });
+
+  return preHook.rejected ? preHook.stderr || preHook.stdout : null;
+};
+
+const firePostAttemptStatusChangeHook = async (
+  deps: WorkspacesRouteDeps,
+  workspace: WorkspaceRecord,
+  status: string,
+  hookContext: Awaited<ReturnType<typeof resolveAttemptStatusHookContext>>,
+  statusChangeId: string,
+) => {
+  if (!hookContext.payload) return;
+
+  await firePostAttemptStatusHook(deps, {
+    projectId: workspace.project_id,
+    toStatus: status,
+    payload: {
+      ...hookContext.payload,
+      fromStatus: hookContext.fromStatusName ?? "",
+      statusChangeId,
+    },
+  });
+};
+
+const toWorkspaceEventPayload = (workspace: WorkspaceRecord) => {
+  const { anchors_json: _anchors, ...payload } = workspace;
+  return payload as JsonObject;
+};
+
+const fireAttemptStatusChangedEvent = async (
+  deps: WorkspacesRouteDeps,
+  workspace: WorkspaceRecord,
+  status: string,
+  hookContext: Awaited<ReturnType<typeof resolveAttemptStatusHookContext>>,
+  statusChangeId: string,
+  sessionId?: string,
+) => {
+  if (!hookContext.payload) return;
+
+  const session = sessionId ? await deps.sessionService.get(sessionId) : null;
+  const payload = hookContext.payload as {
+    ticket?: Record<string, unknown>;
+    workspace?: Record<string, unknown>;
+    worktreePath?: string;
+  };
+
+  fireExtensionEventAsync(deps, workspace.project_id, attemptStatusEvents.changed, {
+    projectId: workspace.project_id,
+    workspaceId: workspace.id,
+    ticket: (payload.ticket as JsonObject | undefined) ?? null,
+    fromStatus: hookContext.fromStatusName,
+    toStatus: status,
+    sessionId: sessionId ?? null,
+    originalSessionId: session?.original_session_id ?? null,
+    worktreePath: workspace.worktree_path ?? payload.worktreePath ?? null,
+    workspace: {
+      ...((payload.workspace as JsonObject | undefined) ?? {}),
+      ...toWorkspaceEventPayload(workspace),
+      attempt_status_name: status,
+    } as JsonObject,
+    statusChangeId,
+  });
 };
 
 export const updateAttemptStatusHandler = (
@@ -138,84 +190,43 @@ export const updateAttemptStatusHandler = (
     const { status, session_id: sessionId } = c.req.valid("json");
 
     const workspace = await deps.workspaceService.get(id);
-    if (!workspace) {
-      return c.json(createNotFoundResponse(id), 404);
-    }
+    if (!workspace) return c.json(notFoundResponse(id), 404);
 
     const toAttemptStatus = await deps.attemptStatusService.getByName(workspace.project_id, status);
-    if (!toAttemptStatus) {
-      return c.json(createMissingStatusResponse(status), 404);
-    }
+    if (!toAttemptStatus) return c.json(missingStatusResponse(status), 404);
 
-    const fromStatusName = await resolveFromStatusName(deps, workspace.attempt_status_id);
-    if (fromStatusName === status) {
-      return c.json(
-        {
-          id: workspace.id,
-          attempt_status_id: workspace.attempt_status_id,
-          from_status: fromStatusName,
-          to_status: status,
-          status_change_id: randomUUID(),
-        },
-        200,
+    const hookContext = await resolveAttemptStatusHookContext(deps, workspace, { status, sessionId });
+    const preHookRejection = await runPreAttemptStatusHook(deps, workspace, status, hookContext);
+    if (preHookRejection) return c.json(rejectedResponse(preHookRejection), 422);
+
+    const outcome = await runExtensionHostCommand(
+      deps,
+      workspace.project_id,
+      workspaceCommands.setAttemptStatus,
+      {
+        workspaceId: id,
+        status,
+        sessionId,
+      },
+      (invocation) => setWorkspaceAttemptStatus(deps, invocation.params).then((transition) => transition.result),
+    );
+
+    if (outcome.status === "rejected") return c.json(rejectedResponse(outcome.reason), 422);
+    if (outcome.status === "error") throw new Error(outcome.reason);
+
+    await firePostAttemptStatusChangeHook(deps, workspace, status, hookContext, outcome.value.status_change_id);
+    const updatedWorkspace = await deps.workspaceService.get(id);
+    if (updatedWorkspace) {
+      await fireAttemptStatusChangedEvent(
+        deps,
+        updatedWorkspace,
+        status,
+        hookContext,
+        outcome.value.status_change_id,
+        sessionId,
       );
     }
 
-    const preHookPayload = await buildHookPayload(deps, {
-      workspace,
-      attemptStatusName: fromStatusName,
-      sessionId,
-    });
-    const preResult = await firePreAttemptStatusHook(
-      { pluginService: deps.pluginService },
-      { projectId: workspace.project_id, fromStatus: fromStatusName ?? "", toStatus: status, payload: preHookPayload },
-    );
-
-    if (preResult.rejected) {
-      return c.json(createHookRejectedResponse(preResult.stdout, preResult.stderr), 422);
-    }
-
-    const updated = (await deps.workspaceService.updateAttemptStatus(id, toAttemptStatus.id))!;
-    const statusChangeId = randomUUID();
-
-    await emitActivityEvent(deps, {
-      projectId: updated.project_id,
-      resourceType: "workspace",
-      resourceId: updated.id,
-      eventType: "workspace_attempt_status_updated",
-      summary: `Updated attempt status for ${updated.workspace_shorthand}`,
-      payload: {
-        status: buildDiff(fromStatusName, status),
-        to_status: status,
-        session_id: sessionId ?? null,
-        status_change_id: statusChangeId,
-      },
-    });
-
-    const postHookPayload = await buildHookPayload(deps, {
-      workspace: updated,
-      attemptStatusName: status,
-      sessionId,
-    });
-
-    void firePostAttemptStatusHook(
-      { pluginService: deps.pluginService },
-      {
-        projectId: workspace.project_id,
-        toStatus: status,
-        payload: { ...postHookPayload, statusChangeId },
-      },
-    ).catch(() => {});
-
-    return c.json(
-      {
-        id: updated.id,
-        attempt_status_id: updated.attempt_status_id,
-        from_status: fromStatusName,
-        to_status: status,
-        status_change_id: statusChangeId,
-      },
-      200,
-    );
+    return c.json(outcome.value, 200);
   };
 };
