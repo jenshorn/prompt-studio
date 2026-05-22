@@ -345,6 +345,7 @@
         "@types/react-dom": "19.2.3",
         "@vitejs/plugin-react": "^5.1.1",
         "babel-plugin-react-compiler": "^1.0.0",
+        "pstdio-extensions": "workspace:*",
         "storybook": "^10.1.9",
         "typescript": "6.0.2",
         "vite": "^7.2.4",
@@ -1145,6 +1146,18 @@
     "@preact/signals": ["@preact/signals@1.3.4", "", { "dependencies": { "@preact/signals-core": "^1.7.0" }, "peerDependencies": { "preact": "10.x" } }, "sha512-TPMkStdT0QpSc8FpB63aOwXoSiZyIrPsP9Uj347KopdS6olZdAYeeird/5FZv/M1Yc1ge5qstub2o8VDbvkT4g=="],
 
     "@preact/signals-core": ["@preact/signals-core@1.14.0", "", {}, "sha512-AowtCcCU/33lFlh1zRFf/u+12rfrhtNakj7UpaGEsmMwUKpKWMVvcktOGcwBBNiB4lWrZWc01LhiyyzVklJyaQ=="],
+
+    "@pstdio/cli-darwin-arm64": ["@pstdio/cli-darwin-arm64@0.15.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-SmLohWsn06qHoGOGTP04XRciu7n8cI6Ty43/TGxkc3pIQJ99T5fPolRm1jp1kqyn/VfN4siXCLFn2dZpGzkTDg=="],
+
+    "@pstdio/cli-darwin-x64": ["@pstdio/cli-darwin-x64@0.15.0", "", { "os": "darwin", "cpu": "x64" }, "sha512-HjXDKX8UzZH5dBVkpXyEIzRUu97/Kj/P2Rs+KbHhLQWh7amh4iV2tOLhn5eoQWfCGgLZgSD/wzGirNFOVfbBkQ=="],
+
+    "@pstdio/cli-linux-arm64": ["@pstdio/cli-linux-arm64@0.15.0", "", { "os": "linux", "cpu": "arm64" }, "sha512-tJEr018/VRIwS62Lm28eVSjcxngJbMVMNFvS/mxOiW9fV2RDSWzF3kICW6RUOZ8IRgfBgAQCzX4jE4ll+9NxXA=="],
+
+    "@pstdio/cli-linux-x64": ["@pstdio/cli-linux-x64@0.15.0", "", { "os": "linux", "cpu": "x64" }, "sha512-nkfAgDo4JBWnxY3UjSNhvxBaEhnEDLI2jK2nKk0tF3E/fUUDdAs9Ul0WsXX9mthgz/0czTd+a8lX8PX+xlvvYw=="],
+
+    "@pstdio/cli-win-arm64": ["@pstdio/cli-win-arm64@0.15.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-aLu2X7PLdN4Ks3PsE5dJ0B8d9ifVcOWqyMqZ0Tk5UhXgrKQ7U1wFHaZ5hlnnmOz22VIDXKqNGQtLXaJAM/Z/JQ=="],
+
+    "@pstdio/cli-win-x64": ["@pstdio/cli-win-x64@0.15.0", "", { "os": "win32", "cpu": "x64" }, "sha512-xyTTwj2byAALq66T1ItuJ+pjSPQu+M8ppLvmG4h1LSbOW9LNvNzlOA6YvhIDiDKdKIJk5eFrKZ8s6UX5um67jA=="],
 
     "@pstdio/landing-page": ["@pstdio/landing-page@workspace:clients/landing-page"],
 

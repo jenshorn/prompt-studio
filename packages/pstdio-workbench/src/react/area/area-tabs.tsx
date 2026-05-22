@@ -1,6 +1,9 @@
-import { Box, CloseButton, Tabs, Text } from "@chakra-ui/react";
+import { CloseButton, Tabs, Text } from "@chakra-ui/react";
+import { ScrollArea } from "@pstdio/ui";
+import { useEffect, useState } from "react";
 import type { WorkbenchArea as WorkbenchAreaId, WorkbenchCore, WorkbenchWidgetPlacement } from "../../core";
 import { useWorkbenchStore } from "../shared/use-workbench-store";
+import { getWorkbenchAreaBackground } from "../theme/workbench-theme-background";
 
 interface WorkbenchAreaTabsProps {
   workbench: WorkbenchCore;
@@ -16,40 +19,61 @@ export const WorkbenchAreaTabs = (props: WorkbenchAreaTabsProps) => {
   const { workbench, area } = props;
   const areaState = useWorkbenchStore(workbench.layout.store, (state) => state.layout.areas[area]);
   const placements = areaState.widgets;
+  const showTabs = shouldShowAreaTabs(placements);
+  const [viewport, setViewport] = useState<HTMLDivElement | null>(null);
 
-  if (!shouldShowAreaTabs(placements)) return null;
+  // Translate vertical wheel into horizontal scrolling so the tab strip scrolls
+  // with a plain mouse wheel — no modifier key required.
+  useEffect(() => {
+    if (!viewport) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY === 0 || viewport.scrollWidth <= viewport.clientWidth) return;
+      viewport.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, [viewport]);
+
+  if (!showTabs) return null;
 
   const activeWidgetId = areaState.activeWidgetId ?? placements[0]?.widgetId;
+  // The active tab paints over the header's bottom line, so it has to match the
+  // panel content background to read as a seamless connection.
+  const activeBackground = getWorkbenchAreaBackground(area);
 
   return (
     <Tabs.Root
       value={activeWidgetId}
       onValueChange={(details) => workbench.layout.activateWidget(details.value)}
-      variant="subtle"
+      variant="outline"
       colorPalette="gray"
       justify="start"
       size="sm"
-      alignSelf="center"
+      alignSelf="stretch"
       flex="0 1 auto"
-      w="max-content"
       maxW="full"
       minW="0"
-      h="1.75rem"
-      display="flex"
-      overflow="hidden"
+      h="full"
+      position="relative"
+      zIndex="1"
     >
-      <Box
+      {/* Overflowing tabs scroll horizontally; the overlay scrollbar adds no
+          height so the active tab still meets the header's bottom edge. */}
+      <ScrollArea
+        viewportRef={setViewport}
+        size="xs"
         h="full"
+        w="max-content"
+        maxW="full"
         minW="0"
-        w="full"
-        overflowX="auto"
-        overflowY="hidden"
-        css={{
-          scrollbarWidth: "none",
-          "&::-webkit-scrollbar": { display: "none" },
-        }}
+        showVerticalScrollbar={false}
+        showHorizontalScrollbar
+        contentProps={{ h: "full" }}
       >
-        <Tabs.List h="full" minW="max-content" alignItems="center" justifyContent="flex-start">
+        <Tabs.List h="full" minW="max-content" alignItems="stretch" justifyContent="flex-start">
           {placements.map((placement) => {
             const closable = isPlacementCloseable(placement);
             const isActive = placement.widgetId === activeWidgetId;
@@ -59,16 +83,18 @@ export const WorkbenchAreaTabs = (props: WorkbenchAreaTabsProps) => {
               <Tabs.Trigger
                 key={placement.widgetId}
                 value={placement.widgetId}
-                h="1.5rem"
+                h="full"
                 maxW="12rem"
                 minW="0"
                 flexShrink={0}
                 gap="2xs"
-                px="xs"
+                px="sm"
                 py="0"
                 textStyle="label/XS/medium"
                 title={label}
                 className="group"
+                _selected={{ bg: activeBackground }}
+                _hover={isActive ? undefined : { bg: "bg.hover", color: "fg" }}
               >
                 <Text as="span" minW="0" truncate>
                   {label}
@@ -97,7 +123,7 @@ export const WorkbenchAreaTabs = (props: WorkbenchAreaTabsProps) => {
             );
           })}
         </Tabs.List>
-      </Box>
+      </ScrollArea>
     </Tabs.Root>
   );
 };

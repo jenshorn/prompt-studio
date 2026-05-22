@@ -1,10 +1,13 @@
 import { Box } from "@chakra-ui/react";
 import { Toaster } from "@pstdio/ui";
 import type { Meta, StoryObj } from "@storybook/react";
+import { useWorkbenchThemePreferences, Workbench, WorkbenchThemeProvider } from "../../react";
 import { createDataRendererStoryModule } from "../data-renderer/module";
-import { WorkbenchStory, type WorkbenchStoryProps } from "../workbench-story";
+import { createExtensionThemesWorkbench } from "../extension-themes/module";
+import type { WorkbenchStoryProps } from "../workbench-story";
 import { createCommandKeybindingThemeModule } from "./command-theme-module";
 import { dataRendererFavoritesSource } from "./data-renderer-favorites-source";
+import { extensionsSource } from "./extensions-source";
 import { createFocusContextModule } from "./focus-context-module";
 import { focusContextSource } from "./focus-context-source";
 import {
@@ -19,18 +22,12 @@ import {
 import { createNavigationModule } from "./navigation-module";
 import { navigationSource } from "./navigation-source";
 import { onboardingSources } from "./sources";
+import { createWidgetVariantsModule } from "./widget-variants-module";
+import { widgetVariantsSource } from "./widget-variants-source";
 
 const meta = {
   title: "pstdio-workbench/Onboarding",
   parameters: { layout: "padded" },
-  decorators: [
-    (Story) => (
-      <>
-        <Story />
-        <Toaster />
-      </>
-    ),
-  ],
 } satisfies Meta;
 
 export default meta;
@@ -47,13 +44,19 @@ const sourceParameters = (code: string) => ({
   },
 });
 
+// Onboarding renders the workbench in a bordered, fixed-height frame. The theme
+// provider is fed from `workbench.themes` so it wraps the frame and Toaster too.
 const WorkbenchFrame = (props: WorkbenchStoryProps) => {
   const { workbench } = props;
+  const themePreferences = useWorkbenchThemePreferences(workbench);
 
   return (
-    <Box h="520px" minH="360px" borderWidth="1px" borderColor="border.muted" overflow="hidden">
-      <WorkbenchStory workbench={workbench} />
-    </Box>
+    <WorkbenchThemeProvider themePreferences={themePreferences}>
+      <Box h="520px" minH="360px" borderWidth="1px" borderColor="border.muted" overflow="hidden">
+        <Workbench workbench={workbench} />
+      </Box>
+      <Toaster />
+    </WorkbenchThemeProvider>
   );
 };
 
@@ -68,6 +71,8 @@ const commandKeybindingThemeWorkbench = createWorkbench(createCommandKeybindingT
 const focusContextWorkbench = createWorkbench(createFocusContextModule());
 const navigationWorkbench = createWorkbench(createNavigationModule());
 const dataRendererFavoritesWorkbench = createWorkbench(createDataRendererStoryModule());
+const extensionsWorkbench = createExtensionThemesWorkbench();
+const widgetVariantsWorkbench = createWorkbench(createWidgetVariantsModule());
 
 export const EmptyWorkbench: Story = {
   name: "0. Empty workbench",
@@ -133,4 +138,16 @@ export const DataRendererAndFavorites: Story = {
   name: "10. Data renderer and favorites",
   parameters: sourceParameters(dataRendererFavoritesSource),
   render: () => <WorkbenchFrame workbench={dataRendererFavoritesWorkbench} />,
+};
+
+export const Extensions: Story = {
+  name: "11. Extensions",
+  parameters: sourceParameters(extensionsSource),
+  render: () => <WorkbenchFrame workbench={extensionsWorkbench} />,
+};
+
+export const WidgetVariants: Story = {
+  name: "12. Widget variants",
+  parameters: sourceParameters(widgetVariantsSource),
+  render: () => <WorkbenchFrame workbench={widgetVariantsWorkbench} />,
 };
