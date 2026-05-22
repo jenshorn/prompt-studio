@@ -4,10 +4,6 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { Archive, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActionParamsDialog } from "@/features/plugin-actions/components/action-params-dialog";
-import type { HeaderActionItem } from "@/features/plugin-actions/components/header-action-groups";
-import { usePluginActionTrigger } from "@/features/plugin-actions/hooks/use-plugin-action-trigger";
-import { buildResourceContextMenuActions } from "@/features/plugin-actions/hooks/use-resource-context-menu";
 import { ProjectSidebar } from "@/features/project/components/project-sidebar";
 import { useProject } from "@/features/project/hooks/use-project";
 import { openTicketSessionBubble } from "@/features/ticket/utils/open-ticket-session-bubble";
@@ -19,8 +15,12 @@ import {
   useUpdateProjectTicketStatus,
 } from "@/features/ticket-list/hooks/use-project-tickets";
 import { useTicketAttemptDiffs } from "@/features/ticket-list/hooks/use-ticket-attempt-diffs";
-import type { TicketColumnAction, TicketStatus } from "@/features/ticket-list/types";
+import type { Ticket, TicketColumnAction, TicketStatus } from "@/features/ticket-list/types";
 import { useAttemptStatusMap } from "@/features/workspaces/hooks/use-attempt-status-map";
+import type { HeaderActionItem } from "@/shared/extensions/components/header-actions";
+import { headerActionsToResourceContextActions } from "@/shared/extensions/context-menu-actions";
+import { useExtensionResourceContextMenuActions } from "@/shared/extensions/hooks/use-extension-resource-context-menu-actions";
+import { buildTicketExtensionResource } from "@/shared/extensions/resource-context";
 import { useDeferredPageMount } from "@/shared/performance/use-deferred-page-mount";
 import { useProjectSettingsStore, useProjectSettingsStoreApi } from "@/shared/stores/project-settings";
 
@@ -34,17 +34,20 @@ import { type BadgeContext, DEFAULT_DISPLAY_SETTINGS, type DisplaySettings } fro
 import { buildLatestAttemptsByTicketId } from "../utils/ticket-attempts";
 import { groupTickets, orderTickets } from "../utils/ticket-grouping";
 import { getVisibleTickets } from "../utils/ticket-visibility";
+import { navigateToTicketDetails, navigateToTicketWorkspace } from "./ticket-navigation";
 import { useCreateTicketShortcut } from "./use-create-ticket-shortcut";
+
+const TICKET_CONTEXT_MENU_EXTENSION_SLOTS = ["ticket.headerPrimary", "ticket.headerOverflow"];
 
 const buildTicketOverflowActions = (input: {
   ticketId: string;
   archived: boolean;
   projectId: string | undefined;
-  updateTicket: { isPending: boolean; mutate: (payload: { ticketId: string; archived: boolean }) => void };
-  deleteTicket: { isPending: boolean };
+  updateTicket: ReturnType<typeof useUpdateProjectTicket>;
+  deleteTicket: ReturnType<typeof useDeleteProjectTicket>;
   onDeleteOpen: () => void;
   t: (key: string) => string;
-}): HeaderActionItem[] => {
+}) => {
   const { ticketId, archived, projectId, updateTicket, deleteTicket, onDeleteOpen, t } = input;
 
   return [
@@ -66,30 +69,34 @@ const buildTicketOverflowActions = (input: {
       isDisabled: !projectId || deleteTicket.isPending,
       onClick: onDeleteOpen,
     },
+  ] satisfies HeaderActionItem[];
+};
+
+const buildTicketContextMenuActions = (input: {
+  ticket: Ticket;
+  projectId: string | undefined;
+  extensionActions: ReturnType<typeof useExtensionResourceContextMenuActions>;
+  updateTicket: ReturnType<typeof useUpdateProjectTicket>;
+  deleteTicket: ReturnType<typeof useDeleteProjectTicket>;
+  onDeleteOpen: (ticketId: string) => void;
+  t: (key: string) => string;
+}) => {
+  const { ticket, projectId, extensionActions, updateTicket, deleteTicket, onDeleteOpen, t } = input;
+
+  return [
+    ...extensionActions.resolveActions(buildTicketExtensionResource({ projectId, ticket })),
+    ...headerActionsToResourceContextActions({
+      actions: buildTicketOverflowActions({
+        ticketId: ticket.id,
+        archived: Boolean(ticket.archived),
+        projectId,
+        updateTicket,
+        deleteTicket,
+        onDeleteOpen: () => onDeleteOpen(ticket.id),
+        t,
+      }),
+    }),
   ];
-};
-
-const navigateToTicketDetails = (
-  navigate: ReturnType<typeof useNavigate>,
-  projectId: string,
-  ticketShorthand: string,
-) => {
-  navigate({
-    to: "/projects/$projectId/tickets/$ticketShorthand",
-    params: { projectId, ticketShorthand },
-  });
-};
-
-const navigateToTicketWorkspace = (
-  navigate: ReturnType<typeof useNavigate>,
-  projectId: string,
-  ticketShorthand: string,
-  workspaceShorthand: string,
-) => {
-  navigate({
-    to: "/projects/$projectId/tickets/$ticketShorthand/workspaces/$workspaceShorthand",
-    params: { projectId, ticketShorthand, workspaceShorthand },
-  });
 };
 
 export const TicketsPanel = () => {
@@ -170,13 +177,8 @@ export const TicketsPanel = () => {
     });
   };
 
-  const pluginActionTrigger = usePluginActionTrigger({
-    projectId,
-    targetType: "ticket",
-    onSuccess: async (result) => {
-      if (!result.session_id) return;
-      await handleOpenSessionBubble(result.session_id);
-    },
+  const ticketContextMenuActions = useExtensionResourceContextMenuActions({
+    slotId: TICKET_CONTEXT_MENU_EXTENSION_SLOTS,
   });
 
   const handleMoveTicket = (ticketId: string, status: TicketStatus) => {
@@ -240,20 +242,15 @@ export const TicketsPanel = () => {
     }
   };
 
-  const buildContextMenuActions = (ticketId: string, archived: boolean) =>
-    buildResourceContextMenuActions({
-      pluginActions: pluginActionTrigger.pluginActions,
-      defaultOverflowActions: buildTicketOverflowActions({
-        ticketId,
-        archived,
-        projectId,
-        updateTicket,
-        deleteTicket,
-        onDeleteOpen: () => setDeleteTicketId(ticketId),
-        t,
-      }),
-      pendingActionKeys: pluginActionTrigger.pendingActionKeys,
-      onPluginAction: (actionKey) => void pluginActionTrigger.trigger(actionKey, ticketId),
+  const buildContextMenuActions = (ticket: Ticket) =>
+    buildTicketContextMenuActions({
+      ticket,
+      projectId,
+      extensionActions: ticketContextMenuActions,
+      updateTicket,
+      deleteTicket,
+      onDeleteOpen: setDeleteTicketId,
+      t,
     });
 
   return (
@@ -281,7 +278,7 @@ export const TicketsPanel = () => {
                 workspaceShorthand &&
                 navigateToTicketWorkspace(navigate, projectId, ticket.shorthand, workspaceShorthand)
               }
-              resolveContextMenuActions={(ticket) => buildContextMenuActions(ticket.id, Boolean(ticket.archived))}
+              resolveContextMenuActions={buildContextMenuActions}
               onCreateStart={(status) => openCreateModal(status)}
               onColumnAction={handleColumnAction}
             />
@@ -291,7 +288,7 @@ export const TicketsPanel = () => {
               displayProperties={settings.displayProperties}
               badgeContext={badgeContext}
               onSelectTicket={(ticket) => projectId && navigateToTicketDetails(navigate, projectId, ticket.shorthand)}
-              resolveContextMenuActions={(ticket) => buildContextMenuActions(ticket.id, Boolean(ticket.archived))}
+              resolveContextMenuActions={buildContextMenuActions}
             />
           )}
         </Stack>
@@ -308,16 +305,7 @@ export const TicketsPanel = () => {
           statusOptions={statusOptions}
         />
 
-        {pluginActionTrigger.activeParamAction && projectId ? (
-          <ActionParamsDialog
-            open
-            action={pluginActionTrigger.activeParamAction}
-            projectId={projectId}
-            isSubmitting={pluginActionTrigger.activeParamActionIsPending}
-            onClose={pluginActionTrigger.cancelParams}
-            onSubmit={(params) => pluginActionTrigger.submitWithParams(params)}
-          />
-        ) : null}
+        {ticketContextMenuActions.paramsDialog}
 
         <DeleteConfirmationModal
           open={Boolean(deleteTicketId)}

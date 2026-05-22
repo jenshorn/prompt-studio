@@ -1,17 +1,9 @@
 import { Flex, Stack } from "@chakra-ui/react";
-import { Breadcrumb, DeleteConfirmationModal, HorizontalMenuStack, PanelLayout } from "@pstdio/ui";
-import { Link } from "@tanstack/react-router";
+import { DeleteConfirmationModal, PanelLayout } from "@pstdio/ui";
 import { KanbanSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ActionParamsDialog } from "@/features/plugin-actions/components/action-params-dialog";
-import { PluginHeaderActions } from "@/features/plugin-actions/components/plugin-header-actions";
-import type { usePluginActionTrigger } from "@/features/plugin-actions/hooks/use-plugin-action-trigger";
-import {
-  buildResourceContextMenuActions,
-  toSidebarContextMenuItems,
-} from "@/features/plugin-actions/hooks/use-resource-context-menu";
-import { CreateWorkspaceModal } from "@/features/ticket/components/create-workspace-modal";
 import { TICKET_SIDEBAR_STORAGE_KEY, TicketSidebar } from "@/features/ticket/components/ticket-sidebar";
+import { WorkspaceCreationDialogs } from "@/features/ticket/components/workspace-creation-dialogs";
 import { formatTicketBreadcrumbLabel } from "@/features/ticket/utils/ticket-breadcrumb";
 import type { buildSelectableTicketFiles } from "@/features/ticket/utils/ticket-file-selection";
 import type { useProjectTickets } from "@/features/ticket-list/hooks/use-project-tickets";
@@ -19,13 +11,21 @@ import type { TicketSubTicket } from "@/features/ticket-list/types";
 import type { transformFileDiffs } from "@/features/workspaces/utils/transform-diff";
 import { getAttemptLabelFromWorkspaceShorthand } from "@/features/workspaces/utils/workspace-shorthand";
 import type { ApiFileDiff, ApiWorkspaceArtifact } from "@/shared/api-types";
+import { HeaderActions, mergeHeaderOverflowActions } from "@/shared/extensions/components/header-actions";
+import {
+  headerActionsToResourceContextActions,
+  toSidebarContextMenuItems,
+} from "@/shared/extensions/context-menu-actions";
+import { useExtensionHeaderActions } from "@/shared/extensions/hooks/use-extension-header-actions";
+import { useExtensionResourceContextMenuActions } from "@/shared/extensions/hooks/use-extension-resource-context-menu-actions";
+import { buildWorkspaceExtensionResource } from "@/shared/extensions/resource-context";
 import { useDeferredPageMount } from "@/shared/performance/use-deferred-page-mount";
-import { OpenSidebarButton } from "@/shared/sidebar/open-sidebar-button";
 import { WorkspaceDiffPanel } from "../components/workspace-diff-panel";
 import type { WorkspaceListItem } from "../components/workspace-list-panel";
 import type { useAttemptStatusMap } from "../hooks/use-attempt-status-map";
 import type { useWorkspaceSessions } from "../hooks/use-workspace-sessions";
 import { buildWorkspaceDeleteOverflowAction } from "./workspace-page-actions";
+import { WorkspacePageHeader } from "./workspace-page-header";
 import type { WorkspacePageTab } from "./workspace-page-tab";
 
 interface WorkspacePageContentProps {
@@ -67,11 +67,6 @@ interface WorkspacePageContentProps {
     id: string;
     agentSessionId?: string | null;
   }) => ReturnType<typeof toSidebarContextMenuItems>;
-  pluginActions: ReturnType<typeof usePluginActionTrigger>["pluginActions"];
-  pluginActionsLoading: boolean;
-  pluginActionTrigger: ReturnType<typeof usePluginActionTrigger>;
-  ticketActionTrigger: ReturnType<typeof usePluginActionTrigger>;
-  sessionActionTrigger: ReturnType<typeof usePluginActionTrigger>;
   isTicketDeleteOpen: boolean;
   closeTicketDeleteModal: () => void;
   deleteTicket: () => Promise<void>;
@@ -81,62 +76,6 @@ interface WorkspacePageContentProps {
   closeDeleteModal: () => void;
   deleteWorkspace: () => Promise<void>;
 }
-
-const WorkspaceCreationModals = (props: {
-  attemptsCount: number;
-  isSubmitting: boolean;
-  isCreateWorkspaceModalOpen: boolean;
-  closeCreateWorkspaceModal: () => void;
-  createWorkspaceLabel: string;
-  createWorkspaceDescription: string;
-  createEmptyWorkspace: () => Promise<boolean>;
-}) => {
-  const {
-    attemptsCount,
-    isSubmitting,
-    isCreateWorkspaceModalOpen,
-    closeCreateWorkspaceModal,
-    createWorkspaceLabel,
-    createWorkspaceDescription,
-    createEmptyWorkspace,
-  } = props;
-
-  return (
-    <>
-      {isCreateWorkspaceModalOpen ? (
-        <CreateWorkspaceModal
-          open={isCreateWorkspaceModalOpen}
-          attemptCount={attemptsCount}
-          showAgentSelector={false}
-          isSubmitting={isSubmitting}
-          confirmLabel={createWorkspaceLabel}
-          description={createWorkspaceDescription}
-          onClose={closeCreateWorkspaceModal}
-          onConfirm={createEmptyWorkspace}
-        />
-      ) : null}
-    </>
-  );
-};
-
-const ActionParamsModal = (props: { projectId: string; actionTrigger: ReturnType<typeof usePluginActionTrigger> }) => {
-  const { projectId, actionTrigger } = props;
-
-  if (!actionTrigger.activeParamAction) {
-    return null;
-  }
-
-  return (
-    <ActionParamsDialog
-      open
-      action={actionTrigger.activeParamAction}
-      projectId={projectId}
-      isSubmitting={actionTrigger.activeParamActionIsPending}
-      onClose={actionTrigger.cancelParams}
-      onSubmit={(params) => actionTrigger.submitWithParams(params)}
-    />
-  );
-};
 
 export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
   const {
@@ -175,11 +114,6 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
     createEmptyWorkspace,
     resolveTicketContextMenuItems,
     resolveSessionContextMenuItems,
-    pluginActions,
-    pluginActionsLoading,
-    pluginActionTrigger,
-    ticketActionTrigger,
-    sessionActionTrigger,
     isTicketDeleteOpen,
     closeTicketDeleteModal,
     deleteTicket,
@@ -201,6 +135,44 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
     isMutationPending: deleteWorkspaceIsPending,
     onDeleteWorkspace: openDeleteModal,
   });
+  const workspaceResource = selectedWorkspace
+    ? buildWorkspaceExtensionResource({ projectId, ticket, workspace: selectedWorkspace })
+    : undefined;
+  const workspaceOverflowActions = useExtensionHeaderActions({
+    slotId: "workspace.headerOverflow",
+    resource: workspaceResource,
+    enabled: Boolean(workspaceResource),
+  });
+  const workspaceContextMenuActions = useExtensionResourceContextMenuActions({
+    slotId: ["workspace.headerPrimary", "workspace.headerOverflow"],
+  });
+  const headerOverflowActions = mergeHeaderOverflowActions({
+    customActions: workspaceOverflowActions.actions,
+    defaultActions: defaultOverflowActions,
+  });
+  const headerPendingActionKeys = workspaceOverflowActions.pendingActionKeys;
+  const breadcrumbItems = [
+    {
+      title: (
+        <Flex as="span" align="center" gap="2xs">
+          <KanbanSquare size={14} />
+          {t("sidebar.tickets")}
+        </Flex>
+      ),
+      url: projectId ? `/projects/${projectId}/tickets` : undefined,
+    },
+    {
+      title: formatTicketBreadcrumbLabel(ticket.shorthand, ticket.title),
+      url: projectId && ticketShorthand ? `/projects/${projectId}/tickets/${ticketShorthand}` : undefined,
+    },
+    {
+      title: getAttemptLabelFromWorkspaceShorthand(selectedWorkspaceLabel),
+      url:
+        projectId && ticketShorthand && selectedWorkspaceLabel
+          ? `/projects/${projectId}/tickets/${ticketShorthand}/workspaces/${selectedWorkspaceLabel}`
+          : undefined,
+    },
+  ];
 
   const sidebar = (
     <TicketSidebar
@@ -223,10 +195,12 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
       onSelectPlanning={selectPlanning}
       resolveTicketContextMenuItems={resolveTicketContextMenuItems}
       resolveWorkspaceContextMenuItems={(workspace) =>
-        toSidebarContextMenuItems(
-          buildResourceContextMenuActions({
-            pluginActions,
-            defaultOverflowActions: buildWorkspaceDeleteOverflowAction({
+        toSidebarContextMenuItems([
+          ...workspaceContextMenuActions.resolveActions(
+            buildWorkspaceExtensionResource({ projectId, ticket, workspace }),
+          ),
+          ...headerActionsToResourceContextActions({
+            actions: buildWorkspaceDeleteOverflowAction({
               t,
               hasSelectedWorkspace: true,
               isMutationPending: deleteWorkspaceIsPending,
@@ -235,10 +209,8 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
                 openDeleteModal();
               },
             }),
-            pendingActionKeys: pluginActionTrigger.pendingActionKeys,
-            onPluginAction: (actionKey) => void pluginActionTrigger.trigger(actionKey, workspace.id),
           }),
-        )
+        ])
       }
       resolveSessionContextMenuItems={resolveSessionContextMenuItems}
     />
@@ -246,50 +218,17 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
   return (
     <PanelLayout sidebar={sidebar}>
       <Stack flex="1" gap="0" minH="0">
-        <HorizontalMenuStack>
-          <Flex align="center" gap="sm">
-            <OpenSidebarButton storageKey={TICKET_SIDEBAR_STORAGE_KEY} />
-            <Breadcrumb
-              separator="/"
-              separatorGap="xs"
-              linkComponent={Link}
-              items={[
-                {
-                  title: (
-                    <Flex as="span" align="center" gap="2xs">
-                      <KanbanSquare size={14} />
-                      {t("sidebar.tickets")}
-                    </Flex>
-                  ),
-                  url: projectId ? `/projects/${projectId}/tickets` : undefined,
-                },
-                {
-                  title: formatTicketBreadcrumbLabel(ticket.shorthand, ticket.title),
-                  url: projectId && ticketShorthand ? `/projects/${projectId}/tickets/${ticketShorthand}` : undefined,
-                },
-                {
-                  title: getAttemptLabelFromWorkspaceShorthand(selectedWorkspaceLabel),
-                  url:
-                    projectId && ticketShorthand && selectedWorkspaceLabel
-                      ? `/projects/${projectId}/tickets/${ticketShorthand}/workspaces/${selectedWorkspaceLabel}`
-                      : undefined,
-                },
-              ]}
-            />
-          </Flex>
-
-          <PluginHeaderActions
-            pluginActions={pluginActions}
-            defaultOverflowActions={defaultOverflowActions}
-            onPluginAction={(actionKey) => {
-              if (!selectedWorkspace) return;
-              void pluginActionTrigger.trigger(actionKey, selectedWorkspace.id);
-            }}
-            pendingActionKeys={pluginActionTrigger.pendingActionKeys}
+        <WorkspacePageHeader
+          breadcrumbItems={breadcrumbItems}
+          extensionResource={workspaceResource}
+          sidebarStorageKey={TICKET_SIDEBAR_STORAGE_KEY}
+        >
+          <HeaderActions
+            overflowActions={headerOverflowActions}
+            pendingActionKeys={headerPendingActionKeys}
             overflowLabel={t("workspacePanel.options.workspace")}
-            isLoading={pluginActionsLoading}
           />
-        </HorizontalMenuStack>
+        </WorkspacePageHeader>
 
         <Flex flex="1" minH="0">
           <WorkspaceDiffPanel
@@ -305,7 +244,7 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
           />
         </Flex>
 
-        <WorkspaceCreationModals
+        <WorkspaceCreationDialogs
           attemptsCount={attempts.length}
           isSubmitting={createAttemptIsPending}
           isCreateWorkspaceModalOpen={isCreateWorkspaceModalOpen}
@@ -315,11 +254,8 @@ export const WorkspacePageContent = (props: WorkspacePageContentProps) => {
           createEmptyWorkspace={createEmptyWorkspace}
         />
 
-        {projectId ? <ActionParamsModal projectId={projectId} actionTrigger={pluginActionTrigger} /> : null}
-
-        {projectId ? <ActionParamsModal projectId={projectId} actionTrigger={ticketActionTrigger} /> : null}
-
-        {projectId ? <ActionParamsModal projectId={projectId} actionTrigger={sessionActionTrigger} /> : null}
+        {workspaceOverflowActions.paramsDialog}
+        {workspaceContextMenuActions.paramsDialog}
 
         <DeleteConfirmationModal
           open={isTicketDeleteOpen}

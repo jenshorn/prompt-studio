@@ -3,9 +3,9 @@ import { defineExtension, packageAsset } from "@pstdio/sdk/extensions";
 export default defineExtension({
   skills: {
     create_proposal: { title: "Create a proposal", source: packageAsset("./skills/create-proposal", import.meta.url) },
-    create_pstdio_plugin: {
-      title: "Create a pstdio plugin",
-      source: packageAsset("./skills/create-pstdio-plugin", import.meta.url),
+    create_pstdio_extension: {
+      title: "Create a pstdio extension",
+      source: packageAsset("./skills/create-pstdio-extension", import.meta.url),
     },
     create_sub_tickets: {
       title: "Create sub-tickets",

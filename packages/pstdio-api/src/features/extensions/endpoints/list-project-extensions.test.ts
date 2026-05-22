@@ -6,6 +6,7 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import { createApp } from "../../../app";
 import { resolveTestFilesRoot } from "../../../test-utils/resolve-test-files-root";
 import type { AppBindings } from "../../../types";
+import { createTestExtensionSource } from "../test-utils/create-test-extension-source";
 
 type AppHandle = Awaited<ReturnType<typeof createApp>>;
 
@@ -48,13 +49,14 @@ const seedInstance = async (
     version?: string | null;
   },
 ) => {
+  const sourcePath = createTestExtensionSource({ ...fields, root: tempRoot });
   const installedSource = await handle.deps.extensionService.registerInstalledSource({
     displayName: fields.displayName,
     extensionId: fields.extensionId,
     installName: fields.installName,
     manifest: { id: fields.extensionId, name: fields.name, displayName: fields.displayName },
     name: fields.name,
-    sourcePath: join(tempRoot, "extensions", fields.installName),
+    sourcePath,
     version: fields.version ?? null,
   });
 

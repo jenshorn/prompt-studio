@@ -8,6 +8,19 @@ export {
   type GuestHost,
   type PropsStore,
 } from "./define-extension-view";
+export type {
+  AttemptStatusChangePayload,
+  CommitPayload,
+  ConflictPayload,
+  MergePayload,
+  RebasePayload,
+  SessionLifecyclePayload,
+  TicketArchivedEventPayload,
+  TicketLifecyclePayload,
+  TicketStatusChangePayload,
+  WorktreeCreatedEventPayload,
+  WorktreeRemovedPayload,
+} from "./kernel-slots";
 export {
   attemptStatusEvents,
   gitEvents,
@@ -16,6 +29,7 @@ export {
   sessionEvents,
   sessionSlots,
   ticketEvents,
+  ticketSlots,
   workspaceCommands,
   workspaceEvents,
   workspaceSlots,
