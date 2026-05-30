@@ -1,5 +1,5 @@
-import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { ScrollArea } from "@/components/scroll-area";
 import { MarkdownEditor } from "./markdown-editor";
 
 const message = `
@@ -159,13 +159,13 @@ export function greet(name: string) {
 `;
 
 const meta: Meta<typeof MarkdownEditor> = {
-  title: "Editors/Markdown Editor",
+  title: "Patterns/Editors/Markdown Editor",
   component: MarkdownEditor,
   decorators: [
     (Story) => (
-      <Box height="520px" overflowY="auto" bg="bg" borderWidth="1px" borderColor="border.muted">
+      <ScrollArea height="520px" bg="bg" borderWidth="1px" borderColor="border.muted">
         <Story />
-      </Box>
+      </ScrollArea>
     ),
   ],
   parameters: {

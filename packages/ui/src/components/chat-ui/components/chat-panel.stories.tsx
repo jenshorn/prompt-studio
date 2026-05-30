@@ -36,7 +36,7 @@ const longPromptMessages: SessionMessage[] = [
 ];
 
 const meta: Meta<typeof ChatPanel> = {
-  title: "Chat UI/Chat Panel",
+  title: "Patterns/Chat/Chat Panel",
   component: ChatPanel,
   parameters: {
     layout: "padded",

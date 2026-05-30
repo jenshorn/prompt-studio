@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Switch } from "./switch";
 
 const meta = {
-  title: "Components/Switch",
+  title: "Components/Inputs/Switch",
   component: Switch,
   decorators: [
     (Story: () => ReactNode) => (

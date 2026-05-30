@@ -193,7 +193,7 @@ const DiffViewerStressStory = () => {
 };
 
 const meta: Meta<typeof DiffViewer> = {
-  title: "Components/Diff/DiffViewer",
+  title: "Patterns/Diff/Diff Viewer",
   component: DiffViewer,
   parameters: {
     layout: "fullscreen",

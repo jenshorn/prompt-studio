@@ -5,7 +5,7 @@ import { expect } from "storybook/test";
 import { Slider } from "./slider";
 
 const meta = {
-  title: "Components/Slider",
+  title: "Components/Inputs/Slider",
   component: Slider,
   args: {
     min: 0,
