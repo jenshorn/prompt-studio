@@ -1,4 +1,5 @@
 import { Badge, Box, Button, Code, HStack, Stack, Text } from "@chakra-ui/react";
+import { ScrollArea } from "@pstdio/ui";
 import type {
   WorkbenchCore,
   WorkbenchModuleContribution,
@@ -172,12 +173,12 @@ const ContextSnapshot = (props: ContextStatusProps) => {
   const values = useWorkbenchStore(workbench.context.store, (state) => state.values);
 
   return (
-    <Box h="full" p="md" overflow="auto" bg="bg.subtle">
+    <ScrollArea h="full" bg="bg.subtle" contentProps={{ p: "md" }}>
       <Text textStyle="label/S/semibold">Context keys</Text>
       <Text as="pre" mt="sm" fontFamily="mono" fontSize="xs" whiteSpace="pre-wrap">
         {JSON.stringify(values, null, 2)}
       </Text>
-    </Box>
+    </ScrollArea>
   );
 };
 
@@ -218,7 +219,7 @@ export const createFocusContextModule = (): WorkbenchModuleContribution => ({
     ctx.layout.registerWidget({
       id: FOCUS_CONTEXT_PANEL_WIDGET_ID,
       title: "Context",
-      area: "main-bottom",
+      area: "secondary",
       areaSize: { defaultPx: 220, minPx: 160 },
       rendererId: FOCUS_CONTEXT_RENDERER_ID,
     });

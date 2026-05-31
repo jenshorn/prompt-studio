@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import type { DbClient } from "../../db/connection.pglite";
 import { extension_reload_events, installed_extension_sources } from "../../db/schemas.pg";
 
@@ -56,6 +56,30 @@ export const createInstalledExtensionSourcesDBService = (db: DbClient) => {
     return row ?? null;
   };
 
+  const getBySourcePath = async (sourcePath: string) => {
+    const [row] = await db
+      .select()
+      .from(installed_extension_sources)
+      .where(eq(installed_extension_sources.source_path, sourcePath));
+    return row ?? null;
+  };
+
+  const listBySourcePathPrefix = async (sourcePathPrefix: string) => {
+    const childPathPrefix = `${sourcePathPrefix}/`;
+    const nextPathPrefix = `${sourcePathPrefix}0`;
+
+    return db
+      .select()
+      .from(installed_extension_sources)
+      .where(
+        and(
+          gte(installed_extension_sources.source_path, childPathPrefix),
+          lt(installed_extension_sources.source_path, nextPathPrefix),
+        ),
+      )
+      .orderBy(installed_extension_sources.install_name);
+  };
+
   const register = async (input: RegisterInput) => {
     const timestamp = nowTimestamp();
     const row: InstalledSourceInsert = {
@@ -88,6 +112,12 @@ export const createInstalledExtensionSourcesDBService = (db: DbClient) => {
       .returning();
     return updated ?? null;
   };
+
+  const markStatus = async (
+    id: string,
+    status: InstalledSourceRow["status"],
+    lastErrorJson?: InstalledSourceRow["last_error_json"],
+  ) => updateLoadState(id, { status, last_error_json: lastErrorJson ?? null });
 
   const remove = async (id: string) => {
     const deleted = await db
@@ -125,9 +155,12 @@ export const createInstalledExtensionSourcesDBService = (db: DbClient) => {
     list,
     get,
     getByInstallName,
+    getBySourcePath,
+    listBySourcePathPrefix,
     register,
     updateLoadState,
     updateRegistration,
+    markStatus,
     remove,
     recordReload,
     listReloadEvents,

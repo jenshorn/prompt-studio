@@ -1,5 +1,5 @@
 import { Badge, Box, Button, Code, Grid, HStack, Kbd, Stack, Text } from "@chakra-ui/react";
-import { useThemePreference } from "@pstdio/ui";
+import { ScrollArea, useThemePreference } from "@pstdio/ui";
 import {
   createWorkbenchCore,
   type RegisteredKeybinding,
@@ -81,7 +81,7 @@ const FoundationPanel = (props: { input: WorkbenchWidgetRenderInput }) => {
   const keybindings = input.workbench.keybindings.listKeybindings();
 
   return (
-    <Stack gap="md" h="full" overflow="auto" p="lg">
+    <ScrollArea h="full" contentProps={{ p: "lg", display: "flex", flexDirection: "column", gap: "md" }}>
       <HStack gap="sm" wrap="wrap">
         <Badge colorPalette="blue">mode {activeMode}</Badge>
         <Badge colorPalette="green">focus {focusArea}</Badge>
@@ -115,9 +115,11 @@ const FoundationPanel = (props: { input: WorkbenchWidgetRenderInput }) => {
       <Grid templateColumns={{ base: "1fr", lg: "minmax(0, 1fr) minmax(0, 1fr)" }} gap="md">
         <Box borderWidth="1px" borderColor="border.muted" p="md">
           <Text textStyle="label/S/semibold">Context</Text>
-          <Text as="pre" fontFamily="mono" fontSize="xs" overflow="auto" whiteSpace="pre-wrap">
-            {JSON.stringify(context, null, 2)}
-          </Text>
+          <ScrollArea>
+            <Text as="pre" fontFamily="mono" fontSize="xs" whiteSpace="pre-wrap">
+              {JSON.stringify(context, null, 2)}
+            </Text>
+          </ScrollArea>
         </Box>
         <Box borderWidth="1px" borderColor="border.muted" p="md">
           <Text textStyle="label/S/semibold">Keybindings</Text>
@@ -132,7 +134,7 @@ const FoundationPanel = (props: { input: WorkbenchWidgetRenderInput }) => {
           </Stack>
         </Box>
       </Grid>
-    </Stack>
+    </ScrollArea>
   );
 };
 
@@ -161,7 +163,7 @@ const registerWidgets = (workbench: WorkbenchCore) => {
   workbench.layout.registerWidget({
     id: "foundation.activity",
     title: "Activity",
-    area: "activityBar",
+    area: "activity",
     rendererId: foundationRendererId,
     config: "Blocks",
   });
@@ -182,7 +184,7 @@ const registerWidgets = (workbench: WorkbenchCore) => {
   workbench.layout.registerWidget({
     id: "foundation.panel",
     title: "Panel",
-    area: "main-bottom",
+    area: "secondary",
     rendererId: foundationRendererId,
     closable: true,
   });
@@ -207,7 +209,7 @@ export const createFoundationWorkbench = () => {
   registerWidgets(workbench);
   workbench.context.set("foundation.host", true);
   workbench.layout.setAreaSize("left", 280);
-  workbench.layout.setAreaSize("main-bottom", 260);
+  workbench.layout.setAreaSize("secondary", 260);
   workbench.layout.openWidget("foundation.activity", { pinned: true });
   workbench.layout.openWidget("foundation.sidebar", { pinned: true });
   workbench.layout.openWidget("foundation.status", { pinned: true });

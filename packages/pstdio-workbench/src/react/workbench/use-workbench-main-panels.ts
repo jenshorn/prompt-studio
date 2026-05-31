@@ -20,7 +20,7 @@ export interface WorkbenchMainPanels {
   mainBottom: WorkbenchPanelView;
 }
 
-type MainPanelAreaId = "main-left" | "main-right" | "main-bottom";
+type MainPanelAreaId = "main-left" | "main-right" | "secondary";
 
 // Derives the main-area panel state from the layout and panels stores. Owned by
 // WorkbenchBody — WorkbenchContent does not use any of these values itself.
@@ -31,13 +31,29 @@ export const useWorkbenchMainPanels = (workbench: WorkbenchCore): WorkbenchMainP
 
   const hasContent = (area: WorkbenchArea) => areas[area].widgets.length > 0 || Boolean(placeholders[area]);
 
-  const resolvePanel = (area: MainPanelAreaId, headerArea: WorkbenchArea): WorkbenchPanelView => {
-    const collapsible = resolvePanelCollapsible(workbench, headerArea, area);
+  // main-left / main-right are companions of the primary (main) anchor — they only make
+  // sense alongside a main resource. When `main` has no active resource (e.g. the last
+  // main tab was closed) they are hidden by the framework, so apps never wire that.
+  const mainActive = areas.main.widgets.find((p) => p.widgetId === areas.main.activeWidgetId) ?? areas.main.widgets[0];
+  const hasPrimary = Boolean(mainActive?.resource);
+
+  // The side regions (main-left / main-right) are headerless; only `secondary` carries a
+  // header area, so `headerArea` is optional. `companionOfPrimary` panels also require a
+  // primary resource to be shown.
+  const resolvePanel = (
+    area: MainPanelAreaId,
+    headerArea?: WorkbenchArea,
+    companionOfPrimary = false,
+  ): WorkbenchPanelView => {
+    const collapsible = headerArea
+      ? resolvePanelCollapsible(workbench, headerArea, area)
+      : resolvePanelCollapsible(workbench, area);
     const open = openByAreaId[area] ?? true;
+    const hasOwnContent = hasContent(area) || (headerArea ? hasContent(headerArea) : false);
 
     return {
-      has: hasContent(area) || hasContent(headerArea),
-      hasHeader: hasContent(headerArea),
+      has: hasOwnContent && (!companionOfPrimary || hasPrimary),
+      hasHeader: headerArea ? hasContent(headerArea) : false,
       collapsible,
       collapsed: !open && collapsible,
       onOpen: () => setWorkbenchPanelOpen(workbench, area, true),
@@ -49,8 +65,8 @@ export const useWorkbenchMainPanels = (workbench: WorkbenchCore): WorkbenchMainP
 
   return {
     hasMainHeader: hasContent("main-header"),
-    mainLeft: resolvePanel("main-left", "main-left-header"),
-    mainRight: resolvePanel("main-right", "main-right-header"),
-    mainBottom: resolvePanel("main-bottom", "main-bottom-header"),
+    mainLeft: resolvePanel("main-left", undefined, true),
+    mainRight: resolvePanel("main-right", undefined, true),
+    mainBottom: resolvePanel("secondary", "secondary-header"),
   };
 };

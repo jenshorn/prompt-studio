@@ -10,6 +10,7 @@ interface TicketsListViewProps {
   groups: TicketGroup[];
   displayProperties: DisplayProperty[];
   badgeContext: BadgeContext;
+  onMoveTicket?: (ticketId: string, nextStatus: string) => void;
   onSelectTicket?: (ticket: Ticket) => void;
   selectedTicketId?: string | null;
   resolveContextMenuActions?: (ticket: Ticket) => ResourceContextAction[];
@@ -20,29 +21,40 @@ export const TicketsListView = (props: TicketsListViewProps) => {
     groups,
     displayProperties,
     badgeContext,
+    onMoveTicket,
     onSelectTicket,
     selectedTicketId = null,
     resolveContextMenuActions,
   } = props;
   const { t } = useTranslation("tickets");
 
-  const toListItem = (ticket: Ticket, onSelect?: (ticket: Ticket) => void): DataRendererListItem => {
+  const toListItem = (
+    ticket: Ticket,
+    group: TicketGroup,
+    onSelect?: (ticket: Ticket) => void,
+  ): DataRendererListItem => {
     const contextMenuActions = resolveContextMenuActions?.(ticket);
+    const title = ticket.title || t("listView.emptyTicket");
 
     return {
       id: ticket.id,
-      ticketId: ticket.shorthand,
-      title: ticket.title || t("listView.emptyTicket"),
+      title: `${ticket.shorthand} ${title}`,
       badges: buildTicketBadges(ticket, displayProperties, badgeContext),
-      date: new Date(ticket.updatedAt).toLocaleDateString(),
       onClick: () => onSelect?.(ticket),
+      draggable: Boolean(onMoveTicket && group.canDragOut),
+      onDropRow: onMoveTicket && group.canDragIn ? (draggedId: string) => onMoveTicket(draggedId, group.id) : undefined,
       ...(contextMenuActions ? { contextMenuActions } : {}),
-    } as DataRendererListItem;
+    };
   };
 
-  const items: DataRendererListItem[] = groups.flatMap((group) =>
-    group.tickets.map((ticket) => toListItem(ticket, onSelectTicket)),
-  );
+  const items: DataRendererListItem[] = groups.map((group) => ({
+    id: `group:${group.id}`,
+    title: group.label,
+    countBadge: group.tickets.length,
+    countColorPalette: group.color,
+    onDropRow: onMoveTicket && group.canDragIn ? (ticketId: string) => onMoveTicket(ticketId, group.id) : undefined,
+    children: group.tickets.map((ticket) => toListItem(ticket, group, onSelectTicket)),
+  }));
 
   return <DataRendererList items={items} selectedItemId={selectedTicketId} />;
 };

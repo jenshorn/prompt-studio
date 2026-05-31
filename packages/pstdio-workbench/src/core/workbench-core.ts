@@ -9,23 +9,27 @@ import {
 import { createWorkbenchFocusController, type WorkbenchFocusController } from "./controllers/focus/focus-controller";
 import { createHistoryController, type HistoryController } from "./controllers/history/history-controller";
 import {
+  createWorkbenchLastResourceController,
+  type LastResourcePersistenceAdapter,
+  type WorkbenchLastResourceController,
+} from "./controllers/last-resource/last-resource-controller";
+import {
   createWorkbenchPanelsController,
   type WorkbenchPanelsController,
   type WorkbenchPanelsPersistenceAdapter,
 } from "./controllers/panels/panels-controller";
+import { createPrimaryCoordinator, createScopedIsInScope } from "./controllers/primary-coordinator/primary-coordinator";
 import {
   createWorkbenchSessionPanelController,
   type WorkbenchSessionPanelController,
   type WorkbenchSessionPanelMode,
 } from "./controllers/session-panel/session-panel-controller";
 import { type CommandRegistry, createCommandRegistry } from "./registries/commands/command-registry";
-import {
-  createFavoriteRegistry,
-  type FavoritePersistenceAdapter,
-  type FavoriteRegistry,
-} from "./registries/favorites/favorite-registry";
 import { createKeybindingRegistry, type KeybindingRegistry } from "./registries/keybindings/keybinding-registry";
 import { createLayoutModel, type LayoutModel, type LayoutPersistenceAdapter } from "./registries/layout/layout-model";
+import { getActivePlacement } from "./registries/layout/layout-operations";
+import { resolveAnchorArea } from "./registries/layout/surface-map";
+import { getAnchorResource } from "./registries/layout/surface-reconcile";
 import { createMenuRegistry, type MenuRegistry } from "./registries/menus/menu-registry";
 import { createWorkbenchModeRegistry, type WorkbenchModeRegistry } from "./registries/modes/mode-registry";
 import { createNavigationRegistry, type NavigationRegistry } from "./registries/navigation/navigation-registry";
@@ -54,11 +58,6 @@ import {
   type ResourceRef,
   type ResourceRegistry,
 } from "./registries/resources/resource-registry";
-import {
-  createSavedViewRegistry,
-  type SavedViewPersistenceAdapter,
-  type SavedViewRegistry,
-} from "./registries/saved-views/saved-view-registry";
 import { createThemeRegistry, type ThemeRegistry } from "./registries/themes/theme-registry";
 import { type ContextKeyService, createContextKeyService } from "./shared/context/context-key-service";
 import type { ContributionMetadata, ContributionSource } from "./shared/contributions/metadata";
@@ -81,10 +80,10 @@ export interface WorkbenchCoreContributionContext {
   commandPalette: WorkbenchCommandPaletteController;
   commands: CommandRegistry;
   context: ContextKeyService;
-  favorites: FavoriteRegistry;
   focus: WorkbenchFocusController;
   history: HistoryController;
   keybindings: KeybindingRegistry;
+  lastResource: WorkbenchLastResourceController;
   layout: WorkbenchLayoutModel;
   modes: WorkbenchModeRegistry;
   navigation: NavigationRegistry;
@@ -93,9 +92,13 @@ export interface WorkbenchCoreContributionContext {
   preferences: PreferenceRegistry;
   renderers: WorkbenchRenderers;
   resources: ResourceRegistry;
-  savedViews: SavedViewRegistry;
   sessionPanel: WorkbenchSessionPanelController;
   themes: ThemeRegistry;
+  // The resource hosted by the primary (main) anchor specifically — free of the global
+  // active-resource pollution that any side-area activation introduces. Projections
+  // (side panels, headers) follow this signal, not the global active resource.
+  getPrimaryResource(): ResourceRef | undefined;
+  onDidChangePrimaryResource(listener: (resource: ResourceRef | undefined) => void): Disposable;
 }
 
 export interface WorkbenchCore extends WorkbenchCoreContributionContext {
@@ -108,12 +111,14 @@ export interface WorkbenchCore extends WorkbenchCoreContributionContext {
 export type WorkbenchModuleContributionContext = WorkbenchCoreContributionContext;
 
 export interface CreateWorkbenchCoreInput {
+  // Whether a detached anchor's resource still belongs to the active primary's scope.
+  // Defaults to keeping detached anchors; apps wire this once scoped providers exist.
+  isInScope?: (resource: ResourceRef, primary: ResourceRef | undefined) => boolean;
   layoutPersistence?: LayoutPersistenceAdapter;
   preferencePersistence?: PreferencePersistenceAdapter;
   treePersistence?: TreeRendererPersistenceAdapter;
   panelsPersistence?: WorkbenchPanelsPersistenceAdapter;
-  favoritePersistence?: FavoritePersistenceAdapter;
-  savedViewPersistence?: SavedViewPersistenceAdapter;
+  lastResourcePersistence?: LastResourcePersistenceAdapter;
   initialSessionPanelMode?: WorkbenchSessionPanelMode;
   renderers?: CreateWorkbenchRendererRegistryInput;
 }
@@ -164,6 +169,8 @@ const createModuleContext = (core: WorkbenchCore, input: CreateModuleContextInpu
 
   const context = {
     ...core,
+    onDidChangePrimaryResource: (listener: (resource: ResourceRef | undefined) => void) =>
+      track(core.onDidChangePrimaryResource(listener)),
     breadcrumbs: {
       ...core.breadcrumbs,
       setItems: (items) => track(core.breadcrumbs.setItems(items)),
@@ -178,10 +185,6 @@ const createModuleContext = (core: WorkbenchCore, input: CreateModuleContextInpu
       set: (key, value) => contextScope.set(key, value),
       delete: (key) => contextScope.delete(key),
       createScope: (ownerId) => track(core.context.createScope(ownerId)),
-    },
-    favorites: {
-      ...core.favorites,
-      onDidChange: (listener) => track(core.favorites.onDidChange(listener)),
     },
     focus: {
       ...core.focus,
@@ -198,6 +201,7 @@ const createModuleContext = (core: WorkbenchCore, input: CreateModuleContextInpu
       registerKeybinding: (keybinding, metadata) =>
         track(core.keybindings.registerKeybinding(keybinding, withModuleMetadata(input, metadata))),
     },
+    lastResource: { ...core.lastResource },
     layout: {
       ...core.layout,
       openWidget: (id, openInput) => {
@@ -275,11 +279,6 @@ const createModuleContext = (core: WorkbenchCore, input: CreateModuleContextInpu
       registerProvider: (provider) => track(core.resources.registerProvider(provider)),
       onDidOpenResource: (listener) => track(core.resources.onDidOpenResource(listener)),
     },
-    savedViews: {
-      ...core.savedViews,
-      registerKind: (kind) => track(core.savedViews.registerKind(kind)),
-      onDidChange: (listener) => track(core.savedViews.onDidChange(listener)),
-    },
     sessionPanel: {
       ...core.sessionPanel,
       onDidChange: (listener) => track(core.sessionPanel.onDidChange(listener)),
@@ -309,10 +308,13 @@ export const createWorkbenchCore = (input: CreateWorkbenchCoreInput = {}) => {
     commandPalette: createWorkbenchCommandPaletteController(),
     commands,
     context,
-    favorites: createFavoriteRegistry({ persistence: input.favoritePersistence }),
     focus: createWorkbenchFocusController({ context }),
     history: undefined as unknown as HistoryController,
     keybindings: createKeybindingRegistry({ commands, context }),
+    lastResource: createWorkbenchLastResourceController({
+      persistence: input.lastResourcePersistence,
+      openResource: (resource) => core.resources.openResource(resource, { replaceActive: true }),
+    }),
     layout: { ...createLayoutModel({ persistence: input.layoutPersistence }), ...createMenuRegistry({ commands }) },
     modes: undefined as unknown as WorkbenchModeRegistry,
     notifications: createNotificationRegistry(),
@@ -350,8 +352,7 @@ export const createWorkbenchCore = (input: CreateWorkbenchCoreInput = {}) => {
     panels: createWorkbenchPanelsController({ persistence: input.panelsPersistence }),
     preferences: createPreferenceRegistry({ persistence: input.preferencePersistence }),
     renderers: { ...rendererRegistry, ...treeRendererRegistry, ...dataRendererRegistry },
-    resources: createResourceRegistry(),
-    savedViews: createSavedViewRegistry({ persistence: input.savedViewPersistence }),
+    resources: createResourceRegistry({ getPrimary: () => getAnchorResource(core.layout.getLayout(), "primary") }),
     sessionPanel: createWorkbenchSessionPanelController({ initialMode: input.initialSessionPanelMode }),
     themes: createThemeRegistry(),
 
@@ -372,6 +373,19 @@ export const createWorkbenchCore = (input: CreateWorkbenchCoreInput = {}) => {
         core.layout.store.subscribeSelector(
           (state) => state.layout.activeResourceUri,
           () => listener(core.getActiveResource()),
+        ),
+      );
+    },
+
+    getPrimaryResource() {
+      return getAnchorResource(core.layout.getLayout(), "primary");
+    },
+
+    onDidChangePrimaryResource(listener) {
+      return createDisposable(
+        core.layout.store.subscribeSelector(
+          (state) => getActivePlacement(state.layout.areas[resolveAnchorArea("primary")])?.resourceUri,
+          () => listener(core.getPrimaryResource()),
         ),
       );
     },
@@ -425,6 +439,22 @@ export const createWorkbenchCore = (input: CreateWorkbenchCoreInput = {}) => {
     for (const area of Object.values(layout.areas)) {
       core.panels.setOpen(area.id, area.visible);
     }
+  });
+
+  // Persist the last PRIMARY (main) resource so apps can call `lastResource.restore()`
+  // on next boot. We track the primary, not the global active resource: "where you were"
+  // is the main subject (workspace/ticket), not a transient side-anchor selection like a
+  // floating session — those are detached and scoped, so they are intentionally not restored.
+  core.onDidChangePrimaryResource((resource) => {
+    if (resource) core.lastResource.set(resource);
+  });
+
+  // Keep the secondary resource anchors (derived/detached) consistent with the primary
+  // (main) resource. The default scope predicate keeps detached anchors; apps inject
+  // `isInScope` once scoped resource providers exist.
+  createPrimaryCoordinator({
+    layout: core.layout,
+    isInScope: input.isInScope ?? createScopedIsInScope(core.resources),
   });
 
   registerWorkbenchBuiltIns(core);

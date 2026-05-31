@@ -106,6 +106,7 @@ const registerGuideWidget = (ctx: WorkbenchModuleContributionContext) => {
     title: "Guide",
     area: "main",
     closable: true,
+    singleton: false,
     resourceKinds: [GUIDE_KIND],
     rendererId: GUIDE_RENDERER_ID,
   });
@@ -275,7 +276,7 @@ export const createModesModule = (): WorkbenchModuleContribution => ({
     ctx.layout.registerWidget({
       id: MODE_SWITCHER_WIDGET_ID,
       title: "Modes",
-      area: "activityBar",
+      area: "activity",
       singleton: true,
       rendererId: MODE_SWITCHER_RENDERER_ID,
     });

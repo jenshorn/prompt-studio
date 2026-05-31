@@ -1,5 +1,5 @@
 import { Badge, Box, Button, HStack, SimpleGrid, Stack, Text } from "@chakra-ui/react";
-import { useThemePreference } from "@pstdio/ui";
+import { ScrollArea, useThemePreference } from "@pstdio/ui";
 import type { WorkbenchModuleContribution, WorkbenchWidgetRenderInput } from "../../core";
 import { WorkbenchIcon } from "../../react";
 import { type ExtensionColorTheme, extensionColorThemes } from "./themes";
@@ -10,7 +10,13 @@ const CHANGE_THEME_COMMAND_ID = "workbench.action.changeTheme";
 
 // VS Code tokens worth previewing as swatches — they map onto the workbench
 // surfaces a user notices first when a theme is applied.
-const swatchTokens = ["editor.background", "sideBar.background", "button.background", "focusBorder"] as const;
+const swatchTokens = [
+  "editor.background",
+  "sideBar.background",
+  "button.background",
+  "button.hoverBackground",
+  "focusBorder",
+] as const;
 
 const ThemeSwatches = (props: { colors: Record<string, string> }) => {
   const { colors } = props;
@@ -40,7 +46,7 @@ const ThemeCard = (props: ThemeCardProps) => {
         <Badge colorPalette={theme.mode === "dark" ? "purple" : "orange"}>{theme.mode}</Badge>
       </HStack>
       <ThemeSwatches colors={theme.theme.colors ?? {}} />
-      <Button size="xs" variant={active ? "solid" : "outline"} onClick={onApply}>
+      <Button size="xs" variant={active ? "primary" : "outline"} onClick={onApply}>
         <WorkbenchIcon name={active ? "Check" : "Palette"} />
         {active ? "Active" : "Apply theme"}
       </Button>
@@ -53,7 +59,13 @@ const ThemePackPanel = (props: { input: WorkbenchWidgetRenderInput }) => {
   const { themePreference, setThemePreference } = useThemePreference();
 
   return (
-    <Stack h="full" minH="0" overflow="auto" p="lg" gap="lg" bg="bg" color="fg">
+    <ScrollArea
+      h="full"
+      minH="0"
+      bg="bg"
+      color="fg"
+      contentProps={{ p: "lg", display: "flex", flexDirection: "column", gap: "lg" }}
+    >
       <Stack gap="xs">
         <HStack gap="sm">
           <WorkbenchIcon name="Palette" size={16} />
@@ -90,7 +102,7 @@ const ThemePackPanel = (props: { input: WorkbenchWidgetRenderInput }) => {
           />
         ))}
       </SimpleGrid>
-    </Stack>
+    </ScrollArea>
   );
 };
 

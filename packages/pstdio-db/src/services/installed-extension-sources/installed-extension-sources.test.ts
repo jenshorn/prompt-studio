@@ -4,10 +4,12 @@ import { createInstalledExtensionSourcesDBService } from "./installed-extension-
 
 let close: (() => Promise<void>) | undefined;
 let svc: ReturnType<typeof createInstalledExtensionSourcesDBService>;
+let pglite: Awaited<ReturnType<typeof createDb>>["pglite"];
 
 beforeEach(async () => {
   const result = await createDb({ path: ":memory:" });
   close = result.close;
+  pglite = result.pglite;
   svc = createInstalledExtensionSourcesDBService(result.db);
 });
 
@@ -31,6 +33,96 @@ describe("installedExtensionSourcesService", () => {
     const fetched = await svc.getByInstallName("pstdio.core-templates");
     expect(fetched?.id).toBe(registered.id);
     expect(fetched?.status).toBe("pending");
+  });
+
+  test("allows duplicate install names when source paths differ", async () => {
+    const first = await svc.register({
+      install_name: "worktree-bootstrap",
+      extension_id: "pstdio.worktree-bootstrap",
+      display_name: "Worktree Bootstrap",
+      source_kind: "local_path",
+      source_path: "/repo-a/.pstdio/extensions/worktree-bootstrap",
+    });
+
+    const second = await svc.register({
+      install_name: "worktree-bootstrap",
+      extension_id: "pstdio.worktree-bootstrap",
+      display_name: "Worktree Bootstrap",
+      source_kind: "local_path",
+      source_path: "/repo-b/.pstdio/extensions/worktree-bootstrap",
+    });
+
+    expect(second.id).not.toBe(first.id);
+    await expect(
+      svc.register({
+        install_name: "worktree-bootstrap-copy",
+        extension_id: "pstdio.worktree-bootstrap",
+        display_name: "Worktree Bootstrap",
+        source_kind: "local_path",
+        source_path: first.source_path,
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("retrieves sources by source path and prefix", async () => {
+    const repoRoot = "/repo/.pstdio/extensions";
+    const first = await svc.register({
+      install_name: "planner",
+      extension_id: "pstdio.planner",
+      display_name: "Planner",
+      source_kind: "local_path",
+      source_path: `${repoRoot}/planner`,
+    });
+    await svc.register({
+      install_name: "other",
+      extension_id: "pstdio.other",
+      display_name: "Other",
+      source_kind: "local_path",
+      source_path: "/other-root/other",
+    });
+
+    const byPath = await svc.getBySourcePath(first.source_path);
+    const byPrefix = await svc.listBySourcePathPrefix(repoRoot);
+
+    expect(byPath?.id).toBe(first.id);
+    expect(byPrefix.map((source) => source.id)).toEqual([first.id]);
+  });
+
+  test("filters source path prefixes in the database query", async () => {
+    const queries: string[] = [];
+    const originalQuery = pglite.query.bind(pglite);
+    pglite.query = ((query, params, options) => {
+      queries.push(query);
+      return originalQuery(query, params, options);
+    }) as typeof pglite.query;
+
+    const repoRoot = "/repo/.pstdio/extensions";
+
+    await svc.register({
+      install_name: "planner",
+      extension_id: "pstdio.planner",
+      display_name: "Planner",
+      source_kind: "local_path",
+      source_path: `${repoRoot}/planner`,
+    });
+    await svc.register({
+      install_name: "other",
+      extension_id: "pstdio.other",
+      display_name: "Other",
+      source_kind: "local_path",
+      source_path: "/other-root/other",
+    });
+
+    queries.length = 0;
+
+    const byPrefix = await svc.listBySourcePathPrefix(repoRoot);
+    const selectQuery = queries.find(
+      (query) => query.toLowerCase().startsWith("select") && query.includes('"installed_extension_sources"'),
+    );
+
+    expect(byPrefix.map((source) => source.install_name)).toEqual(["planner"]);
+    expect(selectQuery?.toLowerCase()).toContain(" where ");
+    expect(selectQuery).toContain("source_path");
   });
 
   test("updates load state and records reload events", async () => {

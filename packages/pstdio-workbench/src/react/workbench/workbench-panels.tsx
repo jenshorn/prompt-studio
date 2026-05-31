@@ -1,8 +1,9 @@
 import { Box, Flex, IconButton } from "@chakra-ui/react";
-import { Breadcrumb, type BreadcrumbItem, Header, Tooltip } from "@pstdio/ui";
+import { Header, Tooltip } from "@pstdio/ui";
 import { type WorkbenchCore, workbenchTopHeaderLeadingMenuPath, workbenchTopHeaderTrailingMenuPath } from "../../core";
 import { WorkbenchArea } from "../area/area";
 import { shouldShowAreaTabs, WorkbenchAreaTabs } from "../area/area-tabs";
+import { WorkbenchBreadcrumbView } from "../breadcrumb/breadcrumb-view";
 import { WorkbenchFocusRegion } from "../focus/focus-region";
 import { WorkbenchHeaderActions } from "../header/header-actions";
 import { listWorkbenchMenuItemsFromState } from "../menus/menu-items";
@@ -13,17 +14,17 @@ import { WorkbenchHeaderBorder } from "./header-bottom-border";
 
 interface WorkbenchHeaderProps {
   workbench: WorkbenchCore;
-  breadcrumbItems: BreadcrumbItem[];
   hasTop: boolean;
   showLeftPanelOpener: boolean;
   onOpenLeftPanel: () => void;
 }
 
 export const WorkbenchHeader = (props: WorkbenchHeaderProps) => {
-  const { workbench, breadcrumbItems, hasTop, showLeftPanelOpener, onOpenLeftPanel } = props;
+  const { workbench, hasTop, showLeftPanelOpener, onOpenLeftPanel } = props;
   const commands = useWorkbenchStore(workbench.commands.store, (state) => state.commands);
   const contextValues = useWorkbenchStore(workbench.context.store, (state) => state.values);
   const itemsByPath = useWorkbenchStore(workbench.layout.menuStore, (state) => state.itemsByPath);
+  const breadcrumbItems = useWorkbenchStore(workbench.breadcrumbs.store, (state) => state.items) ?? [];
   const menuState = { itemsByPath, commands, contextValues };
   const hasLeadingActions = listWorkbenchMenuItemsFromState(menuState, workbenchTopHeaderLeadingMenuPath).length > 0;
   const hasTrailingActions = listWorkbenchMenuItemsFromState(menuState, workbenchTopHeaderTrailingMenuPath).length > 0;
@@ -58,14 +59,12 @@ export const WorkbenchHeader = (props: WorkbenchHeaderProps) => {
       <WorkbenchHeaderActions workbench={workbench} menuPath={workbenchTopHeaderLeadingMenuPath} />
       {hasCenter ? (
         <Box flex="1" h="full" minW="0" overflow="hidden">
-          {hasTop ? <WorkbenchArea workbench={workbench} area="top" title="Top" showHeader={false} /> : null}
-          {!hasTop && hasBreadcrumb ? (
-            <Breadcrumb items={breadcrumbItems} separator="/" separatorGap="xs" display="flex" h="full" />
-          ) : null}
+          {hasTop ? <WorkbenchArea workbench={workbench} area="nav" title="Top" showHeader={false} /> : null}
+          {!hasTop && hasBreadcrumb ? <WorkbenchBreadcrumbView workbench={workbench} /> : null}
         </Box>
       ) : null}
       <WorkbenchHeaderActions workbench={workbench} menuPath={workbenchTopHeaderTrailingMenuPath} />
-      <WorkbenchHeaderBorder workbench={workbench} area="top" />
+      <WorkbenchHeaderBorder workbench={workbench} area="nav" />
     </Header>
   );
 };
@@ -125,10 +124,6 @@ interface WorkbenchAreaPanelProps {
   workbench: WorkbenchCore;
 }
 
-interface WorkbenchHeaderedAreaPanelProps extends WorkbenchAreaPanelProps {
-  hasHeader: boolean;
-}
-
 export const WorkbenchActivityBar = (props: WorkbenchAreaPanelProps) => {
   const { workbench } = props;
 
@@ -146,16 +141,15 @@ export const WorkbenchActivityBar = (props: WorkbenchAreaPanelProps) => {
       overflow="hidden"
       w="3.5rem"
     >
-      <WorkbenchArea workbench={workbench} area="activityBar" title="Activity bar" showHeader={false} />
+      <WorkbenchArea workbench={workbench} area="activity" title="Activity bar" showHeader={false} />
     </WorkbenchFocusRegion>
   );
 };
 
-export const WorkbenchRightSidePanel = (props: WorkbenchHeaderedAreaPanelProps) => {
-  const { workbench, hasHeader } = props;
+export const WorkbenchRightSidePanel = (props: WorkbenchAreaPanelProps) => {
+  const { workbench } = props;
   const rightWidgets = useWorkbenchStore(workbench.layout.store, (state) => state.layout.areas["main-right"].widgets);
-  const hasContentTabs = shouldShowAreaTabs(rightWidgets);
-  const showHeaderBar = hasHeader || hasContentTabs;
+  const showHeaderBar = shouldShowAreaTabs(rightWidgets);
 
   return (
     <Flex as="aside" direction="column" h="full" minH="0" minW="0" overflow="hidden" w="full">
@@ -170,17 +164,7 @@ export const WorkbenchRightSidePanel = (props: WorkbenchHeaderedAreaPanelProps) 
           overflowY="hidden"
         >
           <WorkbenchAreaTabs workbench={workbench} area="main-right" />
-          {hasHeader ? (
-            <Box flex="1" h="full" minW="0" overflow="hidden">
-              <WorkbenchArea
-                workbench={workbench}
-                area="main-right-header"
-                title="Main right header"
-                showHeader={false}
-              />
-            </Box>
-          ) : null}
-          <WorkbenchHeaderBorder workbench={workbench} area="main-right-header" />
+          <WorkbenchHeaderBorder workbench={workbench} area="main-right" />
         </Header>
       ) : null}
       <Box flex="1" minH="0" minW="0" overflow="hidden">
@@ -190,11 +174,10 @@ export const WorkbenchRightSidePanel = (props: WorkbenchHeaderedAreaPanelProps) 
   );
 };
 
-export const WorkbenchMainLeftPanel = (props: WorkbenchHeaderedAreaPanelProps) => {
-  const { workbench, hasHeader } = props;
+export const WorkbenchMainLeftPanel = (props: WorkbenchAreaPanelProps) => {
+  const { workbench } = props;
   const mainLeftWidgets = useWorkbenchStore(workbench.layout.store, (state) => state.layout.areas["main-left"].widgets);
-  const hasContentTabs = shouldShowAreaTabs(mainLeftWidgets);
-  const showHeaderBar = hasHeader || hasContentTabs;
+  const showHeaderBar = shouldShowAreaTabs(mainLeftWidgets);
 
   return (
     <Flex as="aside" direction="column" h="full" minH="0" minW="0" overflow="hidden" w="full">
@@ -209,17 +192,7 @@ export const WorkbenchMainLeftPanel = (props: WorkbenchHeaderedAreaPanelProps) =
           overflowY="hidden"
         >
           <WorkbenchAreaTabs workbench={workbench} area="main-left" />
-          {hasHeader ? (
-            <Box flex="1" h="full" minW="0" overflow="hidden">
-              <WorkbenchArea
-                workbench={workbench}
-                area="main-left-header"
-                title="Main left header"
-                showHeader={false}
-              />
-            </Box>
-          ) : null}
-          <WorkbenchHeaderBorder workbench={workbench} area="main-left-header" />
+          <WorkbenchHeaderBorder workbench={workbench} area="main-left" />
         </Header>
       ) : null}
       <Box flex="1" minH="0" minW="0" overflow="hidden">

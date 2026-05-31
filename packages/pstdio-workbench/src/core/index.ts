@@ -29,6 +29,12 @@ export type {
 } from "./controllers/history/history-controller";
 export { createHistoryController } from "./controllers/history/history-controller";
 export type {
+  CreateWorkbenchLastResourceControllerInput,
+  LastResourcePersistenceAdapter,
+  WorkbenchLastResourceController,
+} from "./controllers/last-resource/last-resource-controller";
+export { createWorkbenchLastResourceController } from "./controllers/last-resource/last-resource-controller";
+export type {
   CreateWorkbenchPanelsControllerInput,
   PersistedWorkbenchPanels,
   WorkbenchPanelsChangeListener,
@@ -55,20 +61,6 @@ export type {
 } from "./registries/commands/command-registry";
 export { createCommandRegistry } from "./registries/commands/command-registry";
 export type {
-  AddFavoriteInput,
-  CreateFavoriteRegistryInput,
-  FavoriteChangeListener,
-  FavoriteListInput,
-  FavoritePersistenceAdapter,
-  FavoriteRegistry,
-  FavoriteScopeInput,
-  ReorderFavoritesInput,
-  ToggleFavoriteInput,
-  WorkbenchCollectionScope,
-  WorkbenchFavorite,
-} from "./registries/favorites/favorite-registry";
-export { createFavoriteRegistry } from "./registries/favorites/favorite-registry";
-export type {
   Keybinding,
   KeybindingRegistry,
   KeybindingSequence,
@@ -93,6 +85,17 @@ export type {
   WorkbenchWidgetPlacement,
 } from "./registries/layout/layout-model";
 export { createDefaultWorkbenchLayout, createLayoutModel, workbenchAreas } from "./registries/layout/layout-model";
+export type { AnchorId, AnchorReadId, SurfaceDescriptor } from "./registries/layout/surface-map";
+export {
+  getSurface,
+  listAnchorAreas,
+  listProjectionAreas,
+  listProjectionsReading,
+  resolveAnchorArea,
+  surfaceMap,
+} from "./registries/layout/surface-map";
+export type { AnchorReconcileAction, ReconcileAnchorsInput } from "./registries/layout/surface-reconcile";
+export { getAnchorResource, reconcileAnchors } from "./registries/layout/surface-reconcile";
 export type { MenuItem, MenuPath, MenuRegistry, RegisteredMenuItem } from "./registries/menus/menu-registry";
 export { createMenuRegistry } from "./registries/menus/menu-registry";
 export {
@@ -182,39 +185,19 @@ export type {
 } from "./registries/renderers/tree-renderer-registry";
 export { createTreeRendererRegistry } from "./registries/renderers/tree-renderer-registry";
 export type {
+  CreateResourceRegistryInput,
   OpenResourceInput,
   RegisteredResourceKind,
   ResourceBrowseEntry,
   ResourceKindContribution,
+  ResourceListContext,
   ResourceOpener,
   ResourceProvider,
   ResourceRef,
   ResourceRegistry,
+  ResourceSurface,
 } from "./registries/resources/resource-registry";
 export { createResourceRegistry } from "./registries/resources/resource-registry";
-export type {
-  CreateSavedViewInput,
-  CreateSavedViewRegistryInput,
-  FilterExpression,
-  ResolvedSavedViewQuery,
-  ResolveSavedViewQueryInput,
-  SavedViewChangeListener,
-  SavedViewField,
-  SavedViewFilterOperator,
-  SavedViewKindContribution,
-  SavedViewListInput,
-  SavedViewPersistenceAdapter,
-  SavedViewRegistry,
-  UpdateSavedViewInput,
-  ValidationResult,
-  ViewDisplayLayout,
-  ViewDisplayOptions,
-  WorkbenchSavedView,
-} from "./registries/saved-views/saved-view-registry";
-export {
-  createSavedViewRegistry,
-  validateSavedViewFilterAgainstFields,
-} from "./registries/saved-views/saved-view-registry";
 export type { ThemeRegistry, WorkbenchThemeStoreState } from "./registries/themes/theme-registry";
 export { createThemeRegistry } from "./registries/themes/theme-registry";
 export type { ContextKeyScope, ContextKeyService, ContextKeyValue } from "./shared/context/context-key-service";

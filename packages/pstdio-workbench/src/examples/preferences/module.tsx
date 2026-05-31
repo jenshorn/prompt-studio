@@ -1,4 +1,5 @@
 import { Badge, Box, Button, Code, Grid, HStack, Stack, Text } from "@chakra-ui/react";
+import { ScrollArea } from "@pstdio/ui";
 import { useState } from "react";
 import type {
   PreferencePropertySchema,
@@ -29,7 +30,7 @@ const preferenceSchema = {
     },
     [defaultAreaPreferenceName]: {
       type: "string",
-      enum: ["main", "main-bottom", "main-right"],
+      enum: ["main", "secondary", "main-right"],
       default: "main",
       scope: "workspace",
       description: "Controls where new resource views open for this workspace.",
@@ -44,7 +45,7 @@ const densityOptions = [
 
 const defaultAreaOptions = [
   { value: "main", label: "Main", icon: "PanelTop" },
-  { value: "main-bottom", label: "Bottom", icon: "PanelBottom" },
+  { value: "secondary", label: "Bottom", icon: "PanelBottom" },
   { value: "main-right", label: "Right", icon: "PanelRight" },
 ] as const;
 
@@ -105,7 +106,7 @@ const PreferenceSchemasPanel = (props: { input: WorkbenchWidgetRenderInput }) =>
   };
 
   return (
-    <Stack gap="lg" h="full" minH="0" overflow="auto" p="lg">
+    <ScrollArea h="full" minH="0" contentProps={{ p: "lg", display: "flex", flexDirection: "column", gap: "lg" }}>
       <Stack gap="xs">
         <Text textStyle="heading/M/semibold">Preference schemas</Text>
         <Text textStyle="paragraph/S/regular" color="fg.muted" maxW="760px">
@@ -160,7 +161,7 @@ const PreferenceSchemasPanel = (props: { input: WorkbenchWidgetRenderInput }) =>
           </Stack>
         </Box>
       </Grid>
-    </Stack>
+    </ScrollArea>
   );
 };
 

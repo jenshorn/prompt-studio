@@ -15,12 +15,12 @@ import { createPreferenceSchemasExampleModule } from "./preferences/module";
 import { createRandomExampleModule } from "./random/module";
 import { createStorybookBridgeDocument } from "./renderer-types/bridge-document.storybook";
 import { createRendererTypesExampleModule } from "./renderer-types/module";
-import { createViewsFavoritesWorkbench } from "./views-favorites/module";
+import { createSurfaceAnchorsModule } from "./surface-anchors/module";
 import { createWorkbenchModesExampleModule } from "./workbench-modes/module";
 import { WorkbenchStory } from "./workbench-story";
 
-// Chrome (sizing box, Toaster viewport) and theming live in WorkbenchStory so
-// the workbench owns its own theme provider — no story-level theme decorator.
+// Story chrome and theming live in WorkbenchStory so the workbench owns its own
+// theme provider — no story-level theme decorator.
 const meta = {
   title: "pstdio-workbench/Examples",
   parameters: { layout: "fullscreen" },
@@ -44,6 +44,9 @@ workbenchModesWorkbench.registerModule(createWorkbenchModesExampleModule());
 const areaMapWorkbench = createWorkbenchCore();
 areaMapWorkbench.registerModule(createAreaMapModule());
 
+const surfaceAnchorsWorkbench = createWorkbenchCore();
+surfaceAnchorsWorkbench.registerModule(createSurfaceAnchorsModule());
+
 const dynamicModulesWorkbench = createDynamicModulesWorkbench();
 
 const rendererTypesWorkbench = createWorkbenchCore();
@@ -55,8 +58,6 @@ const dashboardWorkbench = createDashboardWorkbench();
 
 const dataRendererWorkbench = createWorkbenchCore();
 dataRendererWorkbench.registerModule(createDataRendererStoryModule());
-
-const viewsFavoritesWorkbench = createViewsFavoritesWorkbench();
 
 const foundationWorkbench = createFoundationWorkbench();
 
@@ -91,6 +92,14 @@ export const AreaMap: Story = {
   render: () => <WorkbenchStory workbench={areaMapWorkbench} />,
 };
 
+// Demonstrates the resource-projected surface model: primary anchor + projections, the
+// derived (secondary) and detached (floating) anchors, scoped candidates, surface routing,
+// and primary-vs-global. Switch workspaces to watch terminals re-scope and a session
+// disconnect when it leaves scope.
+export const SurfaceAnchors: Story = {
+  render: () => <WorkbenchStory workbench={surfaceAnchorsWorkbench} />,
+};
+
 export const DynamicModules: Story = {
   render: () => <WorkbenchStory workbench={dynamicModulesWorkbench} />,
 };
@@ -105,10 +114,6 @@ export const DashboardWorkbench: Story = {
 
 export const DataRenderer: Story = {
   render: () => <WorkbenchStory workbench={dataRendererWorkbench} />,
-};
-
-export const ViewsAndFavorites: Story = {
-  render: () => <WorkbenchStory workbench={viewsFavoritesWorkbench} />,
 };
 
 export const FoundationConcepts: Story = {

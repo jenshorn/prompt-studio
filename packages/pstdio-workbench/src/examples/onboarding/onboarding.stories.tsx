@@ -1,12 +1,12 @@
 import { Box } from "@chakra-ui/react";
-import { Toaster } from "@pstdio/ui";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useWorkbenchThemePreferences, Workbench, WorkbenchThemeProvider } from "../../react";
 import { createDataRendererStoryModule } from "../data-renderer/module";
 import { createExtensionThemesWorkbench } from "../extension-themes/module";
 import type { WorkbenchStoryProps } from "../workbench-story";
+import { createBreadcrumbModule } from "./breadcrumb-module";
+import { breadcrumbSource } from "./breadcrumb-source";
 import { createCommandKeybindingThemeModule } from "./command-theme-module";
-import { dataRendererFavoritesSource } from "./data-renderer-favorites-source";
 import { extensionsSource } from "./extensions-source";
 import { createFocusContextModule } from "./focus-context-module";
 import { focusContextSource } from "./focus-context-source";
@@ -21,6 +21,8 @@ import {
 } from "./modules";
 import { createNavigationModule } from "./navigation-module";
 import { navigationSource } from "./navigation-source";
+import { createSidePanelsModule } from "./side-panels-module";
+import { sidePanelsSource } from "./side-panels-source";
 import { onboardingSources } from "./sources";
 import { createWidgetVariantsModule } from "./widget-variants-module";
 import { widgetVariantsSource } from "./widget-variants-source";
@@ -45,7 +47,7 @@ const sourceParameters = (code: string) => ({
 });
 
 // Onboarding renders the workbench in a bordered, fixed-height frame. The theme
-// provider is fed from `workbench.themes` so it wraps the frame and Toaster too.
+// provider is fed from `workbench.themes` so it wraps the frame too.
 const WorkbenchFrame = (props: WorkbenchStoryProps) => {
   const { workbench } = props;
   const themePreferences = useWorkbenchThemePreferences(workbench);
@@ -55,7 +57,6 @@ const WorkbenchFrame = (props: WorkbenchStoryProps) => {
       <Box h="520px" minH="360px" borderWidth="1px" borderColor="border.muted" overflow="hidden">
         <Workbench workbench={workbench} />
       </Box>
-      <Toaster />
     </WorkbenchThemeProvider>
   );
 };
@@ -70,9 +71,11 @@ const modesWorkbench = createWorkbench(createModesModule());
 const commandKeybindingThemeWorkbench = createWorkbench(createCommandKeybindingThemeModule());
 const focusContextWorkbench = createWorkbench(createFocusContextModule());
 const navigationWorkbench = createWorkbench(createNavigationModule());
-const dataRendererFavoritesWorkbench = createWorkbench(createDataRendererStoryModule());
+const dataRendererWorkbench = createWorkbench(createDataRendererStoryModule());
 const extensionsWorkbench = createExtensionThemesWorkbench();
 const widgetVariantsWorkbench = createWorkbench(createWidgetVariantsModule());
+const breadcrumbWorkbench = createWorkbench(createBreadcrumbModule());
+const sidePanelsWorkbench = createWorkbench(createSidePanelsModule());
 
 export const EmptyWorkbench: Story = {
   name: "0. Empty workbench",
@@ -134,10 +137,10 @@ export const Navigation: Story = {
   render: () => <WorkbenchFrame workbench={navigationWorkbench} />,
 };
 
-export const DataRendererAndFavorites: Story = {
-  name: "10. Data renderer and favorites",
-  parameters: sourceParameters(dataRendererFavoritesSource),
-  render: () => <WorkbenchFrame workbench={dataRendererFavoritesWorkbench} />,
+export const DataRenderer: Story = {
+  name: "10. Data renderer",
+  parameters: sourceParameters(onboardingSources.dataRenderer),
+  render: () => <WorkbenchFrame workbench={dataRendererWorkbench} />,
 };
 
 export const Extensions: Story = {
@@ -150,4 +153,16 @@ export const WidgetVariants: Story = {
   name: "12. Widget variants",
   parameters: sourceParameters(widgetVariantsSource),
   render: () => <WorkbenchFrame workbench={widgetVariantsWorkbench} />,
+};
+
+export const Breadcrumbs: Story = {
+  name: "13. Breadcrumbs",
+  parameters: sourceParameters(breadcrumbSource),
+  render: () => <WorkbenchFrame workbench={breadcrumbWorkbench} />,
+};
+
+export const SidePanels: Story = {
+  name: "14. Side panels",
+  parameters: sourceParameters(sidePanelsSource),
+  render: () => <WorkbenchFrame workbench={sidePanelsWorkbench} />,
 };

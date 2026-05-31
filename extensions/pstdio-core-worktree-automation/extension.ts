@@ -10,6 +10,8 @@ export default defineExtension({
           worktreePath: payload.worktreePath,
           ticketId: payload.ticket,
         });
+
+        // add custom worktree setup logic here
       },
     },
   },
