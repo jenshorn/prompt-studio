@@ -13,9 +13,10 @@ import {
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionDefinition, ExtensionSourceKind } from "@pstdio/sdk/extensions";
-import { resolvePstdioHome } from "pstdio-paths";
+import { isPackagedRuntime, resolvePstdioHome } from "pstdio-paths";
 import { isPackageAssetDescriptor } from "../artifacts/asset-validation";
 import type { ExtensionDiagnostic } from "../types/runtime";
+import { bundleEntry } from "./bundle-entry";
 import { createDiagnostic } from "./diagnostics";
 import { discoverExtensionPackages } from "./discovery";
 import { type PackageManifest, readPackageManifest } from "./package-manifest";
@@ -56,6 +57,9 @@ const prunedRuntimeCacheRoots = new Set<string>();
 
 const formatImportError = (error: unknown, fallback: string) => {
   if (error instanceof Error) return error.message;
+  // Bun throws a ResolveMessage (not an Error) when a bare import cannot be resolved;
+  // surface its message instead of the opaque fallback path.
+  if (isRecord(error) && typeof error.message === "string" && error.message.length > 0) return error.message;
   const message = String(error);
   return message === "[object Object]" ? fallback : message;
 };
@@ -230,7 +234,10 @@ const remapRuntimePackageAssets = (value: unknown, runtimePackagePath: string, p
 
 const importFresh = async (filePath: string, packagePath: string, packageName: string) => {
   const runtimePackage = createRuntimePackage(packagePath, filePath, packageName);
-  const mod = await importWithCacheKey(runtimePackage.entryPath);
+  const entryPath = isPackagedRuntime()
+    ? await bundleEntry(filePath, packagePath, dirname(runtimePackage.entryPath))
+    : runtimePackage.entryPath;
+  const mod = await importWithCacheKey(entryPath);
   return remapRuntimePackageAssets(mod, runtimePackage.packagePath, packagePath);
 };
 
