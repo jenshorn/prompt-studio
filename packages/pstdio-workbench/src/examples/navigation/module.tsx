@@ -91,7 +91,7 @@ const HomeWidget = (props: { workbench: WorkbenchCore }) => {
 export const createNavigationExampleModule = (): WorkbenchModuleContribution => ({
   id: "navigation.example",
   activate(ctx) {
-    ctx.resources.registerKind({ kind: TICKET_KIND, label: "Ticket", icon: "Ticket" });
+    ctx.resources.registerKind({ kind: TICKET_KIND, label: "Ticket", icon: "component" });
 
     ctx.resources.registerOpener({
       id: "navigation.example.ticket-opener",
@@ -157,7 +157,13 @@ export const createNavigationExampleModule = (): WorkbenchModuleContribution => 
           const id = url.searchParams.get("id") ?? "PS-000";
           return {
             kind: "resource",
-            resource: { kind: TICKET_KIND, uri: `${TICKET_KIND}:${id}`, id, label: `Ticket ${id}` },
+            resource: {
+              kind: TICKET_KIND,
+              uri: `${TICKET_KIND}:${id}`,
+              id,
+              label: `Ticket ${id}`,
+              icon: "component",
+            },
           };
         }
         if (url.host === "view") {
@@ -182,6 +188,7 @@ export const createNavigationExampleModule = (): WorkbenchModuleContribution => 
                   uri: `${TICKET_KIND}:${ticketId}`,
                   id: ticketId,
                   label: `Ticket ${ticketId}`,
+                  icon: "component",
                 },
               },
               { kind: "view", widgetId: resolveViewId(viewParam ?? "workspace-tree") },

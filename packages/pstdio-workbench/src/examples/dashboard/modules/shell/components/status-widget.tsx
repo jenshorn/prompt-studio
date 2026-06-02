@@ -9,7 +9,7 @@ export const StatusWidget = (props: { input: WorkbenchWidgetRenderInput }) => {
   return (
     <HStack h="full" gap="md" px="sm" minW="0">
       <HStack gap="xs">
-        <WorkbenchIcon name="KanbanSquare" size={13} />
+        <WorkbenchIcon name="square-kanban" size={13} />
         <Text textStyle="label/XS/regular">{dashboardTickets.length} tickets</Text>
       </HStack>
       <HStack gap="xs">

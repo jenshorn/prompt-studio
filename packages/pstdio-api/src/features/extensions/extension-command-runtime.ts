@@ -34,6 +34,13 @@ import { createExtensionWorktreesApi } from "./extension-worktree-environment";
 type EnabledSource = Awaited<
   ReturnType<ExtensionsRouteDeps["extensionService"]["listEnabledSourcesForProject"]>
 >[number];
+type StorageApiInput = {
+  extensionInstanceId: string;
+  projectId: string;
+  scopeType?: string;
+  scopeId?: string;
+};
+type RuntimeStorageScope = Parameters<CommandRunnerEnvironment["storage"]["scope"]>[0];
 
 export const loadProjectExtensionRuntime = async (deps: ExtensionsRouteDeps, projectId: string) => {
   const enabledSources = await deps.extensionService.listEnabledSourcesForProject(projectId);
@@ -65,15 +72,116 @@ export const toCommandRecord = (command: RuntimeCommandRecord): ExtensionCommand
 const findEnabledSource = (enabledSources: EnabledSource[], extensionId: string) =>
   enabledSources.find(({ installedSource }) => installedSource.extension_id === extensionId);
 
-const createStorageApi = (
+type ExtensionFileRow = NonNullable<Awaited<ReturnType<ExtensionsRouteDeps["fileService"]["get"]>>>;
+
+const extensionFileUrl = (projectId: string, extensionInstanceId: string, fileId: string) =>
+  `/v1/projects/${encodeURIComponent(projectId)}/extensions/${encodeURIComponent(extensionInstanceId)}/files/${encodeURIComponent(fileId)}/content`;
+
+const toExtensionBlobRef = (projectId: string, extensionInstanceId: string, file: ExtensionFileRow) => ({
+  id: file.id,
+  name: file.file_name,
+  mimeType: file.mime_type,
+  size: file.size_bytes,
+  hash: file.hash,
+  url: extensionFileUrl(projectId, extensionInstanceId, file.id),
+  createdAt: file.created_at,
+  updatedAt: file.updated_at,
+});
+
+const toBuffer = (data: Uint8Array | ArrayBuffer) =>
+  Buffer.from(data instanceof Uint8Array ? data : new Uint8Array(data));
+
+const createExtensionBlobsApi = (
   deps: ExtensionsRouteDeps,
   input: {
     extensionInstanceId: string;
     projectId: string;
-    scopeType?: string;
-    scopeId?: string;
+    scopeType: string;
+    scopeId: string | null;
   },
-): CommandRunnerEnvironment["storage"] => {
+): CommandRunnerEnvironment["storage"]["files"] => ({
+  async put(fileInput) {
+    const file = await deps.fileService.upload({
+      project_id: input.projectId,
+      file_name: fileInput.name,
+      file_kind: "extension",
+      data: toBuffer(fileInput.data),
+      mime_type: fileInput.mimeType ?? null,
+    });
+    await deps.extensionFilesService.attach({
+      project_id: input.projectId,
+      extension_instance_id: input.extensionInstanceId,
+      file_id: file.id,
+      scope_type: input.scopeType,
+      scope_id: input.scopeId,
+    });
+    deps.eventBus?.emit("files", "set", file);
+    return toExtensionBlobRef(input.projectId, input.extensionInstanceId, file);
+  },
+  async get(id) {
+    const file = await deps.extensionFilesService.getOwnedFile({
+      project_id: input.projectId,
+      extension_instance_id: input.extensionInstanceId,
+      file_id: id,
+    });
+    return file ? toExtensionBlobRef(input.projectId, input.extensionInstanceId, file) : undefined;
+  },
+  async getBytes(id) {
+    const file = await deps.extensionFilesService.getOwnedFile({
+      project_id: input.projectId,
+      extension_instance_id: input.extensionInstanceId,
+      file_id: id,
+    });
+    if (!file) throw new Error(`Extension file not found: ${id}`);
+    return new Uint8Array(readFileSync(file.storage_path));
+  },
+  async list() {
+    const files = await deps.extensionFilesService.list({
+      project_id: input.projectId,
+      extension_instance_id: input.extensionInstanceId,
+      scope_type: input.scopeType,
+      scope_id: input.scopeId,
+    });
+    return files.map((file) => toExtensionBlobRef(input.projectId, input.extensionInstanceId, file));
+  },
+  async delete(id) {
+    const file = await deps.extensionFilesService.getOwnedFile({
+      project_id: input.projectId,
+      extension_instance_id: input.extensionInstanceId,
+      file_id: id,
+    });
+    if (!file) return;
+    await deps.extensionFilesService.detach({
+      project_id: input.projectId,
+      extension_instance_id: input.extensionInstanceId,
+      file_id: id,
+    });
+    await deps.fileService.remove(id);
+    deps.eventBus?.emit("files", "delete", { id });
+  },
+  urlFor(id) {
+    return extensionFileUrl(input.projectId, input.extensionInstanceId, id);
+  },
+});
+
+const resolveStorageScopeInput = (input: StorageApiInput, nextScope: RuntimeStorageScope) => {
+  if (nextScope.type === "project") return input;
+  if (nextScope.type === "repo") {
+    const repoId = "repoId" in nextScope ? nextScope.repoId : undefined;
+    if (!repoId) throw new Error("repo storage scope requires repoId");
+    return { ...input, scopeType: "repo", scopeId: repoId };
+  }
+  if (nextScope.type === "resource") {
+    const resource = "resource" in nextScope ? nextScope.resource : undefined;
+    if (!resource?.id) throw new Error("resource storage scope requires resource.id");
+    return { ...input, scopeType: "resource", scopeId: resource.id };
+  }
+  const customId = "id" in nextScope ? nextScope.id : undefined;
+  if (!customId) throw new Error(`${nextScope.type} storage scope requires id`);
+  return { ...input, scopeType: nextScope.type, scopeId: customId };
+};
+
+const createStorageApi = (deps: ExtensionsRouteDeps, input: StorageApiInput) => {
   const scope = {
     extension_instance_id: input.extensionInstanceId,
     scope_type: input.scopeType ?? "project",
@@ -81,22 +189,14 @@ const createStorageApi = (
   };
 
   const api: CommandRunnerEnvironment["storage"] = {
+    files: createExtensionBlobsApi(deps, {
+      extensionInstanceId: input.extensionInstanceId,
+      projectId: input.projectId,
+      scopeType: scope.scope_type,
+      scopeId: scope.scope_id,
+    }),
     scope(nextScope) {
-      if (nextScope.type === "project") return createStorageApi(deps, input);
-      if (nextScope.type === "repo") {
-        const repoId = "repoId" in nextScope ? nextScope.repoId : undefined;
-        return createStorageApi(deps, { ...input, scopeType: "repo", scopeId: repoId ?? input.projectId });
-      }
-      if (nextScope.type === "resource") {
-        const resource = "resource" in nextScope ? nextScope.resource : undefined;
-        return createStorageApi(deps, {
-          ...input,
-          scopeType: "resource",
-          scopeId: resource?.id ?? input.projectId,
-        });
-      }
-      const customId = "id" in nextScope ? nextScope.id : undefined;
-      return createStorageApi(deps, { ...input, scopeType: nextScope.type, scopeId: customId ?? input.projectId });
+      return createStorageApi(deps, resolveStorageScopeInput(input, nextScope));
     },
     async get(key) {
       const row = await deps.extensionStorageService.getKv(scope, key);
@@ -134,6 +234,14 @@ const createStorageApi = (
         },
         async delete(id) {
           await deps.extensionStorageService.deleteCollectionItem({ ...scope, collection: name }, id);
+        },
+        attachments(itemId) {
+          return createExtensionBlobsApi(deps, {
+            extensionInstanceId: input.extensionInstanceId,
+            projectId: input.projectId,
+            scopeType: `collection:${name}`,
+            scopeId: itemId,
+          });
         },
       };
     },

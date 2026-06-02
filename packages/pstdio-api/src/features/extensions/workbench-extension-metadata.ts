@@ -154,11 +154,16 @@ const toViewRecord = (
   return {
     id: view.id,
     extensionId: view.extensionId,
+    extensionInstanceId: assets.extensionInstanceIdByExtensionId?.get(view.extensionId),
+    installedExtensionId: assets.installedExtensionIdByExtensionId?.get(view.extensionId),
+    installName: assets.installNameByExtensionId.get(view.extensionId),
     slotId: legacyViewSlotId(view.contribution),
     target: view.contribution.target,
     title: view.contribution.title,
     group: view.contribution.group,
     placement: view.contribution.placement,
+    resourceKind: view.contribution.resourceKind,
+    surface: view.contribution.surface,
     webview,
   };
 };
@@ -173,6 +178,9 @@ const toRouteRecord = (
   return {
     id: route.id,
     extensionId: route.extensionId,
+    extensionInstanceId: assets.extensionInstanceIdByExtensionId?.get(route.extensionId),
+    installedExtensionId: assets.installedExtensionIdByExtensionId?.get(route.extensionId),
+    installName: assets.installNameByExtensionId.get(route.extensionId),
     path: route.contribution.path,
     label: route.contribution.label,
     webview,
@@ -194,6 +202,17 @@ const toDataRendererCreateRow = (
   };
 };
 
+const toDataRendererRowActions = (
+  rowActions: ExtensionRuntime["dataRenderers"][number]["contribution"]["rowActions"],
+): WorkbenchExtensionDataRendererRecord["rowActions"] =>
+  compact(
+    (rowActions ?? []).map((action) => {
+      const commandId = refIdOf(action.command);
+      if (!commandId) return null;
+      return { id: action.id, label: action.label, icon: action.icon, commandId, destructive: action.destructive };
+    }),
+  );
+
 const toDataRendererRecord = (
   renderer: ExtensionRuntime["dataRenderers"][number],
 ): WorkbenchExtensionDataRendererRecord | null => {
@@ -211,6 +230,7 @@ const toDataRendererRecord = (
     reorderCommandId: refIdOf(renderer.contribution.reorderCommand),
     columnActionCommandId: refIdOf(renderer.contribution.columnActionCommand),
     createRow: toDataRendererCreateRow(renderer.contribution.createRow),
+    rowActions: toDataRendererRowActions(renderer.contribution.rowActions),
     defaultSettings: renderer.contribution.defaultSettings,
     defaultFilters: renderer.contribution.defaultFilters,
     emptyTitle: renderer.contribution.emptyTitle,

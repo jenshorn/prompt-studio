@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { files } from "./files";
 import { projects } from "./projects";
@@ -16,6 +17,9 @@ export const workspaces = pgTable(
     name: text("name").notNull(),
     branch: text("branch"),
     worktree_path: text("worktree_path"),
+    // Marks the auto-created workspace that targets the project's root repo on
+    // its current branch (no isolated worktree). At most one per project.
+    is_default: boolean("is_default").notNull().default(false),
     attempt_status_id: text("attempt_status_id").references(() => attempt_statuses.id, { onDelete: "set null" }),
     archived: boolean("archived").notNull().default(false),
     workspace_shorthand: text("workspace_shorthand").notNull(),
@@ -29,6 +33,7 @@ export const workspaces = pgTable(
   },
   (table) => [
     uniqueIndex("workspaces_project_workspace_shorthand_idx").on(table.project_id, table.workspace_shorthand),
+    uniqueIndex("workspaces_project_default_idx").on(table.project_id).where(sql`${table.is_default} = true`),
   ],
 );
 

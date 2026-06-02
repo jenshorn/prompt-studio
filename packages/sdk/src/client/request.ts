@@ -80,6 +80,19 @@ export const createRequestHeaders = (
   return headers;
 };
 
+const isBinaryBody = (body: unknown) => body instanceof ArrayBuffer || ArrayBuffer.isView(body);
+
+const serializeRequestBody = (body: unknown) => {
+  if (body instanceof ArrayBuffer) return body;
+  if (ArrayBuffer.isView(body)) {
+    if (body.buffer instanceof ArrayBuffer) return body as BodyInit;
+    const copy = new Uint8Array(body.byteLength);
+    copy.set(new Uint8Array(body.buffer, body.byteOffset, body.byteLength));
+    return copy;
+  }
+  return JSON.stringify(body);
+};
+
 export const createRequest = (options: ClientOptions): RequestFn => {
   const baseUrl = resolveBaseUrl(options);
   const fetchFn = resolveFetch(options);
@@ -87,13 +100,13 @@ export const createRequest = (options: ClientOptions): RequestFn => {
   return async <T>(path: string, reqOpts: RequestOptions = {}): Promise<T> => {
     const headers = createRequestHeaders(options, {
       headers: reqOpts.headers,
-      hasJsonBody: reqOpts.body !== undefined,
+      hasJsonBody: reqOpts.body !== undefined && !isBinaryBody(reqOpts.body),
     });
     const url = resolveClientUrl(baseUrl, path);
     const response = await fetchFn(url, {
       method: reqOpts.method ?? "GET",
       headers: Object.fromEntries(headers.entries()),
-      body: reqOpts.body !== undefined ? JSON.stringify(reqOpts.body) : undefined,
+      body: reqOpts.body !== undefined ? serializeRequestBody(reqOpts.body) : undefined,
       signal: reqOpts.signal,
       cache: reqOpts.cache,
     });

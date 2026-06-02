@@ -36,7 +36,8 @@ export const useResolvedAttributes = (attributes: AttributeDescriptor[]) => {
   useEffect(() => {
     const sources = collectSources(attributes);
     if (sources.length === 0) return;
-    const unsubscribes = sources.map((source) => source.subscribe(forceRender));
+    const refresh = () => forceRender();
+    const unsubscribes = sources.map((source) => source.subscribe(refresh));
     return () => {
       for (const dispose of unsubscribes) dispose();
     };

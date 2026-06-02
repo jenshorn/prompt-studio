@@ -120,6 +120,13 @@
       "when": 1780169808132,
       "tag": "0016_special_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780429061248,
+      "tag": "0017_typical_morlocks",
+      "breakpoints": true
     }
   ]
 }

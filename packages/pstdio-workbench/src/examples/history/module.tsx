@@ -31,6 +31,7 @@ const HistoryHome = (props: HistoryHomeProps) => {
       uri: `${TICKET_KIND}:${id}`,
       id,
       label: `Ticket ${id}`,
+      icon: "component",
     });
 
   return (
@@ -106,7 +107,7 @@ const TicketPanel = (props: { title?: string; uri?: string }) => (
 export const createHistoryExampleModule = (): WorkbenchModuleContribution => ({
   id: "history.example",
   activate(ctx) {
-    ctx.resources.registerKind({ kind: TICKET_KIND, label: "Ticket" });
+    ctx.resources.registerKind({ kind: TICKET_KIND, label: "Ticket", icon: "component" });
     ctx.resources.registerOpener({
       id: "history.example.ticket-opener",
       canOpen: (resource) => resource.kind === TICKET_KIND,
