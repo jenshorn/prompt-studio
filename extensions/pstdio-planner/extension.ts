@@ -5,6 +5,7 @@ import { attachTicketFileCommand, detachTicketFileCommand } from "./src/commands
 import { createTicketCommand } from "./src/commands/create-ticket";
 import { deleteTicketCommand } from "./src/commands/delete-ticket";
 import { getTicketCommand } from "./src/commands/get-ticket";
+import { queryTicketResourcesCommand } from "./src/commands/query-ticket-resources";
 import { queryTicketsCommand } from "./src/commands/query-tickets";
 import { setTicketAttributeCommand } from "./src/commands/set-ticket-attribute";
 import { breakIntoSubTicketsCommand, refineTicketCommand, runAttemptCommand } from "./src/commands/ticket-actions";
@@ -12,6 +13,7 @@ import {
   createTicketFileCommand,
   deleteTicketFileCommand,
   listTicketFilesTreeCommand,
+  renameTicketFileCommand,
   selectTicketFileCommand,
   updateTicketFileCommand,
 } from "./src/commands/ticket-files";
@@ -48,6 +50,7 @@ export default defineExtension({
     "break-into-sub-tickets": breakIntoSubTicketsCommand,
 
     "query-tickets": queryTicketsCommand,
+    "query-ticket-resources": queryTicketResourcesCommand,
     "create-ticket": createTicketCommand,
     "attach-file": attachTicketFileCommand,
     "detach-file": detachTicketFileCommand,
@@ -55,6 +58,7 @@ export default defineExtension({
     "update-ticket": updateTicketCommand,
     "create-ticket-file": createTicketFileCommand,
     "update-ticket-file": updateTicketFileCommand,
+    "rename-ticket-file": renameTicketFileCommand,
     "delete-ticket-file": deleteTicketFileCommand,
     "select-ticket-file": selectTicketFileCommand,
     "ticket-files.tree.body": listTicketFilesTreeCommand,
@@ -115,6 +119,13 @@ export default defineExtension({
     },
   },
 
+  commandPaletteResources: {
+    tickets: {
+      title: "Tickets",
+      resourceKind: "ticket",
+      queryCommand: commandRef("pstdio-planner.query-ticket-resources"),
+    },
+  },
   dataRenderers: {
     tickets: {
       title: "Tickets",
@@ -161,7 +172,7 @@ export default defineExtension({
         columnGrouping: "status",
         rowGrouping: "none",
         ordering: { attributeId: "manual", direction: "asc" },
-        displayProperties: ["id", "type"],
+        displayProperties: ["id", "type", "priority"],
       },
       emptyTitle: "No tickets yet",
       emptyDescription: "Create a ticket to start tracking work for this project.",
