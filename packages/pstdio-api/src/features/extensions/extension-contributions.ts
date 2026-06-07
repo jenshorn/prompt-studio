@@ -3,13 +3,13 @@ import { dirname, isAbsolute, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getWorkbenchTargetDefinition, type WorkbenchContributionKind, workbenchTargets } from "@pstdio/sdk/extensions";
 import type {
+  ExtensionCommandPaletteContribution,
   ExtensionDataRendererRecord,
   ExtensionRouteRecord,
   ExtensionSettingDefinitionRecord,
   ExtensionSettingsPanelRecord,
   ExtensionsCheckResponse,
   ExtensionTreeItemContribution,
-  ExtensionViewRecord,
 } from "pstdio-api-contracts";
 import { validateWebviewCapabilityNames } from "pstdio-extensions/bridge/contract";
 import {
@@ -24,6 +24,7 @@ import {
 } from "./extension-diagnostics";
 import { normalizeModeLayout, reservedDashboardModeIds, resolveModeId } from "./extension-mode-layout";
 import type { LoadedExtension } from "./extension-runtime";
+import { collectTreeRenderers, collectViews } from "./extension-tree-view-contributions";
 
 const cliPathForCommand = (namespace: string, key: string, cli: unknown) => {
   if (cli === false) return undefined;
@@ -125,7 +126,6 @@ const legacyMenuSlotId = (menu: Record<string, unknown>) => {
       : menu.target === "workbench.nav.overflow"
         ? "headerOverflow"
         : undefined;
-  if (menu.target === "workbench.commandPalette") return "project.commandPanel";
   if (!header) return "unknown";
   if (resourceTypes.includes("workspace") || modeIncludes(when?.mode, "workspace")) return `workspace.${header}`;
   if (resourceTypes.includes("ticket")) return `ticket.${header}`;
@@ -332,6 +332,7 @@ const collectCommand = (
   });
 
   collectCommandMenus(check, loaded, sourcePath, key, command);
+  collectCommandPaletteContributions(check, loaded, key, command);
 };
 
 const menuContributionRecord = (input: {
@@ -383,6 +384,57 @@ const collectCommandMenus = (
       return;
     }
     check.menuContributions.push(menuContributionRecord({ command, commandId, contributionId, key, loaded, menu }));
+  });
+};
+
+const paletteContributionsOf = (palette: unknown) => {
+  if (palette === undefined || palette === false) return [];
+  if (palette === true) return [{}];
+  if (Array.isArray(palette)) return palette.filter(isRecord);
+  return isRecord(palette) ? [palette] : [];
+};
+
+const commandPaletteContributionRecord = (input: {
+  command: Record<string, unknown>;
+  commandId: string;
+  contributionId: string;
+  key: string;
+  loaded: LoadedExtension;
+  palette: Record<string, unknown>;
+}): ExtensionCommandPaletteContribution => {
+  const { command, commandId, contributionId, key, loaded, palette } = input;
+
+  return {
+    id: contributionId,
+    commandId,
+    extensionId: loaded.metadata.id,
+    label: displayString(palette.label, displayString(command.title, key)),
+    group: typeof palette.group === "string" ? palette.group : undefined,
+    placement: placementOf(palette.placement),
+    icon: typeof palette.icon === "string" ? palette.icon : undefined,
+    params: isRecord(palette.params) ? palette.params : undefined,
+    when: isRecord(palette.when) ? (palette.when as never) : undefined,
+  };
+};
+
+const collectCommandPaletteContributions = (
+  check: ExtensionsCheckResponse,
+  loaded: LoadedExtension,
+  key: string,
+  command: Record<string, unknown>,
+) => {
+  const commandId = `${loaded.metadata.name}.${key}`;
+  paletteContributionsOf(command.palette).forEach((palette, index) => {
+    check.commandPaletteContributions.push(
+      commandPaletteContributionRecord({
+        command,
+        commandId,
+        contributionId: `${commandId}.palette.${index}`,
+        key,
+        loaded,
+        palette,
+      }),
+    );
   });
 };
 
@@ -457,6 +509,7 @@ export const collectAssetsAndUi = (check: ExtensionsCheckResponse, loaded: Loade
   collectSettings(check, loaded, sourcePath);
   collectArtifactMounts(check, loaded, sourcePath);
   collectModes(check, loaded, sourcePath);
+  collectTreeRenderers(check, loaded, sourcePath);
   validateWebviewContributionEntries(check, loaded, sourcePath);
   collectViews(check, loaded, sourcePath);
   collectRoutes(check, loaded);
@@ -468,63 +521,6 @@ export const collectAssetsAndUi = (check: ExtensionsCheckResponse, loaded: Loade
   collectPackageAssetRecords(check, loaded, sourcePath, "skills");
   collectThemes(check, loaded, sourcePath);
   collectFileIconThemes(check, loaded, sourcePath);
-};
-
-const modeLayoutViewKeys = (loaded: LoadedExtension) => {
-  const modes = loaded.definition.modes;
-  const keys = new Set<string>();
-  if (!isRecord(modes)) return keys;
-
-  for (const mode of Object.values(modes)) {
-    if (!isRecord(mode) || !isRecord(mode.layout) || !Array.isArray(mode.layout.open)) continue;
-    for (const entry of mode.layout.open) {
-      if (isRecord(entry) && typeof entry.view === "string") keys.add(entry.view);
-    }
-  }
-
-  return keys;
-};
-
-const isCollectableView = (
-  key: string,
-  view: unknown,
-  referencedByModeLayout: Set<string>,
-): view is Record<string, unknown> & { webview: ExtensionViewRecord["webview"] } => {
-  if (!isRecord(view) || !localizableString(view.title) || !isRecord(view.webview)) return false;
-  return Boolean(view.target || view.slot || referencedByModeLayout.has(key));
-};
-
-const collectViews = (check: ExtensionsCheckResponse, loaded: LoadedExtension, sourcePath: string) => {
-  const views = loaded.definition.views;
-  if (!isRecord(views)) return;
-  const referencedByModeLayout = modeLayoutViewKeys(loaded);
-
-  for (const [key, view] of Object.entries(views)) {
-    if (!isCollectableView(key, view, referencedByModeLayout)) continue;
-    const id = `${loaded.metadata.name}.${key}`;
-    if (
-      !hasCompatibleWorkbenchTarget(check, loaded, sourcePath, {
-        contributionId: id,
-        expectedKind: "view",
-        target: view.target,
-      })
-    ) {
-      continue;
-    }
-    check.views.push({
-      id,
-      extensionId: loaded.metadata.id,
-      slotId: view.slot !== undefined ? slotId(view.slot) : typeof view.target === "string" ? view.target : "unknown",
-      target: typeof view.target === "string" ? (view.target as never) : undefined,
-      title: displayString(view.title, key),
-      group: typeof view.group === "string" ? view.group : undefined,
-      placement:
-        view.placement === "first" || view.placement === "default" || view.placement === "last"
-          ? view.placement
-          : undefined,
-      webview: view.webview as ExtensionViewRecord["webview"],
-    });
-  }
 };
 
 const themeTokenMap = {

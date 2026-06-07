@@ -1,5 +1,6 @@
 import type {
   CommandMiddlewareHandler,
+  CommandPaletteContribution,
   CommandRunHandler,
   DataRendererContribution,
   ExtensionDefinition,
@@ -21,6 +22,7 @@ import type {
   ThemeContribution,
   ThemeMode,
   TreeItemContribution,
+  TreeRendererContribution,
   ViewContribution,
   WorkspaceTypeProvider,
 } from "@pstdio/sdk/extensions";
@@ -82,6 +84,7 @@ export interface RuntimeCommandRecord {
   description?: Localizable<string>;
   params: ParamObjectSchema;
   menus: MenuContribution[];
+  palette: CommandPaletteContribution[];
   cli?: RuntimeCliContribution;
   // biome-ignore lint/suspicious/noExplicitAny: handler invoked with extension-specific params
   run: CommandRunHandler<any, any>;
@@ -190,6 +193,15 @@ export interface RuntimeDataRendererRecord {
   name: string;
   sourcePath: string;
   contribution: DataRendererContribution;
+}
+
+export interface RuntimeTreeRendererRecord {
+  id: string;
+  localId: string;
+  extensionId: string;
+  name: string;
+  sourcePath: string;
+  contribution: TreeRendererContribution;
 }
 
 export interface RuntimeExtensionSettingRecord {
@@ -307,6 +319,7 @@ export interface ExtensionRuntime {
   treeItems: RuntimeTreeItemRecord[];
   settingsPanels: RuntimeSettingsPanelRecord[];
   dataRenderers: RuntimeDataRendererRecord[];
+  treeRenderers: RuntimeTreeRendererRecord[];
   settings: RuntimeExtensionSettingRecord[];
   templateTypes: RuntimeTemplateTypeRecord[];
   templates: RuntimeTemplateRecord[];

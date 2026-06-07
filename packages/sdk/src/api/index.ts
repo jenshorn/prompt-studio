@@ -2,6 +2,7 @@ export type { SetupAgentInput, SetupAvailableAgentsInput, UpdateAgentInput } fro
 export type {
   CommandExecuteRequest,
   CommandExecuteResponse,
+  ExtensionCommandPaletteContribution,
   ExtensionCommandRecord,
   ExtensionDataRendererRecord,
   ExtensionDiagnostic,
@@ -14,6 +15,7 @@ export type {
   ExtensionSettingsPanelRecord,
   ExtensionSettingValueRecord,
   ExtensionTreeItemContribution,
+  ExtensionTreeRendererRecord,
   ExtensionViewRecord,
   ListExtensionAppearanceResponse,
   ListExtensionCommandsResponse,
@@ -26,6 +28,7 @@ export type {
   UpdateInstalledExtensionTemplateResponse,
   WorkbenchExtensionDataRendererRecord,
   WorkbenchExtensionMetadata,
+  WorkbenchExtensionTreeRendererRecord,
 } from "./extensions";
 export type { CreateProjectInput, RegisterRepoInput } from "./projects";
 export type {
