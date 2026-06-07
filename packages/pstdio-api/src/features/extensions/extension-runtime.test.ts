@@ -119,6 +119,91 @@ describe("extension-lab", () => {
   });
 });
 
+describe("checkExtensionSource keybindings", () => {
+  test("includes normalized keybindings and diagnostics in check output", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-extension-keybinding-check-"));
+    writePackage(root, "keybinding-check");
+    writeFileSync(
+      join(root, "extension.ts"),
+      `const run = async () => null;
+      export default {
+        commands: {
+          preview: { title: "Preview", run },
+        },
+        keybindings: {
+          preview: { key: "mod+shift+p", win: "ctrl+shift+p", command: "preview" },
+          duplicate: { key: "cmd+shift+p", command: "preview" },
+          modifierOnly: { key: "ctrl", command: "preview" },
+        },
+      };`,
+    );
+
+    try {
+      const result = await checkExtensionSource(root, resolve(root, ".."));
+
+      expect(result.check.keybindings).toEqual([
+        expect.objectContaining({
+          id: "keybinding-check.preview",
+          commandId: "keybinding-check.preview",
+          key: "mod+shift+p",
+          canonicalChord: "Mod+Shift+P",
+          platformOverrides: { win: "ctrl+shift+p" },
+        }),
+      ]);
+      expect(result.check.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "duplicate_keybinding_chord", severity: "warning" }),
+          expect.objectContaining({
+            code: "invalid_keybinding",
+            metadata: expect.objectContaining({ chord: "ctrl" }),
+          }),
+        ]),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("reports duplicate keybindings across checked extension folders", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-extension-duplicate-keybinding-"));
+    const writeKeybindingExtension = (folder: string, name: string, key: string) => {
+      const extensionRoot = join(root, folder);
+      mkdirSync(extensionRoot, { recursive: true });
+      writePackage(extensionRoot, name);
+      writeFileSync(
+        join(extensionRoot, "extension.ts"),
+        `const run = async () => null;
+        export default {
+          commands: {
+            preview: { title: "Preview", run },
+          },
+          keybindings: {
+            preview: { key: ${JSON.stringify(key)}, command: "preview" },
+          },
+        };`,
+      );
+    };
+
+    writeKeybindingExtension("one", "first", "cmd+shift+p");
+    writeKeybindingExtension("two", "second", "mod+shift+p");
+
+    try {
+      const check = await checkExtensionsRoot(root);
+
+      expect(check.keybindings.map((binding) => binding.id)).toEqual(["first.preview"]);
+      expect(check.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "duplicate_keybinding_chord",
+          severity: "warning",
+          metadata: expect.objectContaining({ existingId: "first.preview", platform: "mac" }),
+        }),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("checkExtensionSource webviews", () => {
   test("preserves package manifest missing field diagnostics", async () => {
     const root = mkdtempSync(join(tmpdir(), "pstdio-extension-missing-manifest-fields-"));

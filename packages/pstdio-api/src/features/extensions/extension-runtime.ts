@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { ExtensionsCheckResponse } from "pstdio-api-contracts";
+import type { ExtensionKeybindingRecord, ExtensionsCheckResponse } from "pstdio-api-contracts";
 import {
   type ExtensionDiagnostic,
+  keybindingDedupeEntries,
   loadExtensionPackage,
+  normalizeExtensionSources,
   type PackageManifest,
   readPackageManifest,
 } from "pstdio-extensions";
+import { toKeybindingRecord } from "pstdio-extensions/workbench";
 import { collectAssetsAndUi, collectCommands, collectMiddlewareHooksAndSchedules } from "./extension-contributions";
 import { addDiagnostic, isRecord, type UnknownRecord } from "./extension-diagnostics";
 import { createExtensionIgnoreMatcher } from "./extension-ignore";
@@ -51,6 +54,7 @@ const emptyCheck = (extensionsRoot: string, exists: boolean): ExtensionsCheckRes
   navigation: [],
   treeItems: [],
   treeRenderers: [],
+  keybindings: [],
   settingsPanels: [],
   dataRenderers: [],
   commandPaletteResources: [],
@@ -131,9 +135,16 @@ const addRuntimeDiagnostics = (check: ExtensionsCheckResponse, diagnostics: Exte
       severity: diagnostic.severity,
       sourcePath: diagnostic.sourcePath,
       extensionId: diagnostic.extensionId,
+      metadata: diagnostic.metadata,
     });
   }
 };
+
+const keybindingDiagnosticCodes = new Set([
+  "duplicate_keybinding_chord",
+  "extension_keybinding_command_missing",
+  "invalid_keybinding",
+]);
 
 export const checkExtensionSource = async (sourcePath: string, extensionsRoot: string) => {
   const check = emptyCheck(extensionsRoot, existsSync(extensionsRoot));
@@ -158,7 +169,13 @@ export const checkExtensionSource = async (sourcePath: string, extensionsRoot: s
     collectCommands(check, loaded, sourcePath);
     collectMiddlewareHooksAndSchedules(check, loaded, sourcePath);
     collectAssetsAndUi(check, loaded, sourcePath);
+    const runtime = normalizeExtensionSources([source]);
+    check.keybindings.push(...runtime.keybindings.map(toKeybindingRecord));
     addRuntimeDiagnostics(check, loaded.diagnostics);
+    addRuntimeDiagnostics(
+      check,
+      runtime.diagnostics.filter((diagnostic) => keybindingDiagnosticCodes.has(diagnostic.code)),
+    );
     return { check, loaded };
   } catch (error) {
     const fallback = collectFallbackMetadata(sourcePath);
@@ -267,10 +284,53 @@ const mergeCheck = (target: ExtensionsCheckResponse, source: ExtensionsCheckResp
   target.settingsPanels.push(...source.settingsPanels);
   target.dataRenderers.push(...source.dataRenderers);
   target.commandPaletteResources.push(...source.commandPaletteResources);
+  for (const binding of source.keybindings) {
+    const duplicate = findDuplicateKeybinding(target.keybindings, binding);
+    if (duplicate) {
+      addDiagnostic(target, {
+        code: "duplicate_keybinding_chord",
+        extensionId: binding.extensionId,
+        commandId: binding.commandId,
+        message: `Keybinding "${binding.id}" duplicates "${duplicate.existing.id}" on ${duplicate.platform} (canonical chord "${duplicate.canonicalChord}")`,
+        severity: "warning",
+        metadata: {
+          contributionId: binding.id,
+          canonicalChord: duplicate.canonicalChord,
+          platform: duplicate.platform,
+          existingId: duplicate.existing.id,
+          existingExtensionId: duplicate.existing.extensionId,
+        },
+      });
+      continue;
+    }
+    target.keybindings.push(binding);
+  }
   target.settingsDefinitions?.push(...(source.settingsDefinitions ?? []));
   target.templates.push(...source.templates);
   target.skills.push(...source.skills);
   target.diagnostics.push(...source.diagnostics);
+};
+
+const findDuplicateKeybinding = (existing: ExtensionKeybindingRecord[], binding: ExtensionKeybindingRecord) => {
+  const existingByKey = new Map(
+    existing.flatMap((candidate) =>
+      keybindingDedupeEntries({
+        key: candidate.key,
+        ...candidate.platformOverrides,
+        when: candidate.when as never,
+      }).map((entry) => [entry.key, { binding: candidate, entry }] as const),
+    ),
+  );
+
+  for (const entry of keybindingDedupeEntries({
+    key: binding.key,
+    ...binding.platformOverrides,
+    when: binding.when as never,
+  })) {
+    const match = existingByKey.get(entry.key);
+    if (match) return { existing: match.binding, ...entry };
+  }
+  return undefined;
 };
 
 export const formatExtensionsCheck = (check: ExtensionsCheckResponse) => {
