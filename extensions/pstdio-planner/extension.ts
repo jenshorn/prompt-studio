@@ -1,12 +1,17 @@
-import { commandRef, defineExtension, packageAsset, worktreeEvents } from "@pstdio/sdk/extensions";
+import { commandRef, defineExtension, packageAsset, sessionEvents, worktreeEvents } from "@pstdio/sdk/extensions";
 import { documentTemplates, sharedPromptTemplates } from "./extension-assets";
 import { archiveTicketCommand } from "./src/commands/archive-ticket";
 import { attachTicketFileCommand, detachTicketFileCommand } from "./src/commands/attach-ticket-file";
 import { createTicketCommand } from "./src/commands/create-ticket";
 import { deleteTicketCommand } from "./src/commands/delete-ticket";
 import { getTicketCommand } from "./src/commands/get-ticket";
+import { implementTicketCommand } from "./src/commands/implement-ticket";
+import { listTicketFilesCommand } from "./src/commands/list-ticket-files";
+import { listTicketsCommand } from "./src/commands/list-tickets";
+import { pullTicketCommand } from "./src/commands/pull-ticket";
 import { queryTicketResourcesCommand } from "./src/commands/query-ticket-resources";
 import { queryTicketsCommand } from "./src/commands/query-tickets";
+import { saveTicketCommand } from "./src/commands/save-ticket";
 import { setTicketAttributeCommand } from "./src/commands/set-ticket-attribute";
 import { breakIntoSubTicketsCommand, refineTicketCommand, runAttemptCommand } from "./src/commands/ticket-actions";
 import {
@@ -22,6 +27,7 @@ import {
   deleteTicketStatusCommand,
   readTicketStatusesCommand,
   reorderTicketStatusesCommand,
+  setDefaultTicketStatusCommand,
   updateTicketStatusCommand,
 } from "./src/commands/ticket-statuses";
 import {
@@ -34,8 +40,16 @@ import {
   updateTagOptionCommand,
   updateTicketTagCommand,
 } from "./src/commands/ticket-tags";
+import {
+  ticketWorkspacesCommand,
+  ticketWorktreesListCommand,
+  ticketWorktreesRemoveAllCommand,
+} from "./src/commands/ticket-workspaces";
 import { updateTicketCommand } from "./src/commands/update-ticket";
+import { updateWhenAttemptStatusCommand } from "./src/commands/update-when-attempt-status";
+import { writeTicketCommand } from "./src/commands/write-ticket";
 import { buildTicketAttributes } from "./src/data/mappers";
+import { moveTicketToInProgress } from "./src/data/move-to-in-progress";
 import { seedDefaultStatuses, seedDefaultTags } from "./src/data/seed";
 import {
   setupWorkspaceAutomations,
@@ -50,6 +64,7 @@ export default defineExtension({
     "break-into-sub-tickets": breakIntoSubTicketsCommand,
 
     "query-tickets": queryTicketsCommand,
+    "list-tickets": listTicketsCommand,
     "query-ticket-resources": queryTicketResourcesCommand,
     "create-ticket": createTicketCommand,
     "attach-file": attachTicketFileCommand,
@@ -66,10 +81,21 @@ export default defineExtension({
     "archive-ticket": archiveTicketCommand,
     "delete-ticket": deleteTicketCommand,
 
+    "write-ticket": writeTicketCommand,
+    "save-ticket": saveTicketCommand,
+    "pull-ticket": pullTicketCommand,
+    "list-ticket-files": listTicketFilesCommand,
+    "implement-ticket": implementTicketCommand,
+    "update-when-attempt-status": updateWhenAttemptStatusCommand,
+    "ticket-workspaces": ticketWorkspacesCommand,
+    "ticket-worktrees-list": ticketWorktreesListCommand,
+    "ticket-worktrees-remove-all": ticketWorktreesRemoveAllCommand,
+
     "ticketStatus.read": readTicketStatusesCommand,
     "ticketStatus.create": createTicketStatusCommand,
     "ticketStatus.update": updateTicketStatusCommand,
     "ticketStatus.delete": deleteTicketStatusCommand,
+    "ticketStatus.setDefault": setDefaultTicketStatusCommand,
     "ticketStatus.reorder": reorderTicketStatusesCommand,
 
     "set-ticket-tags": setTicketTagsCommand,
@@ -115,6 +141,16 @@ export default defineExtension({
           worktreePath: payload.worktreePath,
           ticketId: payload.ticket,
         });
+      },
+    },
+    // When a session starts for a ticket-linked workspace, move that ticket into
+    // the in-progress column. The lifecycle payload already carries the ticket
+    // resolved from extension storage.
+    sessionStarted: {
+      event: sessionEvents.started,
+      async handler(ctx, payload) {
+        const ticketRef = payload.ticket?.id ?? payload.ticket?.shorthand;
+        if (ticketRef) await moveTicketToInProgress(ctx.storage, ticketRef);
       },
     },
   },

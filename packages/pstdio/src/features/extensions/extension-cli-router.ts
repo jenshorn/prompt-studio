@@ -97,6 +97,7 @@ const normalizeParamName = (name: string) =>
 const describeParamValue = (param: ParamDescriptor) => {
   if (param.type === "boolean") return "";
   if (param.type === "number") return " <number>";
+  if (param.type === "list") return " <value...>";
   return " <value>";
 };
 
@@ -146,6 +147,8 @@ const formatCollision = (collision: ExtensionCommandCollision) => {
   return `CLI path "${collision.path}" is provided by multiple extension commands: ${providers}`;
 };
 
+// The CLI emits a command's result as JSON so callers can pipe/parse it; it owns
+// no bespoke per-command formatting.
 const outputForResponse = (response: CommandExecuteResponse, json: boolean) => {
   if (json) return JSON.stringify(response);
   if (response.outcome.status === "success") return JSON.stringify(response.outcome.value ?? null);
@@ -249,6 +252,14 @@ export const renderCommandHelp = (command: ExtensionCommandRecord) => {
   return lines.join("\n");
 };
 
+// The router, unlike the dashboard, has no schema layer in front of it, so it must
+// reject invocations missing a required param itself — otherwise a command reads
+// `undefined` for a value it declared required and can persist malformed data.
+export const missingRequiredParams = (command: ExtensionCommandRecord, params: Record<string, unknown>) =>
+  Object.entries(command.params ?? {})
+    .filter(([name, descriptor]) => descriptor?.required === true && params[name] === undefined)
+    .map(([name]) => name);
+
 export const parseExtensionCommandArgs = (command: ExtensionCommandRecord, args: string[]) => {
   const params: Record<string, unknown> = {};
   let help = false;
@@ -271,6 +282,15 @@ export const parseExtensionCommandArgs = (command: ExtensionCommandRecord, args:
     const descriptor = command.params?.[name];
     const value = inlineValue ?? (descriptor?.type === "boolean" ? true : args[index + 1]);
     if (inlineValue === undefined && descriptor?.type !== "boolean") index += 1;
+
+    // List params accumulate across repeated flags (`--tag a --tag b` → ["a", "b"]).
+    if (descriptor?.type === "list") {
+      const existing = Array.isArray(params[name]) ? (params[name] as unknown[]) : [];
+      existing.push(typeof value === "string" ? value : String(value ?? ""));
+      params[name] = existing;
+      continue;
+    }
+
     params[name] = coerceParam(descriptor, value ?? true);
   }
 
@@ -339,6 +359,14 @@ export const dispatchExtensionCliCommand = async (input: { rawArgs: string[]; de
   if (parsed.help) {
     deps.log(renderCommandHelp(command));
     return 0;
+  }
+
+  const missing = missingRequiredParams(command, parsed.params);
+  if (missing.length > 0) {
+    deps.error?.(
+      `Missing required ${missing.length === 1 ? "option" : "options"}: ${missing.map(formatParamName).join(", ")}`,
+    );
+    return 1;
   }
 
   const response = await deps.execute(command.id, {

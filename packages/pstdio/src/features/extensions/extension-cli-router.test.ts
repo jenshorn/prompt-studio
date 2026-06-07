@@ -4,6 +4,7 @@ import {
   buildExtensionCommandTable,
   dispatchExtensionCliCommand,
   formatMissingCommandRecovery,
+  missingRequiredParams,
   parseExtensionCommandArgs,
   renderCommandHelp,
   renderNamespaceHelp,
@@ -138,6 +139,47 @@ describe("extension CLI router", () => {
     expect(parsed.help).toBe(false);
   });
 
+  test("accumulates repeated list flags into an array", () => {
+    const command: ExtensionCommandRecord = {
+      id: "lab.tag",
+      extensionId: "pstdio.extension-lab",
+      title: "Tag",
+      cliPath: "lab tag",
+      params: { tag: { type: "list" }, status: { type: "text" } },
+    };
+
+    expect(parseExtensionCommandArgs(command, ["--tag", "a", "--tag", "b", "--status", "ready"]).params).toEqual({
+      tag: ["a", "b"],
+      status: "ready",
+    });
+    expect(parseExtensionCommandArgs(command, ["--tag", "solo"]).params).toEqual({ tag: ["solo"] });
+  });
+
+  test("renders a command result as JSON", async () => {
+    const log = mock();
+
+    const exitCode = await dispatchExtensionCliCommand({
+      rawArgs: ["lab", "counter", "read"],
+      deps: {
+        execute: mock(
+          async (): Promise<CommandExecuteResponse> => ({
+            commandId: "lab.counter.read",
+            extensionId: "pstdio.extension-lab",
+            outcome: { ok: true, status: "success", value: [{ shorthand: "T-1", title: "First" }] },
+          }),
+        ),
+        listCommands: mock(async () => ({ commands: labCommands, diagnostics: [] })),
+        listRepos: mock(async () => []),
+        log,
+        resolveProjectId: () => ({ projectId: "project-1", root: "/repo" }),
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    const logged = log.mock.calls.at(-1)?.[0] as string;
+    expect(JSON.parse(logged)).toEqual([{ shorthand: "T-1", title: "First" }]);
+  });
+
   test("dispatches a namespace command through the API client with repo context", async () => {
     const execute = mock(async (_commandId: string, _request: unknown) => successResponse);
     const listCommands = mock(async () => ({ commands: labCommands, diagnostics: [] }));
@@ -171,7 +213,7 @@ describe("extension CLI router", () => {
       repo: { projectId: "project-1", repoId: "repo-1", path: "/repo" },
       source: "cli",
     });
-    expect(log).toHaveBeenCalledWith('{"counter":2}');
+    expect(log).toHaveBeenCalledWith(JSON.stringify({ counter: 2 }));
   });
 
   test("dispatches extension commands through global CLI aliases", async () => {
@@ -202,7 +244,7 @@ describe("extension CLI router", () => {
       repo: undefined,
       source: "cli",
     });
-    expect(log).toHaveBeenCalledWith('{"workspaceId":"workspace-1","status":"review-ready"}');
+    expect(log).toHaveBeenCalledWith(JSON.stringify({ workspaceId: "workspace-1", status: "review-ready" }));
   });
 
   test("prints missing-command recovery when a known path has moved to an extension", () => {
@@ -225,5 +267,55 @@ describe("extension CLI router", () => {
 
     expect(exitCode).toBe(null);
     expect(error).not.toHaveBeenCalled();
+  });
+
+  test("rejects a command invocation missing a required option without executing it", async () => {
+    const error = mock();
+    const execute = mock(async () => successResponse);
+
+    const requiredCommands = [
+      {
+        id: "pstdio-planner.ticketStatus.create",
+        extensionId: "pstdio.pstdio-planner",
+        title: "Create ticket status",
+        cliPath: "pstdio-planner ticketStatus create",
+        cliAliases: ["statuses create"],
+        params: { label: { type: "text", required: true }, color: { type: "text" } },
+      },
+    ] satisfies Array<ExtensionCommandRecord & { cliAliases?: string[] }>;
+
+    const exitCode = await dispatchExtensionCliCommand({
+      // Old `--name` flag no longer maps to the renamed `--label`, so label is absent.
+      rawArgs: ["statuses", "create", "--name", "Foo", "--color", "gray"],
+      deps: {
+        error,
+        execute,
+        listCommands: mock(async () => ({ commands: requiredCommands, diagnostics: [] })),
+        listRepos: mock(async () => []),
+        resolveProjectId: () => ({ projectId: "project-1", root: "/repo" }),
+      },
+    });
+
+    expect(exitCode).toBe(1);
+    expect(execute).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("--label"));
+  });
+});
+
+describe("missingRequiredParams", () => {
+  test("returns required params that are absent and ignores provided/optional ones", () => {
+    const command = {
+      id: "x",
+      extensionId: "e",
+      title: "X",
+      params: {
+        label: { type: "text", required: true },
+        color: { type: "text" },
+        status: { type: "text", required: true },
+      },
+    } satisfies ExtensionCommandRecord;
+
+    expect(missingRequiredParams(command, { status: "ready" })).toEqual(["label"]);
+    expect(missingRequiredParams(command, { label: "a", status: "ready" })).toEqual([]);
   });
 });

@@ -37,6 +37,10 @@ const applyApiPortFromArgs = (argv: Record<string, unknown>) => {
 };
 
 const rawArgs = hideBin(process.argv);
+// True-core commands only. Domain namespaces (the ticket board's
+// tickets/statuses/tags) are not listed here — they resolve entirely through
+// extension-contributed commands. `workspaces` stays core for the legacy
+// attempt/workspace CLI group (see extensionRoutedStaticCommandPaths).
 const staticTopLevelCommands = new Set([
   "agents",
   "close",
@@ -46,13 +50,13 @@ const staticTopLevelCommands = new Set([
   "projects",
   "serve",
   "sessions",
-  "statuses",
-  "tags",
   "templates",
-  "tickets",
   "workspaces",
 ]);
 
+// `workspaces` keeps its built-in group except `set-status`, which an extension
+// owns. Listing the path here lets it route to extension dispatch while the rest
+// of the workspace group stays static.
 const extensionRoutedStaticCommandPaths = [["workspaces", "set-status"]];
 
 const rawValueFor = (name: string) => {
