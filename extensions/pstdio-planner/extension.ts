@@ -12,9 +12,15 @@ import { pullTicketCommand } from "./src/commands/pull-ticket";
 import { queryTicketResourcesCommand } from "./src/commands/query-ticket-resources";
 import { queryTicketsCommand } from "./src/commands/query-tickets";
 import { readTicketAttachmentCommand } from "./src/commands/read-ticket-attachment";
+import { readTicketsCommand } from "./src/commands/read-tickets";
 import { saveTicketCommand } from "./src/commands/save-ticket";
 import { setTicketAttributeCommand } from "./src/commands/set-ticket-attribute";
-import { breakIntoSubTicketsCommand, refineTicketCommand, runAttemptCommand } from "./src/commands/ticket-actions";
+import {
+  breakIntoSubTicketsCommand,
+  createWorkspaceCommand,
+  refineTicketCommand,
+  runAttemptCommand,
+} from "./src/commands/ticket-actions";
 import {
   createTicketFileCommand,
   deleteTicketFileCommand,
@@ -61,10 +67,12 @@ import {
 export default defineExtension({
   commands: {
     "run-attempt": runAttemptCommand,
+    "create-workspace": createWorkspaceCommand,
     "refine-ticket": refineTicketCommand,
     "break-into-sub-tickets": breakIntoSubTicketsCommand,
 
     "query-tickets": queryTicketsCommand,
+    "read-tickets": readTicketsCommand,
     "list-tickets": listTicketsCommand,
     "query-ticket-resources": queryTicketResourcesCommand,
     "create-ticket": createTicketCommand,
@@ -141,7 +149,6 @@ export default defineExtension({
         await ctx.worktrees.bootstrap({
           repoPath: payload.repoPath,
           worktreePath: payload.worktreePath,
-          ticketId: payload.ticket,
         });
       },
     },
@@ -178,6 +185,12 @@ export default defineExtension({
         submitLabel: "Create",
       },
       rowActions: [
+        {
+          id: "create-workspace",
+          label: "Create workspace",
+          icon: "git-branch",
+          command: commandRef("pstdio-planner.create-workspace"),
+        },
         {
           id: "run-attempt",
           label: "Run attempt",

@@ -106,7 +106,7 @@ describe("pstdio planner extension contributions", () => {
     expect(extension.skills).not.toHaveProperty("pstdio");
   });
 
-  test("copies ticket files from planner when a ticket worktree is created", async () => {
+  test("bootstraps project config when a ticket worktree is created", async () => {
     const bootstraps: unknown[] = [];
 
     await extension.hooks?.worktreeCreated.handler(
@@ -128,7 +128,7 @@ describe("pstdio planner extension contributions", () => {
       },
     );
 
-    expect(bootstraps).toEqual([{ repoPath: "/repo", worktreePath: "/worktree", ticketId: "PS-1" }]);
+    expect(bootstraps).toEqual([{ repoPath: "/repo", worktreePath: "/worktree" }]);
   });
 
   test("moves a ticket to in-progress when a session starts for it", async () => {
@@ -174,6 +174,15 @@ describe("pstdio planner extension contributions", () => {
       viewMode: "board",
       columnGrouping: "status",
       displayProperties: ["id", "type", "priority"],
+    });
+  });
+
+  test("exposes ticket workspace creation as an extension-owned row action", () => {
+    expect(extension.dataRenderers?.tickets?.rowActions).toContainEqual({
+      id: "create-workspace",
+      label: "Create workspace",
+      icon: "git-branch",
+      command: { id: "pstdio-planner.create-workspace" },
     });
   });
 
@@ -227,6 +236,9 @@ describe("pstdio planner extension contributions", () => {
     await extension.commands?.["workspaceStatus.set"]?.run({
       params: { workspaceId: "workspace-1", status: "review-ready" },
       storage,
+      workspaces: {
+        get: async () => ({ id: "workspace-1" }),
+      },
     } as never);
 
     const result = await readWorkspaceStatuses({ storage, workspaceIds: ["workspace-1", "workspace-2"] });
@@ -254,6 +266,7 @@ describe("pstdio planner extension contributions", () => {
       storage,
       workspaces: {
         getByShorthand: async () => ({ id: "workspace-1" }),
+        get: async () => ({ id: "workspace-1" }),
       },
     } as never);
 
