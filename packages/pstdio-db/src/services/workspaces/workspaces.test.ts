@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { DbClient } from "../../db/connection.pglite";
 import { createDb } from "../../db/connection.pglite";
 import { workspaces } from "../../db/schemas.pg";
@@ -24,14 +24,14 @@ const setup = async () => {
   workspacesService = createWorkspacesDBService(result.db);
 };
 
-afterAll(async () => {
+beforeEach(setup);
+
+afterEach(async () => {
   await close?.();
 });
 
 describe("createWorkspacesDBService", () => {
   test("creates a workspace with auto-generated shorthand", async () => {
-    await setup();
-
     const ws = await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -46,8 +46,6 @@ describe("createWorkspacesDBService", () => {
   });
 
   test("increments shorthand for multiple workspaces on same ticket", async () => {
-    await setup();
-
     const ws1 = await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -63,9 +61,7 @@ describe("createWorkspacesDBService", () => {
     expect(ws2.workspace_shorthand).toBe("PS-1_A2");
   });
 
-  test("lists active workspaces with ticket shorthand", async () => {
-    await setup();
-
+  test("lists active workspaces with their resource anchors", async () => {
     await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -76,12 +72,10 @@ describe("createWorkspacesDBService", () => {
 
     expect(list.length).toBe(1);
     expect(list[0].workspace_shorthand).toBe("PS-1_A1");
-    expect(list[0].ticket_shorthand).toBe("PS-1");
+    expect(list[0].anchors_json).toEqual([ticketAnchor]);
   });
 
-  test("lists standalone and default workspaces without ticket shorthand", async () => {
-    await setup();
-
+  test("lists standalone and default workspaces without resource anchors", async () => {
     const standalone = await workspacesService.createStandalone({ project_id: projectId });
     const defaultWorkspace = await workspacesService.createDefault({
       project_id: projectId,
@@ -92,27 +86,24 @@ describe("createWorkspacesDBService", () => {
     const list = await workspacesService.list(projectId);
 
     expect(list.map((workspace) => workspace.workspace_shorthand).sort()).toEqual(["WS-1", "default"]);
-    expect(list.find((workspace) => workspace.id === standalone.id)?.ticket_shorthand).toBeNull();
-    expect(list.find((workspace) => workspace.id === defaultWorkspace.id)?.ticket_shorthand).toBeNull();
+    expect(list.find((workspace) => workspace.id === standalone.id)?.anchors_json).toEqual([]);
+    expect(list.find((workspace) => workspace.id === defaultWorkspace.id)?.anchors_json).toEqual([]);
   });
 
   test("createStandalone creates a ticketless workspace with a WS- shorthand", async () => {
-    await setup();
-
     const ws = await workspacesService.createStandalone({
       project_id: projectId,
+      name: "T-1 attempt",
       branch: "workspace/WS-1",
       worktree_path: "/repo/.pstdio/workspaces/WS-1",
     });
 
     expect(ws.workspace_shorthand).toBe("WS-1");
-    expect(ws.name).toBe("WS-1");
+    expect(ws.name).toBe("T-1 attempt");
     expect(ws.branch).toBe("workspace/WS-1");
   });
 
   test("createStandalone increments the WS- shorthand per project", async () => {
-    await setup();
-
     const ws1 = await workspacesService.createStandalone({ project_id: projectId });
     const ws2 = await workspacesService.createStandalone({ project_id: projectId });
 
@@ -121,8 +112,6 @@ describe("createWorkspacesDBService", () => {
   });
 
   test("createDefault creates a single root workspace marked is_default", async () => {
-    await setup();
-
     const ws = await workspacesService.createDefault({
       project_id: projectId,
       name: "prompt-studio",
@@ -136,8 +125,6 @@ describe("createWorkspacesDBService", () => {
   });
 
   test("getDefault returns the default workspace or null", async () => {
-    await setup();
-
     expect(await workspacesService.getDefault(projectId)).toBeNull();
 
     const ws = await workspacesService.createDefault({
@@ -153,8 +140,6 @@ describe("createWorkspacesDBService", () => {
   });
 
   test("enforces one default workspace per project", async () => {
-    await setup();
-
     const first = await workspacesService.createDefault({
       project_id: projectId,
       name: "prompt-studio",
@@ -176,8 +161,6 @@ describe("createWorkspacesDBService", () => {
 
 describe("createWorkspacesDBService lookups and mutations", () => {
   test("getByShorthand returns workspace or null", async () => {
-    await setup();
-
     await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -193,8 +176,6 @@ describe("createWorkspacesDBService lookups and mutations", () => {
   });
 
   test("softDelete hides workspace from list", async () => {
-    await setup();
-
     const ws = await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -211,8 +192,6 @@ describe("createWorkspacesDBService lookups and mutations", () => {
   });
 
   test("archive marks workspace as archived and hides it from list", async () => {
-    await setup();
-
     const ws = await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -233,8 +212,6 @@ describe("createWorkspacesDBService lookups and mutations", () => {
   });
 
   test("deleted workspaces count toward shorthand sequence", async () => {
-    await setup();
-
     const ws1 = await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
@@ -252,8 +229,6 @@ describe("createWorkspacesDBService lookups and mutations", () => {
   });
 
   test("orphaned workspaces count toward shorthand sequence", async () => {
-    await setup();
-
     const timestamp = new Date().toISOString();
     await db.insert(workspaces).values({
       id: crypto.randomUUID(),
@@ -282,8 +257,6 @@ describe("createWorkspacesDBService lookups and mutations", () => {
   });
 
   test("updateGitMetadata stores branch and worktree_path", async () => {
-    await setup();
-
     const ws = await workspacesService.create({
       project_id: projectId,
       shorthand_base: "PS-1",
