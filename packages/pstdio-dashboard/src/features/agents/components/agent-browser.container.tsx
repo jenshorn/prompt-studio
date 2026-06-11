@@ -1,3 +1,4 @@
+import { useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useSessionAgent } from "@/features/sessions/hooks/use-session-agent";
 import {
@@ -21,7 +22,7 @@ interface AgentBrowserContainerProps {
   onModelChange?: (model: string) => void;
 }
 
-const DEFAULT_AGENT_ID = "opencode";
+const DEFAULT_AGENT_ID = "pstdio.harness-open-code.opencode";
 
 const resolveSynchronizedModel = (input: {
   currentAgent: string | null | undefined;
@@ -49,6 +50,8 @@ const resolveSynchronizedModel = (input: {
 
 export const AgentBrowserContainer = (props: AgentBrowserContainerProps) => {
   const { sessionId, isDisabled = false, selectedAgent, selectedModel, onAgentChange, onModelChange } = props;
+
+  const { projectId } = useParams({ strict: false });
 
   const sessionAgent = useSessionAgent(sessionId ?? null);
   const isAgentLocked = sessionId != null && sessionAgent != null;
@@ -95,10 +98,24 @@ export const AgentBrowserContainer = (props: AgentBrowserContainerProps) => {
     onModelChange?.(preferredModel);
   }, [preferredModel, currentModel, selectedModel, onModelChange]);
 
-  const { data: agents = [], isLoading: isAgentsPending } = useAgents();
+  const { data: agents = [], isLoading: isAgentsPending } = useAgents(projectId);
   const { data: models = [], isLoading: isModelsPending } = useAgentModels(currentAgent, {
     enabled: Boolean(currentAgent),
+    projectId,
   });
+
+  // A harness disappears when its extension is disabled; fall back to the first available one.
+  useEffect(() => {
+    if (isAgentsPending || isAgentLocked || agents.length === 0) return;
+    if (agents.some((agent) => agent.id === currentAgent)) return;
+
+    const fallback = agents[0].id as CodingAgent;
+    if (selectedAgent === undefined) {
+      setInternalSelectedAgent(fallback);
+    }
+    setLastSelectedAgent(fallback);
+    onAgentChange?.(fallback);
+  }, [agents, isAgentsPending, isAgentLocked, currentAgent, selectedAgent, onAgentChange, setLastSelectedAgent]);
 
   useEffect(() => {
     const next = resolveSynchronizedModel({
