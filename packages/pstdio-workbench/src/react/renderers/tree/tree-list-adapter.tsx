@@ -1,7 +1,14 @@
 import { Box } from "@chakra-ui/react";
-import { Tooltip, type TreeListNode, type TreeListSection } from "@pstdio/ui";
+import { EmptyState, Tooltip, type TreeListNode, type TreeListSection } from "@pstdio/ui";
 import type { ReactNode } from "react";
-import type { TreeNode, TreeViewSection, WorkbenchCore } from "../../../core";
+import {
+  getWorkbenchSelectionResourceUris,
+  type ResourceRef,
+  resourceContextMenuPath,
+  type TreeNode,
+  type TreeViewSection,
+  type WorkbenchCore,
+} from "../../../core";
 import { WorkbenchIcon } from "../../shared/icon";
 import {
   createTreeActionItems,
@@ -18,9 +25,72 @@ interface TreeNodeRenderContext {
 
 export const resolveTreeListActiveNodeId = (activeNodeId: string | null | undefined, selectedNodeId?: string) => {
   if (!activeNodeId) return selectedNodeId;
-  if (!selectedNodeId || selectedNodeId === activeNodeId) return activeNodeId;
+  return activeNodeId;
+};
 
-  return [activeNodeId, selectedNodeId];
+interface ResolveTreeListSelectionInput {
+  sections: TreeViewSection[];
+  childrenByNodeId: Record<string, TreeNode[]>;
+  activeNodeId?: string | null;
+  activeResource?: ResourceRef;
+  selectedNodeId?: string;
+}
+
+const activeNodeIds = (ids: string[]) => {
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return undefined;
+  return uniqueIds.length === 1 ? uniqueIds[0] : uniqueIds;
+};
+
+const resolveTreeNodeResourceUri = (node: TreeNode) => {
+  if (node.resource) return node.resource.uri;
+  if (node.target?.kind === "resource") return node.target.resource.uri;
+  return undefined;
+};
+
+const listTreeNodes = (nodes: TreeNode[], childrenByNodeId: Record<string, TreeNode[]>): TreeNode[] =>
+  nodes.flatMap((node) => [
+    node,
+    ...listTreeNodes([...(node.children ?? []), ...(childrenByNodeId[node.id] ?? [])], childrenByNodeId),
+  ]);
+
+const listSectionNodes = (sections: TreeViewSection[], childrenByNodeId: Record<string, TreeNode[]>) =>
+  sections.flatMap((section) => listTreeNodes(section.nodes, childrenByNodeId));
+
+const resolveActiveResourceNodeIds = (
+  sections: TreeViewSection[],
+  childrenByNodeId: Record<string, TreeNode[]>,
+  resourceUris: string[],
+) => {
+  const nodes = listSectionNodes(sections, childrenByNodeId);
+
+  for (const resourceUri of resourceUris) {
+    const matches = nodes
+      .filter((node) => node.id === resourceUri || resolveTreeNodeResourceUri(node) === resourceUri)
+      .map((node) => node.id);
+    if (matches.length > 0) return activeNodeIds(matches);
+  }
+
+  return undefined;
+};
+
+const findSectionNode = (sections: TreeViewSection[], nodeId: string, childrenByNodeId: Record<string, TreeNode[]>) =>
+  listSectionNodes(sections, childrenByNodeId).find((node) => node.id === nodeId);
+
+export const resolveTreeListSelection = (input: ResolveTreeListSelectionInput) => {
+  const { sections, childrenByNodeId, activeNodeId, activeResource, selectedNodeId } = input;
+  if (activeNodeId) return activeNodeId;
+
+  const activeResourceUris = getWorkbenchSelectionResourceUris(activeResource);
+  const activeResourceNodeId = resolveActiveResourceNodeIds(sections, childrenByNodeId, activeResourceUris);
+  if (activeResourceNodeId) return activeResourceNodeId;
+
+  if (!selectedNodeId) return undefined;
+  const selectedNode = findSectionNode(sections, selectedNodeId, childrenByNodeId);
+  const selectedResourceUri = selectedNode ? resolveTreeNodeResourceUri(selectedNode) : undefined;
+  if (activeResourceUris.length > 0 && selectedResourceUri) return undefined;
+
+  return selectedNodeId;
 };
 
 const canVirtualizeTreeNode = (node: TreeListNode) => node.isContainer !== true && (node.children ?? []).length === 0;
@@ -80,23 +150,49 @@ const resolveTreeNodeNavigationIntent = (node: TreeNode) => {
   return undefined;
 };
 
+const resolveTreeNodeResource = (node: TreeNode): ResourceRef | undefined => {
+  if (node.resource) return node.resource;
+  if (node.target?.kind === "resource") return node.target.resource;
+  return undefined;
+};
+
+const toTreeListSectionEmptyState = (section: TreeViewSection) => {
+  if (!section.emptyState) return undefined;
+  return (
+    <EmptyState
+      title={section.emptyState.title}
+      description={section.emptyState.description}
+      icon={section.emptyState.icon ? <WorkbenchIcon name={section.emptyState.icon} /> : undefined}
+      size="sm"
+      px="sm"
+      py="md"
+      minH="6rem"
+    />
+  );
+};
+
 const toTreeListNode = (
   node: TreeNode,
   childrenByNodeId: Record<string, TreeNode[]>,
   context: TreeNodeRenderContext,
 ) => {
   const navigationIntent = resolveTreeNodeNavigationIntent(node);
+  const resource = resolveTreeNodeResource(node);
+  const commandContext = resource ? { resource } : undefined;
   const menuItems = node.menuPath
     ? createTreeMenuItems({
         workbench: context.workbench,
         menuPath: node.menuPath,
+        context: commandContext,
         onCommandError: context.onCommandError,
+        onRequestParams: context.onRequestParams,
       })
     : undefined;
   const contextMenuItems = createTreeContextMenuItems({
     actions: node.contextMenuActions,
-    menuPath: node.contextMenuPath,
+    menuPath: node.contextMenuPath ?? (resource ? resourceContextMenuPath(resource.kind) : undefined),
     workbench: context.workbench,
+    context: commandContext,
     onCommandError: context.onCommandError,
     onRequestParams: context.onRequestParams,
   });
@@ -108,9 +204,11 @@ const toTreeListNode = (
     icon: resolveTreeNodeIcon(node),
     iconColor: node.iconColor,
     disabled: node.disabled,
+    canHide: node.canHide,
     actions: createTreeActionItems({
       actions: node.actions,
       workbench: context.workbench,
+      context: commandContext,
       onCommandError: context.onCommandError,
       onRequestParams: context.onRequestParams,
     }),
@@ -143,5 +241,6 @@ export const toTreeListSection = (
     onRequestParams: context.onRequestParams,
   }),
   collapsible: section.collapsible,
+  emptyState: toTreeListSectionEmptyState(section),
   nodes: section.nodes.map((node) => toTreeListNode(node, childrenByNodeId, context)),
 });

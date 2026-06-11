@@ -7,7 +7,9 @@ import {
   type TreeViewSection,
 } from "@pstdio/sdk/extensions";
 import { ticketsCollection } from "../data/collections";
+import { getSelectedDocument } from "../data/document-selection";
 import { createTicketFile, deleteTicketFile, updateTicketFile } from "../data/file-operations";
+import { ticketDisplayTitle } from "../data/mappers";
 import { isWorkspaceLinkedToTicket } from "../data/workspace-ticket-link";
 import { isImageAttachment } from "../utils/is-image-attachment";
 
@@ -19,6 +21,21 @@ type TicketTreeResource = {
   label?: string;
 };
 
+const fileEnding = (name: string) => {
+  const dotIndex = name.lastIndexOf(".");
+  return dotIndex > 0 ? name.slice(dotIndex) : "";
+};
+
+const removeFileEnding = (name: string) => {
+  const ending = fileEnding(name);
+  return ending ? name.slice(0, -ending.length) : name;
+};
+
+const renameWithCurrentFileEnding = (name: string, currentName: string) => {
+  const nextName = removeFileEnding(name.trim());
+  return `${nextName}${fileEnding(currentName)}`;
+};
+
 const emptyFilesSection = (): TreeViewSection => ({
   id: "files",
   label: "Files",
@@ -26,35 +43,64 @@ const emptyFilesSection = (): TreeViewSection => ({
   nodes: [],
 });
 
-const workspaceLabel = (workspace: ExtensionWorkspace) => workspace.workspace_shorthand ?? workspace.id;
+// Prefer the (renamable) workspace name so the sidebar reflects renames; the immutable
+// shorthand is only a fallback. The tree re-runs on workspace collection changes, so the
+// label updates as soon as a rename streams back.
+const workspaceLabel = (workspace: ExtensionWorkspace) =>
+  workspace.name ?? workspace.workspace_shorthand ?? workspace.id;
 
-const workspaceNode = (workspace: ExtensionWorkspace): TreeNode => {
+// Identifies the ticket a sidebar workspace belongs to so the dashboard can nest
+// its breadcrumb under the ticket instead of the standalone workspaces board.
+type WorkspaceTicketMeta = {
+  ticketId: string;
+  ticketShorthand: string;
+  ticketLabel: string;
+};
+
+const workspaceNode = (workspace: ExtensionWorkspace, ticket: WorkspaceTicketMeta): TreeNode => {
   const label = workspaceLabel(workspace);
-  const description = [workspace.branch, workspace.worktree_path].filter(Boolean).join(" | ");
 
   return {
     id: `workspace-${workspace.id}`,
     label,
     icon: "GitBranch",
     // Native resource target so the host opens a normal workspace tab instead of
-    // running extension-owned navigation.
-    target: { kind: "resource", resource: { type: "workspace", id: workspace.id, label } },
-    ...(description ? { description } : {}),
+    // running extension-owned navigation. The ticket metadata travels along so the
+    // dashboard renders a Tickets / Ticket / Workspace breadcrumb.
+    target: { kind: "resource", resource: { type: "workspace", id: workspace.id, label, metadata: ticket } },
   };
 };
 
 const workspaceActivityAt = (workspace: ExtensionWorkspace) => workspace.updated_at ?? workspace.created_at ?? "";
 
-const workspacesSection = (workspaces: ExtensionWorkspace[]): TreeViewSection => ({
+const workspaceSectionActions = (ticketId: string): TreeAction[] => [
+  {
+    id: "create-workspace",
+    label: "Create workspace",
+    icon: "Plus",
+    commandId: "pstdio-planner.create-workspace",
+    args: { ticket: ticketId },
+  },
+];
+
+const emptyWorkspacesState = {
+  title: "No workspaces",
+  description: "Create a workspace to start implementation.",
+  icon: "GitBranch",
+};
+
+const workspacesSection = (workspaces: ExtensionWorkspace[], ticket: WorkspaceTicketMeta): TreeViewSection => ({
   id: "workspaces",
   label: "Workspaces",
   collapsible: true,
+  actions: workspaceSectionActions(ticket.ticketId),
+  emptyState: workspaces.length === 0 ? emptyWorkspacesState : undefined,
   nodes: [...workspaces]
     .sort((a, b) => {
       const activityOrder = workspaceActivityAt(b).localeCompare(workspaceActivityAt(a));
       return activityOrder !== 0 ? activityOrder : workspaceLabel(a).localeCompare(workspaceLabel(b));
     })
-    .map(workspaceNode),
+    .map((workspace) => workspaceNode(workspace, ticket)),
 });
 
 const selectedTicketId = (ctx: { params: { ticketId?: string }; resource?: { type?: string; id?: string } }) =>
@@ -68,6 +114,7 @@ const fileContextMenuActions = (input: { ticketId: string; fileId: string; fileN
       icon: "Pencil",
       commandId: "pstdio-planner.rename-ticket-file",
       args: { ticketId: input.ticketId, fileId: input.fileId, name: input.fileName },
+      submitLabel: "Save",
       params: {
         name: params.text({ label: "File name", required: true, defaultValue: input.fileName }),
       },
@@ -125,11 +172,13 @@ export const renameTicketFileCommand = defineCommand({
   },
   async run(ctx) {
     const input = ctx.params as typeof ctx.params & { ticketId: string; fileId: string };
+    const ticket = await ticketsCollection(ctx.storage).get(input.ticketId);
+    const file = ticket?.files?.find((entry) => entry.id === input.fileId);
     return updateTicketFile({
       storage: ctx.storage,
       ticketId: input.ticketId,
       fileId: input.fileId,
-      name: input.name.trim(),
+      name: renameWithCurrentFileEnding(input.name, file?.name ?? ""),
     });
   },
 });
@@ -147,22 +196,6 @@ export const deleteTicketFileCommand = defineCommand({
   },
 });
 
-// Selecting a tree node runs this command so the host broadcasts it on the command
-// feed; the editor watches that feed and opens the chosen target. The node kind
-// travels with the selection so the editor renders the body, an editable file, or
-// a read-only image preview explicitly instead of inferring it from the id.
-export const selectTicketFileCommand = defineCommand({
-  title: "Open ticket file",
-  params: {
-    ticketId: params.text({ required: true }),
-    fileId: params.text(),
-    kind: params.text(),
-  },
-  async run(ctx) {
-    return { ticketId: ctx.params.ticketId, fileId: ctx.params.fileId ?? null, kind: ctx.params.kind ?? "ticket" };
-  },
-});
-
 export const listTicketFilesTreeCommand = defineCommand({
   title: "List ticket files tree",
   params: {
@@ -176,6 +209,40 @@ export const listTicketFilesTreeCommand = defineCommand({
     const ticket = await ticketsCollection(ctx.storage).get(ticketId);
     if (!ticket) return [emptyFilesSection()];
 
+    const selectedDocument = getSelectedDocument(ticket.id);
+
+    // Travels in each file/attachment resource so the dashboard nests the
+    // breadcrumb under the owning ticket.
+    const ticketMeta: WorkspaceTicketMeta = {
+      ticketId: ticket.id,
+      ticketShorthand: ticket.shorthand,
+      ticketLabel: ticketDisplayTitle(ticket),
+    };
+
+    // The ticket body is its own header-less entry above Files; it is the default
+    // document. Selecting a node runs select-ticket-document, which swaps the single
+    // editor pane in place (the editor stays bound to the one ticket resource).
+    const selectTarget = (documentId: string) =>
+      ({
+        kind: "command" as const,
+        commandId: "pstdio-planner.select-ticket-document",
+        args: { ticketId, documentId },
+      }) satisfies TreeNode["target"];
+
+    const ticketSection: TreeViewSection = {
+      id: "ticket",
+      collapsible: false,
+      nodes: [
+        {
+          id: TICKET_BODY_ID,
+          label: "Ticket",
+          icon: "FileText",
+          target: selectTarget(TICKET_BODY_ID),
+          selected: selectedDocument === TICKET_BODY_ID,
+        },
+      ],
+    };
+
     const filesSection: TreeViewSection = {
       ...emptyFilesSection(),
       actions: [
@@ -188,49 +255,30 @@ export const listTicketFilesTreeCommand = defineCommand({
         },
       ],
       nodes: [
-        {
-          id: TICKET_BODY_ID,
-          label: "Ticket",
-          icon: "FileText",
-          target: {
-            kind: "command",
-            commandId: "pstdio-planner.select-ticket-file",
-            args: { ticketId, kind: "ticket" },
-          },
-        },
         ...(ticket.files ?? []).map((file) => ({
           id: file.id,
           label: file.name,
           icon: "FileText",
-          target: {
-            kind: "command" as const,
-            commandId: "pstdio-planner.select-ticket-file",
-            args: { ticketId, fileId: file.id, kind: "file" },
-          },
+          target: selectTarget(file.id),
+          selected: selectedDocument === file.id,
           contextMenuActions: fileContextMenuActions({ ticketId, fileId: file.id, fileName: file.name }),
         })),
-        // Image attachments are read-only previews: surfaced for selection only,
-        // with no rename/delete actions. Other attachment kinds stay out of scope.
+        // Image attachments open read-only in the editor's image preview.
         ...(ticket.attachments ?? []).filter(isImageAttachment).map((attachment) => ({
           id: attachment.id,
           label: attachment.name,
           icon: "Image",
-          target: {
-            kind: "command" as const,
-            commandId: "pstdio-planner.select-ticket-file",
-            args: { ticketId, fileId: attachment.id, kind: "attachment" },
-          },
+          target: selectTarget(attachment.id),
+          selected: selectedDocument === attachment.id,
         })),
       ],
     };
 
-    // Linked workspaces open as native workspace tabs from the same sidebar; the
-    // section is omitted entirely when nothing links to the ticket.
+    // Linked workspaces open as native workspace tabs from the same sidebar.
     const linkedWorkspaces = (await ctx.workspaces.list()).filter((workspace) =>
       isWorkspaceLinkedToTicket(workspace, ticket.shorthand),
     );
-    if (linkedWorkspaces.length === 0) return [filesSection];
 
-    return [filesSection, workspacesSection(linkedWorkspaces)];
+    return [ticketSection, filesSection, workspacesSection(linkedWorkspaces, ticketMeta)];
   },
 });

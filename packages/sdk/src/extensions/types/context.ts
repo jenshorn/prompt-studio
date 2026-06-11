@@ -1,4 +1,4 @@
-import type { SessionStatus } from "pstdio-api-contracts";
+import type { SessionStatus, TerminalSessionHandle, TerminalSessionRequest } from "pstdio-api-contracts";
 import type {
   CommandHelpersApi,
   CommandInvocation,
@@ -201,6 +201,13 @@ export interface ExtensionProcessApi {
   spawnDetached(input: { command: string[]; cwd?: string; env?: Record<string, string> }): Promise<{ pid?: number }>;
 }
 
+export type { TerminalEvent, TerminalSessionHandle, TerminalSessionRequest } from "pstdio-api-contracts";
+
+/** Opens long-lived, interactive PTY sessions. Complements {@link ExtensionProcessApi}'s run-to-completion model. */
+export interface ExtensionTerminalApi {
+  openSession(request: TerminalSessionRequest): TerminalSessionHandle;
+}
+
 export interface ExtensionNetApi {
   findFreePort(input?: { host?: string }): Promise<number>;
 }
@@ -218,8 +225,15 @@ export interface ExtensionSettingsApi<TSettings extends Record<string, unknown> 
   delete<TKey extends keyof TSettings & string>(key: TKey): Promise<void>;
 }
 
+export interface ExtensionProjectContext {
+  id: string;
+  name: string;
+  shorthand: string;
+}
+
 export interface ExtensionContextBase<TSettings extends Record<string, unknown> = Record<string, unknown>> {
   projectId: string;
+  project: ExtensionProjectContext;
   extensionId: string;
   /** Extension package name. Used for grouping/prefixing user-facing references. */
   name: string;
@@ -239,6 +253,8 @@ export interface ExtensionContextBase<TSettings extends Record<string, unknown> 
   activity: ExtensionActivityApi;
   notify: ExtensionNotifyApi;
   process: ExtensionProcessApi;
+  /** Interactive PTY sessions. Present only where the host wires a terminal supervisor (e.g. the workbench panel). */
+  terminal?: ExtensionTerminalApi;
   net: ExtensionNetApi;
   logger: ExtensionLoggerApi;
   settings: ExtensionSettingsApi<TSettings>;

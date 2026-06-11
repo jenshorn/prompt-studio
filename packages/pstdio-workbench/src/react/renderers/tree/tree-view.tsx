@@ -9,14 +9,17 @@ import type {
   TreeViewSection,
   WorkbenchCore,
 } from "../../../core";
+import { getAnchorResource } from "../../../core";
 import { CommandParamsDialog } from "../../command-palette/command-params-dialog";
+import { WorkbenchIcon } from "../../shared/icon";
 import { useWorkbenchStore } from "../../shared/use-workbench-store";
 import { workbenchBackgrounds } from "../../theme/workbench-theme-background";
 import type { TreeActionParamsRequest } from "./tree-actions";
-import { findNodeInSections, resolveTreeListActiveNodeId, toTreeListSection } from "./tree-list-adapter";
+import { findNodeInSections, resolveTreeListSelection, toTreeListSection } from "./tree-list-adapter";
 import { TreeViewBody } from "./tree-view-body";
-import { loadTreeData, shouldShowTreeLoading } from "./tree-view-load";
+import { expandDefaultTreeSections, loadTreeData, shouldShowTreeLoading } from "./tree-view-load";
 import { shouldSelectTreeNodeForNavigationTarget } from "./tree-view-navigation";
+import { useTreeViewCustomization } from "./use-tree-view-customization";
 
 interface WorkbenchTreeViewProps {
   workbench: WorkbenchCore;
@@ -30,12 +33,24 @@ const EMPTY_TREE_STATE: TreeRendererState = { expandedNodeIds: [], expandedSecti
 
 const footerSection = (footer: TreeNode[]): TreeViewSection => ({ id: "__footer__", nodes: footer });
 
+type WorkbenchLayoutState = ReturnType<WorkbenchCore["layout"]["getLayout"]>;
+
+const resolveActivePlacement = (
+  widgets: WorkbenchLayoutState["areas"]["overlay"]["widgets"],
+  activeWidgetId: string | undefined,
+) => widgets.find((entry) => entry.widgetId === activeWidgetId) ?? widgets[0];
+
+const resolveTreeActiveResource = (layout: WorkbenchLayoutState) =>
+  resolveActivePlacement(layout.areas.overlay.widgets, layout.areas.overlay.activeWidgetId)?.resource ??
+  getAnchorResource(layout, "primary");
+
 export const WorkbenchTreeView = (props: WorkbenchTreeViewProps) => {
   const { workbench, treeViewId, activeNodeId, resource, onOpenResourceError } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const treeRenderer = workbench.renderers.getTreeRenderer(treeViewId);
   const treeState =
     useWorkbenchStore(workbench.renderers.treeStore, (state) => state.statesByTreeId[treeViewId]) ?? EMPTY_TREE_STATE;
+  const activeResource = useWorkbenchStore(workbench.layout.store, (state) => resolveTreeActiveResource(state.layout));
   const [body, setBody] = useState<TreeViewSection[]>([]);
   const [footer, setFooter] = useState<TreeNode[]>([]);
   const [childrenByNodeId, setChildrenByNodeId] = useState<Record<string, TreeNode[]>>({});
@@ -45,6 +60,7 @@ export const WorkbenchTreeView = (props: WorkbenchTreeViewProps) => {
 
   useEffect(() => {
     let cancelled = false;
+    expandDefaultTreeSections(workbench.renderers, treeViewId);
 
     const loadTree = () => {
       // Reloads (selection or refresh) keep the current content visible so the
@@ -84,6 +100,13 @@ export const WorkbenchTreeView = (props: WorkbenchTreeViewProps) => {
       onCommandError: onOpenResourceError,
       onRequestParams: setParamsRequest,
     }),
+  );
+  // Per-tree-view hide/show: persisted under the tree id so each tree customizes
+  // independently. Hidden nodes drop out of the render; the menu still lists them.
+  const { visibleSections, backgroundContextActions } = useTreeViewCustomization(
+    treeViewId,
+    rawSections,
+    <WorkbenchIcon name="Check" size={12} />,
   );
   if (!treeRenderer) {
     return (
@@ -151,6 +174,20 @@ export const WorkbenchTreeView = (props: WorkbenchTreeViewProps) => {
           }),
         ]
       : [];
+  const bodyActiveNodeId = resolveTreeListSelection({
+    sections: body,
+    childrenByNodeId,
+    activeNodeId,
+    activeResource,
+    selectedNodeId: treeState.selectedNodeId,
+  });
+  const footerActiveNodeId = resolveTreeListSelection({
+    sections: footerSections.length > 0 ? [footerSection(footer)] : [],
+    childrenByNodeId,
+    activeNodeId,
+    activeResource,
+    selectedNodeId: treeState.selectedNodeId,
+  });
 
   return (
     <Flex as="section" direction="column" h="full" minH="0" minW="0" aria-label={treeRenderer.title}>
@@ -164,14 +201,17 @@ export const WorkbenchTreeView = (props: WorkbenchTreeViewProps) => {
           display: "block",
           style: { overflowX: "hidden" },
         }}
-        contentProps={{ style: { minWidth: "100%", width: "100%" } }}
+        contentProps={{
+          style: { minWidth: "100%", width: "100%", minHeight: "100%", display: "flex", flexDirection: "column" },
+        }}
       >
-        <Box w="full" minW="0">
+        <Box w="full" minW="0" flex="1 0 auto" display="flex" flexDirection="column">
           <TreeViewBody
             loading={loading}
             moduleLoading={treeState.loading}
-            sections={rawSections}
-            activeNodeId={resolveTreeListActiveNodeId(activeNodeId, treeState.selectedNodeId)}
+            sections={visibleSections}
+            backgroundContextActions={backgroundContextActions}
+            activeNodeId={bodyActiveNodeId}
             expandedNodeIds={treeState.expandedNodeIds}
             expandedSectionIds={treeState.expandedSectionIds}
             scrollRef={scrollRef}
@@ -187,7 +227,7 @@ export const WorkbenchTreeView = (props: WorkbenchTreeViewProps) => {
             sections={footerSections}
             expandedNodeIds={treeState.expandedNodeIds}
             expandedSectionIds={treeState.expandedSectionIds}
-            activeNodeId={resolveTreeListActiveNodeId(activeNodeId, treeState.selectedNodeId)}
+            activeNodeId={footerActiveNodeId}
             rowVariant="compact"
             onToggleSection={toggleSection}
             onToggleNode={toggleNode}

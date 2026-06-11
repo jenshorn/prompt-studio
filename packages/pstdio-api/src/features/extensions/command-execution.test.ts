@@ -45,6 +45,7 @@ const writeCommandExtension = (root: string) => {
             return {
               counter: next,
               projectId: ctx.projectId,
+              projectShorthand: ctx.project.shorthand,
               repoPath: ctx.repo?.path,
               resourceId: ctx.resource?.id,
             };
@@ -189,7 +190,7 @@ describe("extension command execution routes", () => {
       outcome: {
         ok: true,
         status: "success",
-        value: { counter: 2, projectId, repoPath: tempRoot, resourceId: "PS-1" },
+        value: { counter: 2, projectId, projectShorthand: "CP", repoPath: tempRoot, resourceId: "PS-1" },
       },
     });
 

@@ -1,6 +1,6 @@
 ---
 name: create-pstdio-extension
-description: "Create or edit a Prompt Studio extension. Use when asked to add or change extension commands, hooks, middlewares, schedules, templates, skills, routes, webviews, settings panels, themes, artifact mounts, workspace types, harnesses, or extension validation."
+description: "Create or edit a Prompt Studio extension. Use when asked to add or change extension commands, hooks, middlewares, schedules, templates, skills, routes, webviews, settings panels, themes, artifact mounts, workspace types, Harnesses, or extension validation."
 metadata:
   - version: 0.0.1
 ---
@@ -21,9 +21,11 @@ metadata:
    - Use hooks to react to project, ticket, workspace, worktree, git, session, attempt-status, or command lifecycle events.
    - Use schedules for cron-triggered command execution.
    - Use templates, skills, themes, file icon themes, and template types for packaged static catalog assets.
-   - Use routes, views, navigation, settings panels, activity renderers, and session anchor renderers for dashboard UI.
+   - Use data renderers for Planner-style native dashboard lists or boards. Project-sidebar entries are created from `dataRenderers`; do not add a `treeItems` entry with `action.kind === "dataRenderer"`.
+   - Use routes plus `treeItems` for custom webview pages in the project sidebar. Route tree-item actions reference the route path, not the normalized route id.
+   - Use views, settings panels, activity renderers, and session anchor renderers for dashboard UI that is not project-sidebar navigation.
    - Use artifact mounts for files under `.pstdio/<extension-package-name>/`.
-   - Use harnesses and workspace types only when adding a new execution or workspace provider.
+   - Use Harnesses and workspace types only when adding a new execution or workspace provider.
 3. Implement the smallest useful extension change.
    - Keep identity in `package.json`; do not add identity fields to `defineExtension()`.
    - Export a single default `defineExtension({ ... })` value from `extension.ts`.

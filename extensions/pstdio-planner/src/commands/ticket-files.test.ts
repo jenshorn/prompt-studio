@@ -5,6 +5,7 @@ import type { StoredTicketAttachment } from "../data/types";
 import { attachTicketFileCommand } from "./attach-ticket-file";
 import { makeCommandContext } from "./command-context.fixture";
 import { createTicketCommand } from "./create-ticket";
+import { selectTicketDocumentCommand } from "./select-ticket-document";
 import { createTicketFileCommand, listTicketFilesTreeCommand } from "./ticket-files";
 
 describe("ticket files tree commands", () => {
@@ -27,63 +28,87 @@ describe("ticket files tree commands", () => {
       }),
     );
 
-    expect(body).toEqual([
+    expect(body.map((section) => section.id)).toEqual(["ticket", "files", "workspaces"]);
+
+    // The ticket body is its own header-less entry, selected by default.
+    expect(body[0]).toEqual({
+      id: "ticket",
+      collapsible: false,
+      nodes: [
+        {
+          id: "__ticket__",
+          label: "Ticket",
+          icon: "FileText",
+          target: {
+            kind: "command",
+            commandId: "pstdio-planner.select-ticket-document",
+            args: { ticketId: ticket.id, documentId: "__ticket__" },
+          },
+          selected: true,
+        },
+      ],
+    });
+
+    // The file lives in the Files section; selecting it runs select-ticket-document.
+    expect(body[1]).toMatchObject({ id: "files", label: "Files" });
+    expect(body[1]?.nodes).toEqual([
       {
-        id: "files",
-        label: "Files",
-        collapsible: false,
-        actions: [
+        id: file.id,
+        label: "notes.md",
+        icon: "FileText",
+        target: {
+          kind: "command",
+          commandId: "pstdio-planner.select-ticket-document",
+          args: { ticketId: ticket.id, documentId: file.id },
+        },
+        selected: false,
+        contextMenuActions: [
           {
-            id: "create",
-            label: "New file",
-            icon: "Plus",
-            commandId: "pstdio-planner.create-ticket-file",
-            args: { ticketId: ticket.id },
-          },
-        ],
-        nodes: [
-          {
-            id: "__ticket__",
-            label: "Ticket",
-            icon: "FileText",
-            target: {
-              kind: "command",
-              commandId: "pstdio-planner.select-ticket-file",
-              args: { ticketId: ticket.id, kind: "ticket" },
+            id: "rename",
+            label: "Rename",
+            icon: "Pencil",
+            commandId: "pstdio-planner.rename-ticket-file",
+            args: { ticketId: ticket.id, fileId: file.id, name: "notes.md" },
+            submitLabel: "Save",
+            params: {
+              name: { type: "text", label: "File name", required: true, defaultValue: "notes.md" },
             },
           },
           {
-            id: file.id,
-            label: "notes.md",
-            icon: "FileText",
-            target: {
-              kind: "command",
-              commandId: "pstdio-planner.select-ticket-file",
-              args: { ticketId: ticket.id, fileId: file.id, kind: "file" },
-            },
-            contextMenuActions: [
-              {
-                id: "rename",
-                label: "Rename",
-                icon: "Pencil",
-                commandId: "pstdio-planner.rename-ticket-file",
-                args: { ticketId: ticket.id, fileId: file.id, name: "notes.md" },
-                params: {
-                  name: { type: "text", label: "File name", required: true, defaultValue: "notes.md" },
-                },
-              },
-              {
-                id: "delete",
-                label: "Delete",
-                icon: "Trash",
-                commandId: "pstdio-planner.delete-ticket-file",
-                args: { ticketId: ticket.id, fileId: file.id },
-              },
-            ],
+            id: "delete",
+            label: "Delete",
+            icon: "Trash",
+            commandId: "pstdio-planner.delete-ticket-file",
+            args: { ticketId: ticket.id, fileId: file.id },
           },
         ],
       },
     ]);
+  });
+
+  test("marks the selected document so the host highlights it", async () => {
+    const storage = createMemoryStorage();
+    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
+    const file = await createTicketFileCommand.run(
+      makeCommandContext({ storage, params: { ticketId: ticket.id, name: "notes.md" } }),
+    );
+
+    await selectTicketDocumentCommand.run(
+      makeCommandContext({ storage, params: { ticketId: ticket.id, documentId: file.id } }),
+    );
+
+    const sections = await listTicketFilesTreeCommand.run(
+      makeCommandContext({
+        storage,
+        params: {
+          treeId: "pstdio-planner.ticketFiles",
+          resource: { type: "ticket", id: ticket.id, label: ticket.shorthand },
+        },
+      }),
+    );
+
+    const allNodes = sections.flatMap((section) => section.nodes);
+    expect(allNodes.find((node) => node.selected)?.id).toBe(file.id);
   });
 
   test("appends image attachments to the Files section and skips non-image attachments", async () => {
@@ -108,7 +133,7 @@ describe("ticket files tree commands", () => {
       makeCommandContext({ storage, params: { ticketId: ticket.id, ref: makeAttachment("notes.txt", "text/plain") } }),
     );
 
-    const [section] = await listTicketFilesTreeCommand.run(
+    const sections = await listTicketFilesTreeCommand.run(
       makeCommandContext({
         storage,
         params: {
@@ -117,27 +142,19 @@ describe("ticket files tree commands", () => {
         },
       }),
     );
+    const filesSection = sections.find((section) => section.id === "files");
 
-    expect(section.nodes).toEqual([
-      {
-        id: "__ticket__",
-        label: "Ticket",
-        icon: "FileText",
-        target: {
-          kind: "command",
-          commandId: "pstdio-planner.select-ticket-file",
-          args: { ticketId: ticket.id, kind: "ticket" },
-        },
-      },
+    expect(filesSection?.nodes).toEqual([
       {
         id: "att-diagram.png",
         label: "diagram.png",
         icon: "Image",
         target: {
           kind: "command",
-          commandId: "pstdio-planner.select-ticket-file",
-          args: { ticketId: ticket.id, fileId: "att-diagram.png", kind: "attachment" },
+          commandId: "pstdio-planner.select-ticket-document",
+          args: { ticketId: ticket.id, documentId: "att-diagram.png" },
         },
+        selected: false,
       },
     ]);
 
@@ -178,20 +195,39 @@ describe("ticket files tree workspace commands", () => {
       }),
     );
 
-    expect(sections.map((section) => section.id)).toEqual(["files", "workspaces"]);
-    expect(sections[1]).toEqual({
+    expect(sections.map((section) => section.id)).toEqual(["ticket", "files", "workspaces"]);
+    expect(sections[2]).toEqual({
       id: "workspaces",
       label: "Workspaces",
       collapsible: true,
+      actions: [
+        {
+          id: "create-workspace",
+          label: "Create workspace",
+          icon: "Plus",
+          commandId: "pstdio-planner.create-workspace",
+          args: { ticket: ticket.id },
+        },
+      ],
       nodes: [
         {
           id: "workspace-ws-1",
           label: "WS-1",
           icon: "GitBranch",
-          description: "feature/work | /tmp/ws-1",
           target: {
             kind: "resource",
-            resource: { type: "workspace", id: "ws-1", label: "WS-1" },
+            // Ticket metadata travels with the workspace so the dashboard nests its
+            // breadcrumb under the ticket (Tickets / Ticket / Workspace).
+            resource: {
+              type: "workspace",
+              id: "ws-1",
+              label: "WS-1",
+              metadata: {
+                ticketId: ticket.id,
+                ticketShorthand: ticket.shorthand,
+                ticketLabel: `${ticket.shorthand} ${ticket.title}`,
+              },
+            },
           },
         },
       ],
@@ -234,10 +270,10 @@ describe("ticket files tree workspace commands", () => {
       }),
     );
 
-    expect(sections[1]?.nodes.map((node) => node.id)).toEqual(["workspace-ws-new", "workspace-ws-old"]);
+    expect(sections[2]?.nodes.map((node) => node.id)).toEqual(["workspace-ws-new", "workspace-ws-old"]);
   });
 
-  test("omits the Workspaces section when no workspace is linked to the ticket", async () => {
+  test("keeps the Workspaces section action and empty state when no workspace is linked to the ticket", async () => {
     const storage = createMemoryStorage();
     const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
 
@@ -261,38 +297,26 @@ describe("ticket files tree workspace commands", () => {
       }),
     );
 
-    expect(sections.map((section) => section.id)).toEqual(["files"]);
-  });
-});
-
-describe("ticket files tree selection commands", () => {
-  test("creates a ticket file from the selected ticket resource without a ticketId param", async () => {
-    const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
-
-    const file = await createTicketFileCommand.run(
-      makeCommandContext({
-        storage,
-        params: { name: "notes.md" },
-        overrides: { resource: { type: "ticket", id: ticket.id, label: ticket.shorthand } },
-      }),
-    );
-
-    expect(file).toMatchObject({ ticketId: ticket.id, name: "notes.md" });
-  });
-
-  test("returns an empty files tree without a ticket resource", async () => {
-    const storage = createMemoryStorage();
-
-    const body = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
-        storage,
-        params: {
-          treeId: "pstdio-planner.ticketFiles",
+    expect(sections.map((section) => section.id)).toEqual(["ticket", "files", "workspaces"]);
+    expect(sections[2]).toMatchObject({
+      id: "workspaces",
+      label: "Workspaces",
+      collapsible: true,
+      emptyState: {
+        title: expect.any(String),
+        description: expect.any(String),
+        icon: "GitBranch",
+      },
+      actions: [
+        {
+          id: "create-workspace",
+          label: "Create workspace",
+          icon: "Plus",
+          commandId: "pstdio-planner.create-workspace",
+          args: { ticket: ticket.id },
         },
-      }),
-    );
-
-    expect(body).toEqual([{ id: "files", label: "Files", collapsible: false, nodes: [] }]);
+      ],
+      nodes: [],
+    });
   });
 });

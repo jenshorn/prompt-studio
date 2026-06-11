@@ -20,6 +20,8 @@ export interface TreeAction {
   commandId?: string;
   args?: unknown;
   params?: CommandParamSchema;
+  // Confirm-button label for the action's params dialog (defaults to "Run").
+  submitLabel?: string;
   when?: string;
   disabled?: boolean;
   run?(args?: unknown): Promise<void> | void;
@@ -45,6 +47,14 @@ export interface TreeNode {
   description?: string;
   contextValue?: string;
   hiddenByDefault?: boolean;
+  /** When false, the node cannot be hidden from the tree's customization menu. */
+  canHide?: boolean;
+}
+
+export interface TreeSectionEmptyState {
+  title: string;
+  description?: string;
+  icon?: string;
 }
 
 export interface TreeViewSection {
@@ -52,6 +62,7 @@ export interface TreeViewSection {
   label?: string;
   actions?: TreeAction[];
   collapsible?: boolean;
+  emptyState?: TreeSectionEmptyState;
   nodes: TreeNode[];
   hiddenByDefault?: boolean;
 }
@@ -112,6 +123,15 @@ const createDefaultState = (view: TreeRendererContribution): TreeRendererState =
   expandedNodeIds: [...(view.defaultExpandedNodeIds ?? [])],
   expandedSectionIds: [...(view.defaultExpandedSectionIds ?? [])],
 });
+
+// Section defaults are re-applied on every registration so a section that
+// should start expanded (e.g. a ticket's workspaces) stays expanded even when
+// an older persisted state predates it. Node expansion stays user-controlled.
+const mergeDefaultSections = (state: TreeRendererState, view: TreeRendererContribution): TreeRendererState => {
+  const missing = (view.defaultExpandedSectionIds ?? []).filter((id) => !state.expandedSectionIds.includes(id));
+  if (missing.length === 0) return state;
+  return { ...state, expandedSectionIds: [...state.expandedSectionIds, ...missing] };
+};
 
 const toggleId = (ids: string[], id: string, expanded: boolean) => {
   if (expanded) return ids.includes(id) ? ids : [...ids, id];
@@ -220,7 +240,8 @@ export const createTreeRendererRegistry = (input: CreateTreeRendererRegistryInpu
         ...normalizeContributionMetadata(metadata),
         ...view,
       };
-      const nextState = snapshot.statesByTreeId[view.id] ?? createDefaultState(view);
+      const persistedState = snapshot.statesByTreeId[view.id];
+      const nextState = persistedState ? mergeDefaultSections(persistedState, view) : createDefaultState(view);
 
       treeStore.setState(
         {

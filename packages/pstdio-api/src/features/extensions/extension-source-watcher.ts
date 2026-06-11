@@ -1,5 +1,5 @@
-import { watch as fsWatch } from "node:fs";
-import { isAbsolute, relative } from "node:path";
+import { watch as fsWatch, lstatSync, readdirSync } from "node:fs";
+import { basename, isAbsolute, join, relative } from "node:path";
 import { createExtensionIgnoreMatcher, type ExtensionIgnoreMatcher } from "./extension-ignore";
 
 type InstalledSourceRegistration = {
@@ -13,14 +13,21 @@ type SourceWatcher = {
 
 const defaultDebounceMs = 1000;
 
+// Watch registration walks the source tree itself, so it must never descend into
+// dependency or VCS trees: node_modules symlinks back into the monorepo store,
+// and recursively registering that (Linux has no native recursive fs.watch)
+// crawls hundreds of thousands of entries — enough to hang a CI job.
+const skippedDirectoryNames = new Set(["node_modules", ".git"]);
+
 type WatchListener = (eventType: string, filename: string | Buffer | null) => void;
-type WatchSource = (path: string, listener: WatchListener) => SourceWatcher;
+type WatchErrorHandler = (error: unknown) => void;
+type WatchSource = (path: string, listener: WatchListener, onError: WatchErrorHandler) => SourceWatcher;
 
 type WatchedRegistration = {
   matcher: ExtensionIgnoreMatcher;
   sourcePath: string;
   timer: ReturnType<typeof setTimeout> | null;
-  watcher: SourceWatcher;
+  watchers: Map<string, SourceWatcher>;
 };
 
 export type ExtensionSourceWatcher = {
@@ -36,12 +43,39 @@ export type CreateExtensionSourceWatcherInput = {
   watch?: WatchSource;
 };
 
-const defaultWatch: WatchSource = (path, listener) => fsWatch(path, { recursive: true }, listener);
+// Watches a single directory (non-recursive). fs errors — e.g. the directory
+// disappearing mid-watch — are routed to onError so they can't crash the API
+// process via an unhandled 'error' event.
+const defaultWatch: WatchSource = (path, listener, onError) => {
+  const watcher = fsWatch(path, listener);
+  watcher.on("error", onError);
+  return watcher;
+};
 
-const toRelativeEventPath = (sourcePath: string, filename: string | Buffer | null) => {
-  if (!filename) return null;
+const listWatchableDirectories = (sourcePath: string, matcher: ExtensionIgnoreMatcher, startPath: string) => {
+  const directories: string[] = [];
+
+  const visit = (dir: string) => {
+    directories.push(dir);
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      // Dirent.isDirectory() does not follow symlinks, so linked directories
+      // (which can point anywhere, including outside the extension) are skipped.
+      if (!entry.isDirectory()) continue;
+      if (skippedDirectoryNames.has(entry.name)) continue;
+      const path = join(dir, entry.name);
+      if (matcher.ignores(relative(sourcePath, path))) continue;
+      visit(path);
+    }
+  };
+
+  visit(startPath);
+  return directories;
+};
+
+const toEventPath = (directoryPath: string, filename: string | Buffer | null) => {
+  if (!filename) return directoryPath;
   const value = filename.toString();
-  return isAbsolute(value) ? relative(sourcePath, value) : value;
+  return isAbsolute(value) ? value : join(directoryPath, value);
 };
 
 export const createExtensionSourceWatcher = async (
@@ -54,7 +88,8 @@ export const createExtensionSourceWatcher = async (
 
   const disposeRegistration = (registration: WatchedRegistration) => {
     if (registration.timer) clearTimeout(registration.timer);
-    registration.watcher.close();
+    for (const watcher of registration.watchers.values()) watcher.close();
+    registration.watchers.clear();
   };
 
   const scheduleReload = (registration: WatchedRegistration) => {
@@ -66,29 +101,67 @@ export const createExtensionSourceWatcher = async (
     }, debounceMs);
   };
 
-  const addRegistration = (row: InstalledSourceRegistration) => {
-    const matcher = createExtensionIgnoreMatcher(row.source_path);
-    let watcher: SourceWatcher;
+  const watchDirectory = (registration: WatchedRegistration, directoryPath: string) => {
+    if (registration.watchers.has(directoryPath)) return;
 
     try {
-      watcher = watch(row.source_path, (_eventType, filename) => {
-        const relativePath = toRelativeEventPath(row.source_path, filename);
-        if (relativePath && matcher.ignores(relativePath)) return;
+      const watcher = watch(
+        directoryPath,
+        (eventType, filename) => handleDirectoryEvent(registration, directoryPath, eventType, filename),
+        (error) => input.onError?.(error),
+      );
+      registration.watchers.set(directoryPath, watcher);
+    } catch (error) {
+      input.onError?.(error);
+    }
+  };
 
-        const registration = registrations.get(row.source_path);
-        if (registration) scheduleReload(registration);
-      });
+  const watchDirectoryTree = (registration: WatchedRegistration, startPath: string) => {
+    let directories: string[];
+    try {
+      directories = listWatchableDirectories(registration.sourcePath, registration.matcher, startPath);
     } catch (error) {
       input.onError?.(error);
       return;
     }
 
-    registrations.set(row.source_path, {
-      matcher,
+    for (const directoryPath of directories) watchDirectory(registration, directoryPath);
+  };
+
+  const watchCreatedDirectory = (registration: WatchedRegistration, eventPath: string) => {
+    if (registration.watchers.has(eventPath)) return;
+    if (skippedDirectoryNames.has(basename(eventPath))) return;
+
+    const stats = lstatSync(eventPath, { throwIfNoEntry: false });
+    if (!stats?.isDirectory()) return;
+
+    watchDirectoryTree(registration, eventPath);
+  };
+
+  const handleDirectoryEvent = (
+    registration: WatchedRegistration,
+    directoryPath: string,
+    _eventType: string,
+    filename: string | Buffer | null,
+  ) => {
+    const eventPath = toEventPath(directoryPath, filename);
+    const relativePath = relative(registration.sourcePath, eventPath);
+    if (relativePath && registration.matcher.ignores(relativePath)) return;
+
+    watchCreatedDirectory(registration, eventPath);
+    scheduleReload(registration);
+  };
+
+  const addRegistration = (row: InstalledSourceRegistration) => {
+    const registration: WatchedRegistration = {
+      matcher: createExtensionIgnoreMatcher(row.source_path),
       sourcePath: row.source_path,
       timer: null,
-      watcher,
-    });
+      watchers: new Map(),
+    };
+
+    registrations.set(row.source_path, registration);
+    watchDirectoryTree(registration, row.source_path);
   };
 
   const refresh = async () => {

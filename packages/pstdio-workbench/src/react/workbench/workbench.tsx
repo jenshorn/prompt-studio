@@ -3,10 +3,12 @@ import { ResizableSplitLayout, Toaster } from "@pstdio/ui";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { WorkbenchArea, WorkbenchCore } from "../../core";
 import { WorkbenchCommandPalette } from "../command-palette/command-palette";
+import type { CommandParamFieldRenderer } from "../command-palette/command-params-dialog";
 import { WorkbenchKeepAliveLayer } from "../keep-alive/workbench-keep-alive-layer";
 import { WorkbenchKeybindingDispatcher } from "../keybindings/workbench-keybinding-dispatcher";
 import { WorkbenchNotificationHost } from "../notifications/notification-host";
 import { installWorkbenchDataRenderer } from "../renderers/data/install-data-renderer";
+import { installWorkbenchFileRenderer } from "../renderers/file/install-file-renderer";
 import { installWorkbenchTreeRenderer } from "../renderers/tree/install-tree-renderer";
 import { WorkbenchSessionBubbleContainer } from "../session-panel/session-panel";
 import { useWorkbenchStore } from "../shared/use-workbench-store";
@@ -23,6 +25,7 @@ import { WorkbenchFloatingSessionHeader, WorkbenchFloatingSessionPortal } from "
 
 interface WorkbenchProps {
   workbench: WorkbenchCore;
+  renderParamField?: CommandParamFieldRenderer;
 }
 
 type WorkbenchLayoutState = ReturnType<WorkbenchCore["layout"]["getLayout"]>;
@@ -80,9 +83,10 @@ const deriveLayoutFlags = (layout: WorkbenchLayoutState, placeholders: Workbench
 };
 
 const WorkbenchContent = (props: WorkbenchProps) => {
-  const { workbench } = props;
+  const { workbench, renderParamField } = props;
   installWorkbenchTreeRenderer(workbench);
   installWorkbenchDataRenderer(workbench);
+  installWorkbenchFileRenderer(workbench);
   const [sessionAttachedSlot, setSessionAttachedSlot] = useState<HTMLDivElement | null>(null);
   const [sessionBubbleSlot, setSessionBubbleSlot] = useState<HTMLDivElement | null>(null);
   const sessionHostRef = useRef<HTMLDivElement | null>(null);
@@ -201,6 +205,7 @@ const WorkbenchContent = (props: WorkbenchProps) => {
         workbench={workbench}
         open={paletteOpen}
         initialQuery={paletteInitialQuery}
+        renderParamField={renderParamField}
         onClose={() => workbench.commandPalette.close()}
       />
       <WorkbenchKeybindingDispatcher workbench={workbench} />

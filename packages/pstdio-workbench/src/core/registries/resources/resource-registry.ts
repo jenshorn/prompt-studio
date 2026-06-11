@@ -1,3 +1,4 @@
+import type { ContextKeyValue } from "../../shared/context/context-key-service";
 import {
   byContributionPriority,
   type ContributionMetadata,
@@ -15,6 +16,42 @@ export interface ResourceRef {
   icon?: string;
   metadata?: Record<string, unknown>;
 }
+
+export const workbenchResourceKindContextKey = "workbench.resource.kind";
+export const workbenchResourceIdContextKey = "workbench.resource.id";
+export const workbenchResourceMetadataContextKey = (key: string) => `workbench.resource.metadata.${key}`;
+export const workbenchSelectionResourceUriMetadataKey = "workbench.selectionResourceUri";
+
+const isContextPrimitive = (value: unknown): value is Exclude<ContextKeyValue, undefined> =>
+  typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+
+export const createWorkbenchResourceContextValues = (resource: ResourceRef | undefined) => {
+  if (!resource) return {};
+
+  const values: Record<string, ContextKeyValue> = {
+    [workbenchResourceKindContextKey]: resource.kind,
+    [workbenchResourceIdContextKey]: resource.id ?? resource.uri,
+  };
+
+  for (const [key, value] of Object.entries(resource.metadata ?? {})) {
+    if (isContextPrimitive(value)) values[workbenchResourceMetadataContextKey(key)] = value;
+  }
+
+  return values;
+};
+
+export const createWorkbenchSelectionResourceMetadata = (resource: Pick<ResourceRef, "uri">) => ({
+  [workbenchSelectionResourceUriMetadataKey]: resource.uri,
+});
+
+export const getWorkbenchSelectionResourceUris = (resource: ResourceRef | undefined) => {
+  if (!resource) return [];
+
+  const selectionResourceUri = resource.metadata?.[workbenchSelectionResourceUriMetadataKey];
+  if (typeof selectionResourceUri !== "string" || selectionResourceUri === resource.uri) return [resource.uri];
+
+  return [resource.uri, selectionResourceUri];
+};
 
 export interface OpenResourceInput {
   replaceActive?: boolean;
@@ -49,6 +86,7 @@ export interface ResourceBrowseEntry {
   description?: string;
   group?: string;
   order?: number;
+  activate?: (resource: ResourceRef) => unknown | Promise<unknown>;
 }
 
 // Context handed to providers so candidate lists can be scoped to the current surface

@@ -2920,7 +2920,7 @@
           },
           "panel": {
             "value": {
-              "_light": "{colors.blacks.100}",
+              "_light": "{colors.bg}",
               "_dark": "{colors.bg}"
             }
           },
@@ -4262,7 +4262,7 @@
               }
             },
             "xs": {
-              "h": "8",
+              "h": "1.75rem",
               "minW": "8",
               "textStyle": "xs",
               "px": "2.5",

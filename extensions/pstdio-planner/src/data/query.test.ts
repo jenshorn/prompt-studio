@@ -29,7 +29,7 @@ describe("runTicketsQuery", () => {
 
     const result = await runTicketsQuery({ storage, projectId: "proj-1" });
 
-    expect(result.rows.map((row) => row.title)).toEqual(["T-1 First", "T-2 Second"]);
+    expect(result.rows.map((row) => row.title)).toEqual(["First", "Second"]);
     expect(result.attributes?.some((attribute) => attribute.id === "status")).toBe(true);
     expect(Object.keys(result.boardColumnConfigs ?? {})).toContain(todo.id);
   });
@@ -56,6 +56,20 @@ describe("runTicketsQuery", () => {
     expect(Object.keys(result.boardColumnConfigs ?? {}).length).toBeGreaterThan(0);
   });
 
+  test("exposes only backlog as a creatable default board column", async () => {
+    const storage = createMemoryStorage();
+
+    const result = await runTicketsQuery({ storage, projectId: "proj-1" });
+    const configs = result.boardColumnConfigs ?? {};
+
+    expect(configs["default-backlog"]?.canCreate).toBe(true);
+    expect(
+      Object.entries(configs)
+        .filter(([statusId]) => statusId !== "default-backlog")
+        .every(([, config]) => config.canCreate === false),
+    ).toBe(true);
+  });
+
   test("exposes default display property attributes", async () => {
     const storage = createMemoryStorage();
     await putTicket(
@@ -74,6 +88,7 @@ describe("runTicketsQuery", () => {
       "id",
       "priority",
       "type",
+      "complexity",
     ]);
     expect(result.rows[0]?.attributes).toMatchObject({
       id: "T-1",

@@ -113,6 +113,7 @@ export { createMenuRegistry } from "./registries/menus/menu-registry";
 export {
   headerLeadingMenuPath,
   headerTrailingMenuPath,
+  resourceContextMenuPath,
   workbenchCommandPaletteMenuPath,
   workbenchTopHeaderLeadingMenuPath,
   workbenchTopHeaderTrailingMenuPath,
@@ -171,6 +172,16 @@ export type {
 } from "./registries/renderers/data-renderer-registry";
 export { createDataRendererRegistry } from "./registries/renderers/data-renderer-registry";
 export type {
+  CreateFileRendererRegistryInput,
+  FileRendererContent,
+  FileRendererContribution,
+  FileRendererImplementation,
+  FileRendererRegistry,
+  FileRendererStoreState,
+  RegisteredFileRendererContribution,
+} from "./registries/renderers/file-renderer-registry";
+export { createFileRendererRegistry } from "./registries/renderers/file-renderer-registry";
+export type {
   CreateWorkbenchRendererRegistryInput,
   RegisteredKeepAliveHost,
   WorkbenchRendererRegistration,
@@ -211,7 +222,16 @@ export type {
   ResourceRegistry,
   ResourceSurface,
 } from "./registries/resources/resource-registry";
-export { createResourceRegistry } from "./registries/resources/resource-registry";
+export {
+  createResourceRegistry,
+  createWorkbenchResourceContextValues,
+  createWorkbenchSelectionResourceMetadata,
+  getWorkbenchSelectionResourceUris,
+  workbenchResourceIdContextKey,
+  workbenchResourceKindContextKey,
+  workbenchResourceMetadataContextKey,
+  workbenchSelectionResourceUriMetadataKey,
+} from "./registries/resources/resource-registry";
 export type {
   CollectionSettingsPanel,
   CustomSettingsPanel,

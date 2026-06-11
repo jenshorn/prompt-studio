@@ -30,7 +30,7 @@ describe("seedDefaultStatuses", () => {
       { name: "Ready", color: "green", isDefault: false },
       { name: "In Progress", color: "blue", isDefault: false },
       { name: "Blocked", color: "red", isDefault: false },
-      { name: "In Review", color: "amber", isDefault: false },
+      { name: "In Review", color: "yellow", isDefault: false },
       { name: "Done", color: "green", isDefault: false },
     ]);
   });
@@ -86,7 +86,7 @@ describe("seedDefaultTags", () => {
     await Promise.all([seedDefaultTags(storage), seedDefaultTags(storage)]);
 
     const stored = await tagsCollection(storage).list();
-    expect(stored.map((tag) => tag.name)).toEqual(["Priority", "Type"]);
+    expect(stored.map((tag) => tag.name)).toEqual(["Priority", "Type", "Complexity"]);
   });
 
   test("completes a partial default seed before the seeded marker is written", async () => {
@@ -97,6 +97,6 @@ describe("seedDefaultTags", () => {
     const seeded = await seedDefaultTags(storage);
 
     expect(first.id).toBe("default-priority");
-    expect(seeded.map((tag) => tag.id)).toEqual(["default-priority", "default-type"]);
+    expect(seeded.map((tag) => tag.id)).toEqual(["default-priority", "default-type", "default-complexity"]);
   });
 });

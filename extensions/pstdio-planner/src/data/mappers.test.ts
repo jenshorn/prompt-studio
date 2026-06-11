@@ -31,7 +31,8 @@ describe("ticketToRow", () => {
     const row = ticketToRow(ticket, "proj-1");
 
     expect(row.id).toBe("t1");
-    expect(row.title).toBe("T-1 Fix the thing");
+    // Card title drops the shorthand prefix; the breadcrumb keeps it via resource.label.
+    expect(row.title).toBe("Fix the thing");
     expect(row.resource).toEqual({
       type: TICKET_RESOURCE_KIND,
       id: "t1",
@@ -87,7 +88,7 @@ describe("statusToColumnConfig", () => {
       canDragIn: true,
       canDragOut: false,
       canCreate: true,
-      actions: [{ id: "archive_all", label: "Archive all" }],
+      actions: [{ id: "archive_all", label: { $l10n: "boardView.archiveAll", default: "Archive all" } }],
     });
   });
 });
