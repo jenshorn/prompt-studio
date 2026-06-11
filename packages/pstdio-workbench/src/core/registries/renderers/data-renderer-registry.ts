@@ -1,3 +1,7 @@
+import type { ContributionMetadata, RegisteredContributionMetadata } from "../../shared/contributions/metadata";
+import { byContributionPriority, normalizeContributionMetadata } from "../../shared/contributions/metadata";
+import { createDisposable, type Disposable } from "../../shared/disposable";
+import { createWorkbenchStore, type WorkbenchStore } from "../../shared/store/workbench-store";
 import type {
   AttributeDescriptor,
   AttributesSource,
@@ -6,11 +10,7 @@ import type {
   DataRendererRow,
   DataRendererSettings,
   ResourceContextAction,
-} from "@pstdio/ui";
-import type { ContributionMetadata, RegisteredContributionMetadata } from "../../shared/contributions/metadata";
-import { byContributionPriority, normalizeContributionMetadata } from "../../shared/contributions/metadata";
-import { createDisposable, type Disposable } from "../../shared/disposable";
-import { createWorkbenchStore, type WorkbenchStore } from "../../shared/store/workbench-store";
+} from "./data-renderer-contracts";
 import type { WorkbenchRendererRegistry, WorkbenchWidgetRenderInput } from "./renderer-registry";
 
 export interface DataRendererQueryState {

@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
+import type { ExtensionCommandRecord, ExtensionSettingDefinitionRecord } from "pstdio-api-contracts";
 import type {
   ExtensionProjectContext,
   ExtensionSessionsApi,
   ExtensionWorkspace,
   RepoContext,
-} from "@pstdio/sdk/extensions";
-import { worktreeEvents } from "@pstdio/sdk/extensions";
-import type { ExtensionCommandRecord, ExtensionSettingDefinitionRecord } from "pstdio-api-contracts";
+} from "pstdio-api-contracts/extension-kernel";
+import { worktreeEvents } from "pstdio-api-contracts/extension-kernel";
 import type {
   CommandRunnerEnvironment,
   RuntimeArtifactMount,

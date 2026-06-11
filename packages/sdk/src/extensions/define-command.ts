@@ -1,6 +1,10 @@
-import type { CommandDefinition, HookDefinition, MiddlewareDefinition } from "./types/extension";
-import type { Struct } from "./types/json";
-import type { ParamObjectSchema } from "./types/params";
+import type {
+  CommandDefinition,
+  HookDefinition,
+  MiddlewareDefinition,
+  ParamObjectSchema,
+  Struct,
+} from "pstdio-api-contracts/extension-kernel";
 
 /**
  * Define a single command outside an extension's object literal. Use this when commands

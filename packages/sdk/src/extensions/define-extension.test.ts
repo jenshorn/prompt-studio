@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { worktreeEvents } from "pstdio-api-contracts/extension-kernel";
 import { defineExtension } from "./define-extension";
-import { worktreeEvents } from "./kernel-slots";
 
 describe("defineExtension", () => {
   test("preserves contribution literals", () => {
