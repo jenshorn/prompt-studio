@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { packageAssetDescriptorSchema } from "./extensions";
 
-export const templateTypeSchema = z.enum(["prompt", "ticket", "document"]);
+export const templateTypeSchema = z.string().min(1);
 export const templateSourceKindSchema = z.enum(["project", "extension"]);
 
 export const templateSchema = z.object({
