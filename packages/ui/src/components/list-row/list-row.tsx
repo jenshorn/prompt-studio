@@ -1,6 +1,6 @@
 import { chakra, Icon } from "@chakra-ui/react";
 import { forwardRef, type ReactElement, type MouseEvent as ReactMouseEvent, useState } from "react";
-import { ResourceContextMenu } from "../resource-context-menu";
+import { type ResourceContextAction, ResourceContextMenu } from "../resource-context-menu";
 import { Tooltip } from "../tooltip";
 import type { ListRowItem, ListRowProps } from "./list-row.types";
 import { ListRowContent } from "./list-row-content";
@@ -30,6 +30,17 @@ const createRowBackgroundProps = (input: {
   _hover:
     input.tone === "danger" ? { boxShadow: "inset 0 0 0 1px var(--chakra-colors-red-500)" } : { bg: input.hoverBg },
 });
+
+const createResourceContextActions = (items: NonNullable<ListRowItem["contextMenuItems"]>): ResourceContextAction[] =>
+  items.map((entry) => ({
+    key: entry.id,
+    label: entry.label,
+    icon: typeof entry.icon === "function" ? <Icon as={entry.icon} boxSize="16px" /> : entry.icon,
+    endContent: entry.endContent,
+    isDisabled: entry.disabled,
+    separatorBefore: entry.separatorBefore,
+    onClick: () => entry.onAction?.(),
+  }));
 
 export const ListRow = forwardRef<HTMLElement, ListRowProps>((props, ref) => {
   const {
@@ -62,6 +73,7 @@ export const ListRow = forwardRef<HTMLElement, ListRowProps>((props, ref) => {
     hoverBg = "bg.menu-item.hover",
     asChild = false,
     className,
+    role: roleProp,
     onToggleExpand,
     onPointerMove,
     draggable,
@@ -145,11 +157,12 @@ export const ListRow = forwardRef<HTMLElement, ListRowProps>((props, ref) => {
   const hasDescription = item.description !== undefined;
   const activationProps = hasMenuItems ? { onClick: handleMenuClick } : { onClick: handleClick };
   const { rowHeight, minHeight } = resolveListRowSizing(variant, hasDescription);
+  const rowRole = roleProp ?? (hasMenuItems ? "button" : "option");
 
   const rowProps = {
     ...rootProps,
-    role: hasMenuItems ? ("button" as const) : ("option" as const),
-    "aria-selected": isSelected,
+    role: rowRole,
+    "aria-selected": rootProps["aria-selected"] ?? (rowRole === "option" ? isSelected : undefined),
     "aria-expanded": showChevron ? isExpanded : undefined,
     className: className ? `group ${className}` : "group",
     width: "full",
@@ -187,17 +200,8 @@ export const ListRow = forwardRef<HTMLElement, ListRowProps>((props, ref) => {
   const wrapWithContextMenu = (children: ReactElement) => {
     if (!item.contextMenuItems || item.contextMenuItems.length === 0) return children;
 
-    const contextActions = item.contextMenuItems.map((entry) => ({
-      key: entry.id,
-      label: entry.label,
-      icon: typeof entry.icon === "function" ? <Icon as={entry.icon} boxSize="16px" /> : entry.icon,
-      endContent: entry.endContent,
-      isDisabled: entry.disabled,
-      onClick: () => entry.onAction?.(),
-    }));
-
     return (
-      <ResourceContextMenu actions={contextActions} contentMinWidth="180px">
+      <ResourceContextMenu actions={createResourceContextActions(item.contextMenuItems)} contentMinWidth="180px">
         {children}
       </ResourceContextMenu>
     );

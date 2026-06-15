@@ -1,11 +1,11 @@
-import { type CommandContext, defineCommand, params, type ResourceAnchor } from "@pstdio/sdk/extensions";
+import { type CommandContext, defineCommand, l10n, params, type ResourceAnchor } from "@pstdio/sdk/extensions";
 import { moveTicketToInProgress } from "../data/move-to-in-progress";
 import { findTicket } from "../data/resolve";
 
 const ticketActionParams = {
   ticket: params.text({ label: "Ticket" }),
   rowId: params.text({ label: "Ticket row" }),
-  agent: params.harness({ label: "Agent" }),
+  agent: params.harness({ label: "Model" }),
 };
 
 const selectedTicketParams = {
@@ -40,13 +40,22 @@ const resolveTicket = (
   throw new Error("Ticket is required.");
 };
 
-const resolveTicketAnchor = async (
-  ctx: Pick<CommandContext<{ ticket?: string; rowId?: string }>, "extensionId" | "projectId" | "storage">,
+const resolveTicketIdentity = async (
+  ctx: Pick<CommandContext<{ ticket?: string; rowId?: string }>, "storage">,
   ticketRef: string,
 ) => {
   const ticket = await findTicket(ctx.storage, ticketRef);
   const id = ticket?.id ?? ticketRef;
   const shorthand = nonEmptyText(ticket?.shorthand) ?? ticketRef;
+
+  return { id, shorthand, ticket: ticket ?? { id, shorthand } };
+};
+
+const resolveTicketAnchor = async (
+  ctx: Pick<CommandContext<{ ticket?: string; rowId?: string }>, "extensionId" | "projectId" | "storage">,
+  ticketRef: string,
+) => {
+  const { id, shorthand, ticket } = await resolveTicketIdentity(ctx, ticketRef);
 
   return {
     anchor: {
@@ -59,7 +68,7 @@ const resolveTicketAnchor = async (
       metadata: { shorthand },
     } satisfies ResourceAnchor,
     shorthand,
-    ticket: ticket ?? { id, shorthand },
+    ticket,
   };
 };
 
@@ -98,6 +107,14 @@ const createAnchoredWorkspace = async (
 
 export const createWorkspaceCommand = defineCommand({
   title: "Create workspace",
+  menus: [
+    {
+      slot: "ticket.headerOverflow",
+      label: l10n("dataRenderers.tickets.rowActions.createWorkspace", "Create workspace"),
+      icon: "git-branch",
+      placement: "first",
+    },
+  ],
   params: {
     ticket: ticketActionParams.ticket,
     rowId: ticketActionParams.rowId,
@@ -118,7 +135,18 @@ export const createWorkspaceCommand = defineCommand({
 
 export const runAttemptCommand = defineCommand({
   title: "Run attempt",
-  menus: [{ slot: "ticket.headerPrimary", label: "Run attempt" }],
+  menus: [
+    {
+      slot: "ticket.headerPrimary",
+      label: l10n("dataRenderers.tickets.rowActions.runAttempt", "Run attempt"),
+      icon: "play",
+    },
+    {
+      slot: "ticket.headerOverflow",
+      label: l10n("dataRenderers.tickets.rowActions.runAttempt", "Run attempt"),
+      icon: "play",
+    },
+  ],
   params: {
     ...ticketActionParams,
     repo: params.repo({ label: "Repository" }),
@@ -147,7 +175,13 @@ export const runAttemptCommand = defineCommand({
 
 export const refineTicketCommand = defineCommand({
   title: "Refine ticket",
-  menus: [{ slot: "ticket.headerOverflow", label: "Refine ticket" }],
+  menus: [
+    {
+      slot: "ticket.headerOverflow",
+      label: l10n("dataRenderers.tickets.rowActions.refineTicket", "Refine ticket"),
+      icon: "sparkles",
+    },
+  ],
   params: {
     ...selectedTicketParams,
     template: params.template({ label: "Template", type: "ticket", required: false }),
@@ -155,14 +189,15 @@ export const refineTicketCommand = defineCommand({
   },
   async run(ctx) {
     const { agent, context, template } = ctx.params;
-    const ticket = resolveTicket(ctx);
+    const ticketRef = resolveTicket(ctx);
+    const { shorthand } = await resolveTicketIdentity(ctx, ticketRef);
 
     return ctx.sessions.create({
-      title: `Refine ticket: ${ticket}`,
+      title: `Refine ticket: ${shorthand}`,
       ...harnessInput(agent),
       template: "refine-ticket",
       vars: {
-        ...ticketTemplateVars(ticket, template),
+        ...ticketTemplateVars(shorthand, template),
         ...(context ? { additionalContext: context } : {}),
       },
     });
@@ -171,7 +206,13 @@ export const refineTicketCommand = defineCommand({
 
 export const breakIntoSubTicketsCommand = defineCommand({
   title: "Break into sub-tickets",
-  menus: [{ slot: "ticket.headerOverflow", label: "Break into sub-tickets" }],
+  menus: [
+    {
+      slot: "ticket.headerOverflow",
+      label: l10n("dataRenderers.tickets.rowActions.breakIntoSubTickets", "Break into sub-tickets"),
+      icon: "list-tree",
+    },
+  ],
   params: {
     ...ticketActionParams,
     template: params.template({ label: "Template", type: "ticket", required: false }),

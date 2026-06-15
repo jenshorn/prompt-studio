@@ -9,7 +9,7 @@ import type { DashboardExtensionMetadata } from "@/shared/extensions/workbench-e
 import { setResourceBreadcrumb } from "@/shared/workbench/resource-sync";
 import { createExtensionDataRendererResource } from "./extension-data-renderers";
 import { extensionViewArea, extensionViewWidgetIdFor } from "./extension-mode-layout";
-import { groupResourceEditorViews } from "./extension-resource-editor-grouping";
+import { groupResourceEditorViews, type ResourceEditorGroup } from "./extension-resource-editor-grouping";
 
 const outcomeValueId = (value: unknown) => {
   if (!value || typeof value !== "object") return undefined;
@@ -33,9 +33,42 @@ type ExtensionViewRecord = DashboardExtensionMetadata["views"][number];
 
 const widgetIdFor = (view: ExtensionViewRecord) => extensionViewWidgetIdFor(view);
 
+const companionViewTitle = (view: ExtensionViewRecord, resource: ResourceRef) =>
+  extensionViewArea(view.target) === "main-left" ? (resource.label ?? view.title) : view.title;
+
 const parentResourceFor = (input: { kind: string; metadata: DashboardExtensionMetadata; projectId: string }) => {
   const parentRenderer = input.metadata.dataRenderers?.find((record) => record.resourceKind === input.kind);
   return parentRenderer ? createExtensionDataRendererResource(parentRenderer, input.projectId) : undefined;
+};
+
+const resourceMetadataString = (resource: ResourceRef, key: string) => {
+  const value = resource.metadata?.[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+};
+
+const resourceIconFor = (ctx: WorkbenchModuleContributionContext, resource: ResourceRef) =>
+  resource.icon ?? ctx.resources.getKind(resource.kind)?.icon;
+
+const parentTicketResourceFor = (
+  ctx: WorkbenchModuleContributionContext,
+  input: { kind: string; projectId: string; resource: ResourceRef },
+): ResourceRef | undefined => {
+  const id = resourceMetadataString(input.resource, "parentTicketId");
+  if (!id) return undefined;
+
+  const label =
+    resourceMetadataString(input.resource, "parentTicketLabel") ??
+    resourceMetadataString(input.resource, "parentTicketShorthand") ??
+    id;
+
+  return {
+    kind: input.kind,
+    uri: `dashboard-workbench://${input.kind}/${encodeURIComponent(id)}`,
+    id,
+    label,
+    icon: ctx.resources.getKind(input.kind)?.icon,
+    metadata: { projectId: input.projectId },
+  };
 };
 
 const withParentSelectionResource = (
@@ -64,6 +97,8 @@ const setExtensionResourceBreadcrumb = (
     return;
   }
 
+  const parentTicketResource = parentTicketResourceFor(ctx, input);
+
   ctx.breadcrumbs.setItems([
     {
       title: parentResource.label,
@@ -71,9 +106,19 @@ const setExtensionResourceBreadcrumb = (
       resource: parentResource,
       onClick: () => void ctx.resources.openResource(parentResource, { replaceActive: true }),
     },
+    ...(parentTicketResource
+      ? [
+          {
+            title: parentTicketResource.label ?? parentTicketResource.id ?? input.kind,
+            icon: resourceIconFor(ctx, parentTicketResource),
+            resource: parentTicketResource,
+            onClick: () => void ctx.resources.openResource(parentTicketResource, { replaceActive: true }),
+          },
+        ]
+      : []),
     {
       title: input.resource.label ?? input.resource.id ?? input.kind,
-      icon: input.resource.icon,
+      icon: resourceIconFor(ctx, input.resource),
       resource: input.resource,
     },
   ]);
@@ -90,6 +135,33 @@ const removeManagedCompanions = (
       ctx.layout.removeWidgetPlacement(placement.widgetId);
     }
   }
+};
+
+const openResourceViewGroup = (
+  ctx: WorkbenchModuleContributionContext,
+  input: { group: ResourceEditorGroup; openInput: { replaceActive?: boolean }; resource: ResourceRef },
+) => {
+  const { group, openInput, resource } = input;
+  const placement = ctx.layout.openWidget(widgetIdFor(group.primary), {
+    resource,
+    title: resource.label,
+    replaceActive: openInput.replaceActive,
+  });
+
+  // replaceActive keeps a single companion in its area as the user switches
+  // resources instead of stacking a new panel per open.
+  for (const companion of group.companions) {
+    ctx.layout.openWidget(widgetIdFor(companion), {
+      resource,
+      area: extensionViewArea(companion.target),
+      title: companionViewTitle(companion, resource),
+      replaceActive: true,
+    });
+  }
+
+  ctx.layout.activateWidget(placement.widgetId);
+
+  return placement;
 };
 
 // A view that declares a `resourceKind` is the primary view for that kind. Opening a domain
@@ -127,26 +199,11 @@ export const registerExtensionResourceView = (
             resource: selectedResource,
           });
           removeManagedCompanions(ctx, managedCompanionWidgetIds, expectedCompanionWidgetIds);
-          const placement = ctx.layout.openWidget(widgetIdFor(primary), {
+          return openResourceViewGroup(ctx, {
+            group: { kind, primary, companions },
+            openInput,
             resource: selectedResource,
-            title: selectedResource.label,
-            replaceActive: openInput.replaceActive,
           });
-
-          // replaceActive keeps a single companion in its area as the user switches
-          // resources instead of stacking a new panel per open.
-          for (const companion of companions) {
-            ctx.layout.openWidget(widgetIdFor(companion), {
-              resource: selectedResource,
-              area: extensionViewArea(companion.target),
-              title: companion.title,
-              replaceActive: true,
-            });
-          }
-
-          ctx.layout.activateWidget(placement.widgetId);
-
-          return placement;
         },
       }),
     );
@@ -186,6 +243,8 @@ export const registerExtensionResourceView = (
         projectId: input.projectId,
         resource: activeResource,
       });
+      const group = groupByKind.get(activeResource.kind);
+      if (group) openResourceViewGroup(ctx, { group, openInput: {}, resource: activeResource });
     }),
   });
 

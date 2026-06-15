@@ -6,6 +6,8 @@ import type {
 import type { AttributesSource, BoardColumnConfig, DataRendererRow, ResourceContextAction } from "@pstdio/ui";
 import { type AttributeDescriptor, isEnumOptionsSource } from "@pstdio/ui";
 import type { DataRendererContribution, DataRendererQueryState, ResourceRef } from "pstdio-workbench/core";
+import { WorkbenchIcon } from "pstdio-workbench/react";
+import { createElement } from "react";
 import { resolveLocalizableString } from "@/shared/extensions/extension-localization";
 import { createWorkspaceBadgeRenderer } from "./extension-workspace-badge-renderer";
 
@@ -35,15 +37,28 @@ interface BuildExtensionDataRendererInput {
   projectId?: string;
 }
 
-// The wire board-column config carries string icons; the board needs none for the
-// drag/create rules, so we forward only those until column actions land (icons are
-// component-shaped host-side and wired with the column-action command).
-const toBoardColumnConfig = (config: WireBoardColumnConfig | undefined): BoardColumnConfig => ({
+type BoardColumnActionIcon = NonNullable<BoardColumnConfig["actions"]>[number]["icon"];
+
+const createBoardActionIcon = (icon: string | undefined): BoardColumnActionIcon => {
+  const BoardActionIcon = (props: { size?: number | string }) =>
+    createElement(WorkbenchIcon, { name: icon ?? "MoreHorizontal", ...props });
+  return BoardActionIcon;
+};
+
+const toBoardColumnConfig = (config: WireBoardColumnConfig | undefined, extensionId: string): BoardColumnConfig => ({
   color: config?.color,
   canDragIn: config?.canDragIn,
   canDragOut: config?.canDragOut,
   canCreate: config?.canCreate,
+  actions: config?.actions?.map((action) => ({
+    id: action.id,
+    label: resolveLocalizableString(action.label, extensionId),
+    icon: createBoardActionIcon(action.icon),
+  })),
 });
+
+const createRowActionIcon = (icon: string | undefined) =>
+  icon ? createElement(WorkbenchIcon, { name: icon, size: 16 }) : undefined;
 
 const addHostAttributeRenderer = (
   attribute: AttributeDescriptor,
@@ -156,7 +171,7 @@ export const buildExtensionDataRendererContribution = ({
     title: resolveLocalizableString(record.title, record.extensionId),
     resourceKind: record.resourceKind,
     attributes,
-    getBoardColumnConfig: (groupKey) => toBoardColumnConfig(boardColumnConfigs?.[groupKey]),
+    getBoardColumnConfig: (groupKey) => toBoardColumnConfig(boardColumnConfigs?.[groupKey], record.extensionId),
     hideToolbar: record.hideToolbar,
     emptyTitle: record.emptyTitle ? resolveLocalizableString(record.emptyTitle, record.extensionId) : undefined,
     emptyDescription: record.emptyDescription
@@ -185,6 +200,7 @@ export const buildExtensionDataRendererContribution = ({
           (record.rowActions ?? []).map((action) => ({
             key: action.id,
             label: resolveLocalizableString(action.label, record.extensionId),
+            icon: createRowActionIcon(action.icon),
             onClick: () => void runMutation(action.commandId, { rowId: row.id }),
           }))
       : undefined,
