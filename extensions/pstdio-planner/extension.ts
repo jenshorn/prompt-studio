@@ -237,7 +237,7 @@ export default defineExtension({
         viewMode: "board",
         columnGrouping: "status",
         rowGrouping: "none",
-        ordering: { attributeId: "updated", direction: "desc" },
+        ordering: { attributeId: "created", direction: "desc" },
         displayProperties: ["id", "workspace", "type", "priority"],
       },
       emptyTitle: l10n("dataRenderers.tickets.emptyTitle", "No tickets yet"),
@@ -245,6 +245,19 @@ export default defineExtension({
         "dataRenderers.tickets.emptyDescription",
         "Create a ticket to start tracking work for this project.",
       ),
+    },
+  },
+
+  modes: {
+    ticket: {
+      id: "pstdio-planner.ticket",
+      label: l10n("modes.ticket.label", "Ticket"),
+      icon: "FileText",
+      resourceKind: "ticket",
+      layout: {
+        reset: true,
+        open: [{ target: "workbench.left", view: "ticketFiles", pinned: true }],
+      },
     },
   },
 
@@ -270,7 +283,6 @@ export default defineExtension({
     ticketFiles: {
       title: l10n("views.ticketFiles.title", "Files"),
       resourceKind: "ticket",
-      target: "workbench.main.left",
       surface: "panel",
       treeRenderer: "ticketFiles",
     },
