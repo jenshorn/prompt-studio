@@ -93,8 +93,8 @@ const readJson = (file: string) => JSON.parse(readFileSync(file, "utf8"));
 
 const listDirs = (parent: string) =>
   readdirSync(path.join(ROOT, parent), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
-    .map((entry) => path.join(parent, entry.name));
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_") && !entry.name.startsWith("."))
+    .map((entry) => `${parent}/${entry.name}`);
 
 const discoverPackages = () => {
   const rootManifest = readJson(path.join(ROOT, "package.json")) as { workspaces?: string[] };
@@ -241,7 +241,7 @@ const checkSpecifier = (
 const checkSourceImports = (pkg: WorkspacePackage, workspaceNames: Set<string>, errors: string[]) => {
   const pkgRoot = path.join(ROOT, pkg.dir);
   for (const file of collectSourceFiles(pkgRoot)) {
-    const relativeFile = path.relative(ROOT, file);
+    const relativeFile = path.relative(ROOT, file).replaceAll("\\", "/");
     if (FIXTURE_SOURCE_FILES.includes(relativeFile)) continue;
     for (const specifier of collectSpecifiers(file)) {
       checkSpecifier(specifier, { pkg, pkgRoot, file, relativeFile, workspaceNames }, errors);

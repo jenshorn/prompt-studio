@@ -1,22 +1,41 @@
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { topLevelCommandModules, topLevelCommandNames } from "./adapters/cli/commands";
-import * as dashboardCommand from "./adapters/cli/commands/dashboard";
-import { shouldEnsureApiForCommand } from "./features/cli-api-startup";
 import { CLI_VERSION } from "./features/cli-version";
-import { findGitRoot, readConfig } from "./features/config/config";
-import { ensureApi } from "./features/ensure-api";
-import { dispatchExtensionCliCommand } from "./features/extensions/extension-cli-router";
-import {
-  firstCommandToken,
-  rawValueFor,
-  shouldDispatchExtensionCommand,
-} from "./features/extensions/extension-command-routing";
-import { loadExtensionNamespaces } from "./features/extensions/root-help-namespaces";
-import { resolveRootHelpRuntime } from "./features/extensions/root-help-runtime";
-import { createCliCommandTracker } from "./features/logging/cli-command-log";
-import { resolveCliSessionId } from "./features/sessions/resolve-cli-session-id";
-import { shouldLoadEmbedManifest } from "./features/should-load-embed-manifest";
+
+const rawArgs = hideBin(process.argv);
+
+if (rawArgs.length === 1 && (rawArgs[0] === "--version" || rawArgs[0] === "-v")) {
+  process.stdout.write(`${CLI_VERSION}\n`);
+  process.exit(0);
+}
+
+const [
+  { topLevelCommandModules, topLevelCommandNames },
+  dashboardCommand,
+  { shouldEnsureApiForCommand },
+  { findGitRoot, readConfig },
+  { ensureApi },
+  { dispatchExtensionCliCommand },
+  { firstCommandToken, rawValueFor, shouldDispatchExtensionCommand },
+  { loadExtensionNamespaces },
+  { resolveRootHelpRuntime },
+  { createCliCommandTracker },
+  { resolveCliSessionId },
+  { shouldLoadEmbedManifest },
+] = await Promise.all([
+  import("./adapters/cli/commands"),
+  import("./adapters/cli/commands/dashboard"),
+  import("./features/cli-api-startup"),
+  import("./features/config/config"),
+  import("./features/ensure-api"),
+  import("./features/extensions/extension-cli-router"),
+  import("./features/extensions/extension-command-routing"),
+  import("./features/extensions/root-help-namespaces"),
+  import("./features/extensions/root-help-runtime"),
+  import("./features/logging/cli-command-log"),
+  import("./features/sessions/resolve-cli-session-id"),
+  import("./features/should-load-embed-manifest"),
+]);
 
 if (shouldLoadEmbedManifest()) {
   // Side-effect import: registers files for Bun.embeddedFiles in compiled binaries.
@@ -24,7 +43,6 @@ if (shouldLoadEmbedManifest()) {
   await import("./_embed-manifest.generated");
 }
 
-const rawArgs = hideBin(process.argv);
 // True-core commands only. Domain namespaces (the ticket board's
 // tickets/statuses/tags) are not listed here — they resolve entirely through
 // extension-contributed commands.

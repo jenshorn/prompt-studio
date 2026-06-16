@@ -9,6 +9,7 @@ type ApiSpawnOptions = {
   stdio: "inherit" | "ignore";
   detached?: boolean;
   env?: NodeJS.ProcessEnv;
+  windowsHide?: boolean;
 };
 
 type ApiChildProcess = {
@@ -83,7 +84,7 @@ export const buildCompiledApiCommand = (
 ) => ({
   command: process.execPath,
   args: ["serve", "--foreground", "--owner", "persistent", "--host", "127.0.0.1", "--port", apiPort ?? "0"],
-  options: { cwd: undefined as string | undefined, stdio, detached },
+  options: { cwd: undefined as string | undefined, stdio, detached, windowsHide: true },
 });
 
 export const buildApiStartCommand = (
@@ -92,8 +93,9 @@ export const buildApiStartCommand = (
   stdio: ApiSpawnOptions["stdio"] = "ignore",
   detached = true,
 ) => ({
-  command: "bun",
+  command: process.execPath,
   args: [
+    "--conditions=source",
     "./src/index.ts",
     "serve",
     "--foreground",
@@ -104,13 +106,13 @@ export const buildApiStartCommand = (
     "--port",
     apiPort ?? "0",
   ],
-  options: { cwd: apiRoot, stdio, detached },
+  options: { cwd: apiRoot, stdio, detached, windowsHide: true },
 });
 
 const buildBundledApiCommand = (serverEntry: string, stdio: ApiSpawnOptions["stdio"] = "ignore", detached = true) => ({
   command: "node",
   args: [serverEntry],
-  options: { cwd: undefined as string | undefined, stdio, detached },
+  options: { cwd: undefined as string | undefined, stdio, detached, windowsHide: true },
 });
 
 export const shouldAutoStartApi = (env: NodeJS.ProcessEnv = process.env) => env.PSTDIO_DISABLE_API_AUTO_START !== "1";

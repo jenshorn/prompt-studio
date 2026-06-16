@@ -12,7 +12,7 @@ export const checkAgentAvailabilityQuerySchema = z
   .strict();
 
 export const availabilitySchema = z.object({
-  type: agentAvailabilityTypeSchema.openapi({ description: "Whether the agent is installed" }),
+  type: z.enum(agentAvailabilityTypeSchema.options).openapi({ description: "Whether the agent is installed" }),
 });
 
 export const agentInfoResponseSchema = agentInfoSchema;

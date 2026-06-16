@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import {
+  copyFileSync,
   existsSync,
-  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -83,9 +84,19 @@ const safeCacheSegment = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, "_
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 16);
 
-const symlinkPackageChild = (sourcePath: string, targetPath: string) => {
-  const stats = lstatSync(sourcePath);
-  symlinkSync(sourcePath, targetPath, stats.isDirectory() ? "junction" : "file");
+const mirrorPackageChild = (sourcePath: string, targetPath: string) => {
+  const stats = statSync(sourcePath);
+  if (stats.isDirectory()) {
+    symlinkSync(sourcePath, targetPath, "junction");
+    return;
+  }
+
+  if (process.platform === "win32") {
+    copyFileSync(sourcePath, targetPath);
+    return;
+  }
+
+  symlinkSync(sourcePath, targetPath, "file");
 };
 
 const mirrorNodeModules = (sourceNodeModulesPath: string, targetNodeModulesPath: string) => {
@@ -96,7 +107,7 @@ const mirrorNodeModules = (sourceNodeModulesPath: string, targetNodeModulesPath:
     const sourceChild = join(sourceNodeModulesPath, dirent.name);
     const targetChild = join(targetNodeModulesPath, dirent.name);
 
-    symlinkPackageChild(sourceChild, targetChild);
+    mirrorPackageChild(sourceChild, targetChild);
   }
 };
 

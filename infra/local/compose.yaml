@@ -4,7 +4,7 @@ services:
       context: ../..
       dockerfile: infra/local/Dockerfile
     init: true
-    working_dir: ${HOST_WORKTREE:?HOST_WORKTREE is required}
+    working_dir: ${CONTAINER_WORKTREE:?CONTAINER_WORKTREE is required}
     environment:
       DISABLE_AUTOUPDATER: "1"
       # The container runs as root; without this Claude Code refuses bypassPermissions
@@ -38,7 +38,7 @@ services:
 
         if [ "$$PSTDIO_DESKTOP_FLOW" = "1" ]; then
           bun run --cwd packages/pstdio-dashboard build
-          bun packages/pstdio/src/index.ts serve --foreground --owner persistent --host 0.0.0.0 --port "$$api_port" &
+          bun --conditions=source packages/pstdio/src/index.ts serve --foreground --owner persistent --host 0.0.0.0 --port "$$api_port" &
           api_child=$$!
           dashboard_child=""
         else
@@ -98,12 +98,12 @@ services:
     volumes:
       - type: bind
         source: ${HOST_WORKTREE:?HOST_WORKTREE is required}
-        target: ${HOST_WORKTREE:?HOST_WORKTREE is required}
+        target: ${CONTAINER_WORKTREE:?CONTAINER_WORKTREE is required}
       - type: bind
         source: ${HOST_GIT_COMMON_DIR:?HOST_GIT_COMMON_DIR is required}
-        target: ${HOST_GIT_COMMON_DIR:?HOST_GIT_COMMON_DIR is required}
+        target: ${CONTAINER_GIT_COMMON_DIR:?CONTAINER_GIT_COMMON_DIR is required}
       - type: volume
-        target: ${HOST_WORKTREE:?HOST_WORKTREE is required}/node_modules
+        target: ${CONTAINER_WORKTREE:?CONTAINER_WORKTREE is required}/node_modules
       - type: volume
         source: bun-cache
         target: /root/.bun/install/cache

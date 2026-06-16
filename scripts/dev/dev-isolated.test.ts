@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 import {
+  composeMountPaths,
   resolveContainerPorts,
   resolveIsolatedBrowserTransport,
   resolveIsolatedDashboardUrl,
@@ -71,5 +72,33 @@ describe("isolated development paths", () => {
     expect(
       resolveIsolatedExtensionReleaseRef("/repo", { PSTDIO_EXTENSION_RELEASE_REF: "feature/extensions" }, readFile),
     ).toBe("feature/extensions");
+  });
+});
+
+describe("compose mount paths", () => {
+  test("uses Linux container targets for Windows host paths", () => {
+    const paths = composeMountPaths({
+      gitCommonDir: "C:\\repo\\.git",
+      platform: "win32",
+      repoRoot: "C:\\repo",
+    });
+
+    expect(paths.HOST_WORKTREE).toBe("C:\\repo");
+    expect(paths.HOST_GIT_COMMON_DIR).toBe("C:\\repo\\.git");
+    expect(paths.CONTAINER_WORKTREE).toBe("/workspace/prompt-studio");
+    expect(paths.CONTAINER_GIT_COMMON_DIR).toBe("/workspace/git-common");
+  });
+
+  test("preserves same-path mounts away from Windows", () => {
+    const paths = composeMountPaths({
+      gitCommonDir: "/repo/.git",
+      platform: "linux",
+      repoRoot: "/repo",
+    });
+
+    expect(paths.HOST_WORKTREE).toBe("/repo");
+    expect(paths.HOST_GIT_COMMON_DIR).toBe("/repo/.git");
+    expect(paths.CONTAINER_WORKTREE).toBe("/repo");
+    expect(paths.CONTAINER_GIT_COMMON_DIR).toBe("/repo/.git");
   });
 });

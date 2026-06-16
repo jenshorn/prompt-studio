@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   ExtensionAlreadyInstalledError,
   installExtensionSource,
+  isLocalExtensionSource,
   namedSourceRef,
   resolvePstdioHome,
 } from "./install-extension-source";
@@ -31,7 +32,16 @@ describe("resolvePstdioHome", () => {
   });
 
   test("falls back to ~/.pstdio", () => {
-    expect(resolvePstdioHome({ env: {}, homedir: () => "/home/user" })).toBe("/home/user/.pstdio");
+    const resolved = resolvePstdioHome({ env: {}, homedir: () => "/home/user" }).replaceAll("\\", "/");
+    expect(resolved.endsWith("/home/user/.pstdio")).toBe(true);
+  });
+});
+
+describe("isLocalExtensionSource", () => {
+  test("treats Windows-style relative paths as local sources", () => {
+    expect(isLocalExtensionSource(".\\extensions\\harness-codex")).toBe(true);
+    expect(isLocalExtensionSource("..\\extensions\\harness-codex")).toBe(true);
+    expect(isLocalExtensionSource("~\\extensions\\harness-codex")).toBe(true);
   });
 });
 

@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "bun run typecheck && biome check .",
     "format": "biome check --write .",
-    "test": "bun test --silent",
+    "test": "bun --conditions=source test --silent",
     "test:coverage": "bun test --coverage"
   },
   "dependencies": {

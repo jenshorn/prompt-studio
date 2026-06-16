@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { discoverExtensionPackages, discoverExtensionPackagesInUserRoot, pstdioHomeRoot } from "./discovery";
 
 const tempDirs: string[] = [];
@@ -60,13 +60,13 @@ describe("discoverExtensionPackages", () => {
 describe("pstdioHomeRoot", () => {
   test("respects PSTDIO_HOME override", () => {
     process.env.PSTDIO_HOME = "/custom/home";
-    expect(pstdioHomeRoot()).toBe("/custom/home");
+    expect(pstdioHomeRoot()).toBe(resolve("/custom/home"));
   });
 
   test("falls back to $HOME/.pstdio", () => {
     delete process.env.PSTDIO_HOME;
     process.env.HOME = "/home/test";
-    expect(pstdioHomeRoot()).toBe("/home/test/.pstdio");
+    expect(pstdioHomeRoot()).toBe(resolve("/home/test/.pstdio"));
   });
 });
 

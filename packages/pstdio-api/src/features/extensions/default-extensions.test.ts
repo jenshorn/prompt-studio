@@ -176,7 +176,9 @@ describe("installDefaultExtensions sources", () => {
       "pstdio-skills",
     ]);
     expect(
-      calls.every((call) => typeof call.source === "string" && (call.source as string).includes("/extensions/")),
+      calls.every(
+        (call) => typeof call.source === "string" && (call.source as string).replaceAll("\\", "/").includes("/extensions/"),
+      ),
     ).toBe(true);
     expect(calls.every((call) => call.skipInstall === true)).toBe(true);
     expect(calls.every((call) => call.force === true)).toBe(true);
