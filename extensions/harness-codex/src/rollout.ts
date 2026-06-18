@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SessionMessage, ToolPart } from "@pstdio/sdk/extensions";
 import { classifyCodexTool } from "./items";
+import { parseTimestamp } from "./utils";
 
 type RolloutMessageContent = { type: string; text?: string };
 
@@ -79,10 +80,12 @@ export const normalizeRollout = (content: string): SessionMessage[] => {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
+    let createdAt: number | undefined;
     let payload: RolloutPayload | undefined;
     try {
-      const parsed = JSON.parse(trimmed) as { type?: string; payload?: RolloutPayload };
+      const parsed = JSON.parse(trimmed) as { type?: string; timestamp?: string; payload?: RolloutPayload };
       if (parsed.type !== "response_item") continue;
+      createdAt = parseTimestamp(parsed.timestamp);
       payload = parsed.payload;
     } catch {
       continue;
@@ -96,7 +99,7 @@ export const normalizeRollout = (content: string): SessionMessage[] => {
       const text = contentText(payload.content);
       if (!text || isInjectedContext(text)) continue;
 
-      messages.push({ id: nextId("text"), role: payload.role, parts: [{ type: "text", text }] });
+      messages.push({ id: nextId("text"), role: payload.role, parts: [{ type: "text", text }], createdAt });
       continue;
     }
 
@@ -104,7 +107,7 @@ export const normalizeRollout = (content: string): SessionMessage[] => {
       const text = contentText(payload.summary);
       if (!text) continue;
 
-      messages.push({ id: nextId("reasoning"), role: "assistant", parts: [{ type: "reasoning", text }] });
+      messages.push({ id: nextId("reasoning"), role: "assistant", parts: [{ type: "reasoning", text }], createdAt });
       continue;
     }
 
@@ -120,7 +123,7 @@ export const normalizeRollout = (content: string): SessionMessage[] => {
       };
 
       toolIndex.set(payload.call_id, messages.length);
-      messages.push({ id: nextId("tool"), role: "assistant", parts: [part] });
+      messages.push({ id: nextId("tool"), role: "assistant", parts: [part], createdAt });
       continue;
     }
 

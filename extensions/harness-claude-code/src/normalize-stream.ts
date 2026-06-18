@@ -2,6 +2,7 @@ import type { SessionMessage } from "@pstdio/sdk/extensions";
 import { classifyToolAction, normalizeErrorPart } from "./message-parts";
 import type { ClaudeCodeContentBlock, RawLogEvent } from "./types";
 import { parseStdoutLine } from "./types";
+import { parseTimestamp } from "./utils";
 
 type StreamContext = { index: number; toolMap: Map<string, string> };
 
@@ -221,6 +222,9 @@ const dispatchStdoutEvent = (parsed: Record<string, unknown>, ctx: StreamContext
   return [];
 };
 
+const timestampMessages = (messages: SessionMessage[], createdAt: number) =>
+  messages.map((message) => ({ ...message, createdAt }));
+
 export async function* normalizeClaudeCodeStream(raw: AsyncIterable<RawLogEvent>): AsyncGenerator<SessionMessage> {
   const ctx: StreamContext = { index: 0, toolMap: new Map() };
 
@@ -229,6 +233,7 @@ export async function* normalizeClaudeCodeStream(raw: AsyncIterable<RawLogEvent>
       yield {
         id: `stream-error-${ctx.index}`,
         role: "system",
+        createdAt: Date.now(),
         parts: [normalizeErrorPart({ message: event.data })],
         index: ctx.index,
       };
@@ -241,7 +246,8 @@ export async function* normalizeClaudeCodeStream(raw: AsyncIterable<RawLogEvent>
     const parsed = parseStdoutLine(event.data);
     if (!parsed) continue;
 
-    for (const msg of dispatchStdoutEvent(parsed, ctx)) {
+    const createdAt = parseTimestamp(parsed.timestamp) ?? Date.now();
+    for (const msg of timestampMessages(dispatchStdoutEvent(parsed, ctx), createdAt)) {
       yield msg;
       ctx.index += 1;
     }
