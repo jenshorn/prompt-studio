@@ -2,12 +2,46 @@ import { describe, expect, test } from "bun:test";
 import { resolveProcessCommand } from "./process-command";
 
 describe("resolveProcessCommand", () => {
-  test("resolves bare commands before spawning", () => {
+  test("resolves bare executable commands before spawning", () => {
     const command = resolveProcessCommand(["codex", "--version"], (name) =>
-      name === "codex" ? "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd" : null,
+      name === "codex" ? "C:\\Tools\\codex.exe" : null,
     );
 
-    expect(command).toEqual(["C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd", "--version"]);
+    expect(command).toEqual(["C:\\Tools\\codex.exe", "--version"]);
+  });
+
+  test("wraps Windows command shims through cmd.exe", () => {
+    const command = resolveProcessCommand(
+      ["tool", "--version"],
+      (name) => (name === "tool" ? "C:\\Users\\me\\AppData\\Roaming\\npm\\tool.cmd" : null),
+      "win32",
+      "cmd.exe",
+    );
+
+    expect(command).toEqual([
+      "cmd.exe",
+      "/d",
+      "/s",
+      "/c",
+      "call",
+      "C:\\Users\\me\\AppData\\Roaming\\npm\\tool.cmd",
+      "--version",
+    ]);
+  });
+
+  test("bypasses the Windows Codex npm shim when the native binary is installed", () => {
+    const native =
+      "C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe";
+
+    const command = resolveProcessCommand(
+      ["codex", "--version"],
+      (name) => (name === "codex" ? "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd" : null),
+      "win32",
+      "cmd.exe",
+      (candidate) => candidate === native,
+    );
+
+    expect(command).toEqual([native, "--version"]);
   });
 
   test("leaves path commands unchanged", () => {

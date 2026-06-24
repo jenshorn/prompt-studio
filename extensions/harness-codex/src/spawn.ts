@@ -1,4 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { win32 } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import type {
@@ -85,14 +87,58 @@ export type SpawnDeps = {
   spawnProcess: (args: string[], options?: { cwd?: string; env?: Record<string, string> }) => SpawnedChild;
 };
 
+const resolveNativeCodex = (command: string, exists: (command: string) => boolean) => {
+  if (win32.basename(command).toLowerCase() !== "codex.cmd") return null;
+
+  const npmBinDir = win32.dirname(command);
+  const candidates = [
+    win32.join(
+      npmBinDir,
+      "node_modules",
+      "@openai",
+      "codex",
+      "node_modules",
+      "@openai",
+      "codex-win32-x64",
+      "vendor",
+      "x86_64-pc-windows-msvc",
+      "bin",
+      "codex.exe",
+    ),
+    win32.join(npmBinDir, "node_modules", "@openai", "codex", "vendor", "x86_64-pc-windows-msvc", "bin", "codex.exe"),
+  ];
+
+  return candidates.find(exists) ?? null;
+};
+
+export const resolveCodexCommand = (
+  input: {
+    exists?: (command: string) => boolean;
+    platform?: NodeJS.Platform | "win32";
+    which?: (command: string) => string | null;
+  } = {},
+) => {
+  const platform = input.platform ?? process.platform;
+  const which = input.which ?? ((command: string) => (typeof Bun.which === "function" ? Bun.which(command) : null));
+  const exists = input.exists ?? existsSync;
+  const resolved = which("codex");
+
+  if (platform === "win32" && resolved) {
+    return resolveNativeCodex(resolved, exists) ?? resolved;
+  }
+
+  return resolved ?? "codex";
+};
+
 const defaultSpawnProcess = (
   args: string[],
   options?: { cwd?: string; env?: Record<string, string> },
 ): SpawnedChild => {
-  const child = spawn("codex", args, {
+  const child = spawn(resolveCodexCommand(), args, {
     stdio: ["pipe", "pipe", "pipe"],
     cwd: options?.cwd,
     env: { ...process.env, ...options?.env },
+    windowsHide: true,
   }) as ChildProcess;
 
   child.on("error", (err) => {

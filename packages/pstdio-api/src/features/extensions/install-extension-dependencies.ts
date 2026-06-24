@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createExtensionInstallEnvironment } from "pstdio-extensions";
 import { resolvePstdioHome } from "pstdio-paths";
 import { isPackagedRuntime, resolveManagedBunCommand } from "./extension-bun-runner";
+import { resolveProcessCommand } from "./process-command";
 
 export type CommandResult = {
   exitCode: number;
@@ -30,11 +31,13 @@ export type DependencyInstallInput = {
 
 export const runCommand = (command: string, args: string[], options: CommandOptions) =>
   new Promise<CommandResult>((resolveResult) => {
-    const child = spawn(command, args, {
+    const [resolvedCommand, ...resolvedArgs] = resolveProcessCommand([command, ...args]);
+    const child = spawn(resolvedCommand, resolvedArgs, {
       cwd: options.cwd,
       env: options.env,
       signal: options.signal,
       stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];

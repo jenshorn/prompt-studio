@@ -18,12 +18,12 @@ describe("createProcessApi", () => {
     const result = await api.run({ command: ["codex", "--version"] });
 
     expect(result).toEqual({ exitCode: 0, stdout: "ok", stderr: "" });
-    expect(calls).toEqual([
-      {
-        command: [expect.stringContaining("codex"), "--version"],
-        options: expect.objectContaining({ stderr: "pipe", stdout: "pipe", windowsHide: true }),
-      },
-    ]);
+    expect(calls).toHaveLength(1);
+    expect((calls[0] as { command: string[] }).command.join(" ")).toContain("codex");
+    expect((calls[0] as { command: string[] }).command.at(-1)).toBe("--version");
+    expect((calls[0] as { options: unknown }).options).toEqual(
+      expect.objectContaining({ stderr: "pipe", stdout: "pipe", windowsHide: true }),
+    );
   });
 
   test("hides Windows consoles for detached commands", async () => {
@@ -34,11 +34,11 @@ describe("createProcessApi", () => {
     }) as never);
 
     await expect(api.spawnDetached({ command: ["codex", "--version"] })).resolves.toEqual({ pid: 123 });
-    expect(calls).toEqual([
-      {
-        command: [expect.stringContaining("codex"), "--version"],
-        options: expect.objectContaining({ stderr: "ignore", stdout: "ignore", windowsHide: true }),
-      },
-    ]);
+    expect(calls).toHaveLength(1);
+    expect((calls[0] as { command: string[] }).command.join(" ")).toContain("codex");
+    expect((calls[0] as { command: string[] }).command.at(-1)).toBe("--version");
+    expect((calls[0] as { options: unknown }).options).toEqual(
+      expect.objectContaining({ stderr: "ignore", stdout: "ignore", windowsHide: true }),
+    );
   });
 });

@@ -177,7 +177,8 @@ describe("installDefaultExtensions sources", () => {
     ]);
     expect(
       calls.every(
-        (call) => typeof call.source === "string" && (call.source as string).replaceAll("\\", "/").includes("/extensions/"),
+        (call) =>
+          typeof call.source === "string" && (call.source as string).replaceAll("\\", "/").includes("/extensions/"),
       ),
     ).toBe(true);
     expect(calls.every((call) => call.skipInstall === true)).toBe(true);

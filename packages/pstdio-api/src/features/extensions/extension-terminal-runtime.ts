@@ -136,6 +136,7 @@ export const createTerminalSupervisor = (input: { logger: ExtensionLoggerApi }) 
           name: env.TERM ?? "xterm-256color",
           data: (_terminal, chunk) => queue.push({ kind: "data", chunk: new Uint8Array(chunk) }),
         },
+        windowsHide: true,
       });
       const terminal = child.terminal;
       if (!terminal) {

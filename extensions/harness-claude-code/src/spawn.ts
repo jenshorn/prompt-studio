@@ -231,6 +231,7 @@ const defaultSpawnProcess = (
     stdio: ["pipe", "pipe", "pipe"],
     cwd: options?.cwd,
     env: { ...cleanEnv(), ...options?.env },
+    windowsHide: true,
   }) as ChildProcess;
 
   child.on("error", (err) => {

@@ -91,6 +91,9 @@ const mirrorPackageChild = (sourcePath: string, targetPath: string) => {
     return;
   }
 
+  // Windows can't reliably symlink files without elevated privileges, so copy
+  // there. Elsewhere, keep the prior symlink behavior (preserves permissions
+  // like the executable bit, avoids duplicating file content on disk).
   if (process.platform === "win32") {
     copyFileSync(sourcePath, targetPath);
     return;

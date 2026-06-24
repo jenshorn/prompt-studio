@@ -1,23 +1,31 @@
-import type { SetupResult } from "./types";
+type SetupSpawner = typeof Bun.spawn;
 
-export const runSetup = async (opts: { worktreePath: string; command: string[] }): Promise<SetupResult> => {
-  const proc = Bun.spawn(opts.command, {
-    cwd: opts.worktreePath,
-    stdout: "pipe",
-    stderr: "pipe",
-    env: { ...process.env, WORKTREE_PATH: opts.worktreePath },
-  });
+export const createRunSetup =
+  (spawner: SetupSpawner = Bun.spawn) =>
+  async (opts: { worktreePath: string; command: string[] }) => {
+    const proc = spawner(opts.command, {
+      cwd: opts.worktreePath,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, WORKTREE_PATH: opts.worktreePath },
+      windowsHide: true,
+    });
 
-  const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
 
-  const exitCode = await proc.exited;
+    const exitCode = await proc.exited;
 
-  return { exitCode, stdout, stderr };
-};
+    return { exitCode, stdout, stderr };
+  };
+
+export const runSetup = createRunSetup();
+
+const shellCommandFor = (script: string) =>
+  process.platform === "win32" ? [process.env.ComSpec ?? "cmd.exe", "/d", "/s", "/c", script] : ["sh", "-c", script];
 
 export const runSetupScript = async (opts: { worktreePath: string; script: string }) => {
   return runSetup({
     worktreePath: opts.worktreePath,
-    command: ["sh", "-c", opts.script],
+    command: shellCommandFor(opts.script),
   });
 };
