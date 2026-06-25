@@ -15,8 +15,8 @@ export const ColumnHeader = (props: ColumnHeaderProps) => {
   const { column, onCreateStart, onColumnAction } = props;
 
   return (
-    <HStack padding="xs" gap="xs" alignItems="center">
-      <Text textStyle="label/L/medium">{column.label}</Text>
+    <HStack minH="2.5rem" padding="xs" gap="xs" alignItems="center">
+      <Text textStyle="label/S/medium">{column.label}</Text>
 
       <Badge
         variant="subtle"

@@ -19,6 +19,7 @@ export interface WorkbenchOverlayWidgetConfig {
   contentHeight?: string;
   contentMaxHeight?: string;
   contentMinHeight?: string;
+  closeTriggerTop?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -51,6 +52,7 @@ const resolveOverlayConfig = (config: unknown): WorkbenchOverlayWidgetConfig => 
   const contentHeight = stringValue(config, "contentHeight");
   const contentMaxHeight = stringValue(config, "contentMaxHeight");
   const contentMinHeight = stringValue(config, "contentMinHeight");
+  const closeTriggerTop = stringValue(config, "closeTriggerTop");
 
   if (size) overlayConfig.size = size as WorkbenchOverlayWidgetConfig["size"];
   if (placement) overlayConfig.placement = placement as WorkbenchOverlayWidgetConfig["placement"];
@@ -65,6 +67,7 @@ const resolveOverlayConfig = (config: unknown): WorkbenchOverlayWidgetConfig => 
   if (contentHeight) overlayConfig.contentHeight = contentHeight;
   if (contentMaxHeight) overlayConfig.contentMaxHeight = contentMaxHeight;
   if (contentMinHeight) overlayConfig.contentMinHeight = contentMinHeight;
+  if (closeTriggerTop) overlayConfig.closeTriggerTop = closeTriggerTop;
   return overlayConfig;
 };
 
@@ -124,7 +127,7 @@ export const WorkbenchOverlayLayer = (props: WorkbenchOverlayLayerProps) => {
   const { open, placement } = renderState;
   const widget = workbench.layout.getWidget(placement.contributionId);
   const overlayConfig = resolveOverlayDialogConfig(placement, widget?.config);
-  const { contentHeight, contentMaxHeight, contentMinHeight, ...dialogRootConfig } = overlayConfig;
+  const { contentHeight, contentMaxHeight, contentMinHeight, closeTriggerTop, ...dialogRootConfig } = overlayConfig;
   const renderer = widget ? renderers[widget.rendererId] : undefined;
   const canCloseOverlay = open && placement.closable === true;
   const closeLabel = placement.title ?? widget?.title ?? "overlay";
@@ -165,7 +168,15 @@ export const WorkbenchOverlayLayer = (props: WorkbenchOverlayLayerProps) => {
       <Portal>
         <Dialog.Backdrop position="fixed" inset="0" />
         <Dialog.Positioner position="fixed" inset="0" overflow="auto">
-          <Dialog.Content position="relative" h={contentHeight} maxH={contentMaxHeight} minH={contentMinHeight}>
+          <Dialog.Content
+            position="relative"
+            overflow="hidden"
+            borderWidth="1px"
+            borderColor="border.muted"
+            h={contentHeight}
+            maxH={contentMaxHeight}
+            minH={contentMinHeight}
+          >
             {body}
             {canCloseOverlay ? (
               <Dialog.CloseTrigger
@@ -173,13 +184,14 @@ export const WorkbenchOverlayLayer = (props: WorkbenchOverlayLayerProps) => {
                 alignItems="center"
                 borderRadius="sm"
                 color="fg.muted"
+                cursor="pointer"
                 display="inline-flex"
-                h="8"
-                insetEnd="2"
+                h="5"
+                insetEnd="1"
                 justifyContent="center"
                 position="absolute"
-                top="2"
-                w="8"
+                top={closeTriggerTop ?? "1"}
+                w="5"
                 zIndex="1"
                 _hover={{ bg: "bg.subtle", color: "fg" }}
               >

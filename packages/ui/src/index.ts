@@ -162,7 +162,6 @@ export {
 export { Sidebar } from "./components/sidebar/sidebar";
 export { useSidebarStore } from "./components/sidebar/sidebar.store";
 export type { SidebarProps } from "./components/sidebar/sidebar.types";
-export { SidebarProjectMenu } from "./components/sidebar/sidebar-project-menu";
 export type { SimpleCardBodyProps, SimpleCardProps } from "./components/simple-card";
 export { SimpleCard, SimpleCardBody } from "./components/simple-card";
 export type { SwitchProps } from "./components/switch";
@@ -207,8 +206,10 @@ export {
   getTreeListVisibilityStore,
   useTreeListVisibilityStore,
 } from "./components/tree-list/tree-list-visibility.store";
+export type { TreeVisibilityMenuItems } from "./components/tree-list/tree-list-visibility-filter";
 export {
   buildTreeVisibilityMenuActions,
+  filterVisibleNodes,
   filterVisibleSections,
   resolveVisibility,
 } from "./components/tree-list/tree-list-visibility-filter";
