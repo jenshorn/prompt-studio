@@ -5,6 +5,7 @@ import {
   buildFilterCategories,
   buildGroupingOptions,
   buildOrderingOptions,
+  getEnumOptions,
   renderAttributeBadge,
   resolveKnownColumnKeys,
   resolveListDropTargetColumnKey,
@@ -91,6 +92,11 @@ describe("resolveKnownColumnKeys", () => {
     expect(result).toEqual(["done"]);
   });
 
+  it("uses only the first active enum filter value for grouped columns", () => {
+    const result = resolveKnownColumnKeys("status", attributes, { status: ["todo", "done"] });
+    expect(result).toEqual(["todo"]);
+  });
+
   it("returns undefined when grouping is none", () => {
     expect(resolveKnownColumnKeys(NO_GROUPING, attributes)).toBeUndefined();
   });
@@ -135,6 +141,13 @@ describe("buildFilterCategories", () => {
     expect(status?.options.map((option) => option.value)).toEqual(["todo", "done", "blocked"]);
   });
 
+  it("marks enum filter categories as single-select and enum-multi categories as multi-select", () => {
+    const categories = buildFilterCategories(attributes, rows);
+
+    expect(categories.find((category) => category.id === "status")?.selectionMode).toBe("single");
+    expect(categories.find((category) => category.id === "labels")?.selectionMode).toBe("multiple");
+  });
+
   it("auto-derives options for non-enum filterable attributes", () => {
     const categories = buildFilterCategories(attributes, rows);
     const owner = categories.find((category) => category.id === "owner");
@@ -164,6 +177,33 @@ describe("buildFilterCategories", () => {
     const categories = buildFilterCategories(sourcedAttributes, []);
     const status = categories.find((category) => category.id === "status");
     expect(status?.options.map((option) => option.value)).toEqual(["running", "merged"]);
+  });
+});
+
+describe("sanitizeFilters", () => {
+  it("keeps only the first selected value for enum filters", () => {
+    expect(sanitizeFilters({ status: ["todo", "done"], labels: ["bug", "p1"] }, attributes)).toEqual({
+      status: ["todo"],
+      labels: ["bug", "p1"],
+    });
+  });
+});
+
+describe("getEnumOptions", () => {
+  it("deduplicates enum options by value", () => {
+    const options = getEnumOptions({
+      kind: "enum-multi",
+      options: [
+        { value: "bug", label: "Bug", color: "red" },
+        { value: "bug", label: "Bug duplicate", color: "orange" },
+        { value: "feature", label: "Feature", color: "green" },
+      ],
+    });
+
+    expect(options).toEqual([
+      { value: "bug", label: "Bug", color: "red" },
+      { value: "feature", label: "Feature", color: "green" },
+    ]);
   });
 });
 

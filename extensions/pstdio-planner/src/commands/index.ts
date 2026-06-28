@@ -43,6 +43,7 @@ import {
   updateTicketStatusCommand,
 } from "./ticket-statuses";
 import {
+  applyTicketTagDraftCommand,
   createTagOptionCommand,
   createTicketTagCommand,
   deleteTagOptionCommand,
@@ -119,6 +120,7 @@ export const plannerCommands = {
   "ticketTag.createOption": createTagOptionCommand,
   "ticketTag.updateOption": updateTagOptionCommand,
   "ticketTag.deleteOption": deleteTagOptionCommand,
+  "ticketTag.applyDraft": applyTicketTagDraftCommand,
 
   ...workspaceAutomationCommands,
 };

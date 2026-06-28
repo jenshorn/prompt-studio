@@ -181,6 +181,7 @@ const collectValuesFromRows = (rows: DataRendererRow[], descriptor: AttributeDes
 export interface FilterCategoryView {
   id: string;
   label: string;
+  selectionMode: "single" | "multiple";
   options: { value: string; label: string; color?: string }[];
 }
 
@@ -210,6 +211,7 @@ export const buildFilterCategories = (
       categories.push({
         id: descriptor.id,
         label: descriptor.label,
+        selectionMode: descriptor.type.kind === "enum" ? "single" : "multiple",
         options: [
           ...declared.map((option) => ({ value: option.value, label: option.label, color: option.color })),
           ...undeclared,
@@ -221,7 +223,7 @@ export const buildFilterCategories = (
     const auto = [...collectValuesFromRows(rows, descriptor)]
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
       .map((value) => ({ value, label: toTitleCase(value) }));
-    categories.push({ id: descriptor.id, label: descriptor.label, options: auto });
+    categories.push({ id: descriptor.id, label: descriptor.label, selectionMode: "multiple", options: auto });
   }
   return categories;
 };
@@ -278,12 +280,17 @@ export const resolveKnownColumnKeys = (
   filters?: DataRendererFilterState,
 ) => {
   if (columnGrouping === NO_GROUPING) return undefined;
-  const active = filters?.[columnGrouping];
-  if (active && active.length > 0) return active;
   const descriptor = findAttribute(attributes, columnGrouping);
+  const active = filters?.[columnGrouping];
+  if (descriptor && active && active.length > 0) return normalizeFilterValues(descriptor, active);
   if (!descriptor) return undefined;
   if (descriptor.type.kind === "enum") return getEnumOptions(descriptor.type).map((option) => option.value);
   return undefined;
+};
+
+export const normalizeFilterValues = (descriptor: AttributeDescriptor, values: string[]) => {
+  if (descriptor.type.kind === "enum") return values.slice(0, 1);
+  return values;
 };
 
 export const omitFilterCategory = (filters: DataRendererFilterState, id: string): DataRendererFilterState => {
@@ -320,12 +327,13 @@ export const sanitizeSettings = (
 };
 
 export const sanitizeFilters = (filters: DataRendererFilterState, attributes: AttributeDescriptor[]) => {
-  const knownIds = new Set(attributes.map((attribute) => attribute.id));
+  const attributesById = new Map(attributes.map((attribute) => [attribute.id, attribute]));
   const next: DataRendererFilterState = {};
   for (const [id, values] of Object.entries(filters)) {
-    if (!knownIds.has(id)) continue;
+    const descriptor = attributesById.get(id);
+    if (!descriptor) continue;
     if (!values || values.length === 0) continue;
-    next[id] = values;
+    next[id] = normalizeFilterValues(descriptor, values);
   }
   return next;
 };
