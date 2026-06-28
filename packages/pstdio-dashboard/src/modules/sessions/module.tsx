@@ -228,6 +228,20 @@ export const createSessionsModule = () =>
         },
       });
 
+      // Sessions opened from an extension sidebar (e.g. the planner ticket tree) carry a
+      // `sessionSurface: "floating"` hint. Honor it by opening the floating session panel and
+      // keeping the host view (the ticket) in place, instead of switching to sessions mode. Higher
+      // priority than the default session route so the hint wins; unhinted sessions fall through.
+      ctx.resources.registerOpener({
+        id: "dashboard.sessions.floating-opener",
+        priority: 1100,
+        canOpen: (resource) => resource.kind === "session" && resource.metadata?.sessionSurface === "floating",
+        open: (resource) => {
+          void ctx.commands.executeCommand(dashboardCommandIds.openFloatingSession, { resource });
+          return undefined;
+        },
+      });
+
       return {
         dispose: unsubscribeDashboardData,
       };

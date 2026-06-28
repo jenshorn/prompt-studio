@@ -15,7 +15,7 @@ const seedBacklogTicket = async (storage: ReturnType<typeof createMemoryStorage>
     shorthand: "T-1",
     title: "Ticket",
     content: "# Ticket",
-    statusId: "default-backlog",
+    statusId: "backlog",
     tagIds: [],
     attachments: [],
     parentId: null,
@@ -47,8 +47,9 @@ describe("pstdio planner extension contributions", () => {
   test("uses a native tree renderer for ticket files", () => {
     expect(extension.treeRenderers?.ticketFiles).toMatchObject({
       title: { $l10n: "treeRenderers.ticketFiles.title", default: "Files" },
+      icon: "Files",
       bodyCommand: { id: "pstdio-planner.ticket-files.tree.body" },
-      defaultExpandedSectionIds: ["files", "sub-tickets", "workspaces"],
+      defaultExpandedSectionIds: ["files", "sub-tickets", "workspaces", "sessions"],
     });
     expect(extension.views?.ticketFiles).toMatchObject({
       title: { $l10n: "views.ticketFiles.title", default: "Files" },
@@ -216,7 +217,7 @@ describe("pstdio planner extension contributions", () => {
       } as never,
     );
 
-    expect((await ticketsCollection(storage).get(ticket.id))!.statusId).toBe("default-in-progress");
+    expect((await ticketsCollection(storage).get(ticket.id))!.statusId).toBe("in-progress");
   });
 
   test("session start without a linked ticket is a no-op", async () => {
