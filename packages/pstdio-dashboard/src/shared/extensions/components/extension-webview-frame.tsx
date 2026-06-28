@@ -4,7 +4,7 @@ import { toaster, useThemePreference } from "@pstdio/ui";
 import { ExtensionFrame, type ExtensionFrameProps } from "pstdio-extensions/bridge/host";
 import { useEffect, useState } from "react";
 import i18n from "@/i18n";
-import { buildAbsoluteApiUrl, buildApiUrl } from "@/lib/api";
+import { apiRequest, buildAbsoluteApiUrl, buildApiUrl } from "@/lib/api";
 import { getExtensionTranslationContext, resolveLocalizableString } from "@/shared/extensions/extension-localization";
 import {
   deleteGlobalExtensionSetting,
@@ -18,6 +18,7 @@ import {
 } from "../api";
 import { type ExtensionCommandEvent, subscribeToExtensionCommandFeed } from "../extension-webview-broadcast";
 import { useExecuteExtensionCommand } from "../use-project-extensions";
+import { notificationStatusRouteVerb } from "./notification-transition-route";
 
 type WebviewDescriptor = {
   entry: { kind: "package-asset"; path: string; baseUrl: string };
@@ -198,6 +199,36 @@ export const ExtensionWebviewFrame = (props: ExtensionWebviewFrameProps) => {
     throw new Error("Extension settings are unavailable without an extension owner.");
   };
 
+  const requireProjectId = () => {
+    if (!projectId) throw new Error("Notification capabilities require a project.");
+    return projectId;
+  };
+
+  const notificationPath = (suffix = "") =>
+    `/v1/projects/${encodeURIComponent(requireProjectId())}/notifications${suffix}`;
+
+  const extensionNotificationPath = () =>
+    `/v1/projects/${encodeURIComponent(requireProjectId())}/extensions/${encodeURIComponent(extensionId)}/notifications`;
+
+  const resolveNotification = async (params: unknown) => {
+    const input = params as { id?: string; dedupeKey?: string; status?: "done" | "dismissed" | "expired" };
+    const status = input.status ?? "done";
+
+    if (input.dedupeKey) {
+      return apiRequest(notificationPath("/resolve-by-dedupe-key"), {
+        method: "POST",
+        body: { dedupeKey: input.dedupeKey, status },
+      });
+    }
+
+    if (!input.id) throw new Error("notification.resolve requires id or dedupeKey.");
+    if (status === "expired") throw new Error("notification.resolve by id does not support expired.");
+
+    return apiRequest(notificationPath(`/${encodeURIComponent(input.id)}/${notificationStatusRouteVerb(status)}`), {
+      method: "POST",
+    });
+  };
+
   const capabilities = {
     "commands.execute": async (params: unknown) => {
       const { commandId, params: commandParams } = params as { commandId: string; params?: Record<string, unknown> };
@@ -213,6 +244,16 @@ export const ExtensionWebviewFrame = (props: ExtensionWebviewFrameProps) => {
         title?: string;
       };
       toaster.create({ type: notification.level, title: notification.title, description: notification.message });
+    },
+    "notification.action": (params: unknown) =>
+      apiRequest(extensionNotificationPath(), {
+        method: "POST",
+        body: params,
+      }),
+    "notification.resolve": resolveNotification,
+    "notification.dismiss": (params: unknown) => {
+      const input = params as { id?: string; dedupeKey?: string };
+      return resolveNotification({ ...input, status: "dismissed" });
     },
     "preferences.get": (params: unknown) => {
       const { name } = params as { name: string };

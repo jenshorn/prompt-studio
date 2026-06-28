@@ -1,6 +1,8 @@
 import { defineCommand, type ExtensionStorageApi, params } from "@pstdio/sdk/extensions";
-import { ticketsCollection } from "../data/collections";
+import { statusesCollection, ticketsCollection } from "../data/collections";
 import { findTicket, resolveStatusId, resolveTagOptionIds, resolveTicketId } from "../data/resolve";
+import type { StoredTicket } from "../data/types";
+import { notifyBlocked, resolveBlockedNotification } from "../planner-notifications";
 import { deriveTitle } from "../utils/derive-title";
 
 // Powers the markdown editor's save-on-edit autosave and the `pst tickets update`
@@ -47,9 +49,56 @@ export const updateTicketCommand = defineCommand({
       updatedAt: new Date().toISOString(),
     };
     await collection.put(existing.id, next);
+    await syncBlockedNotificationSafely(ctx, existing, next);
     return next;
   },
 });
+
+const isBlockedTicket = async (storage: ExtensionStorageApi, ticket: StoredTicket) => {
+  if (ticket.blockedReason) return true;
+  const status = ticket.statusId ? await statusesCollection(storage).get(ticket.statusId) : null;
+  return status?.name.trim().toLowerCase() === "blocked";
+};
+
+const syncBlockedNotification = async (
+  ctx: Parameters<typeof updateTicketCommand.run>[0],
+  previous: StoredTicket,
+  next: StoredTicket,
+) => {
+  const [wasBlocked, isBlocked] = await Promise.all([
+    isBlockedTicket(ctx.storage, previous),
+    isBlockedTicket(ctx.storage, next),
+  ]);
+  if (isBlocked) {
+    await notifyBlocked(ctx, next);
+    return;
+  }
+  if (wasBlocked) await resolveBlockedNotification(ctx, next);
+};
+
+// The ticket has already been persisted before this runs, so both the
+// notification sync AND the warning toast must be best-effort: any failure
+// inside this helper must not surface as a failed ticket update to callers
+// (autosave, CLI). Swallow toast failures too, even if delivery is unavailable.
+const syncBlockedNotificationSafely = async (
+  ctx: Parameters<typeof updateTicketCommand.run>[0],
+  previous: StoredTicket,
+  next: StoredTicket,
+) => {
+  try {
+    await syncBlockedNotification(ctx, previous, next);
+  } catch (error) {
+    try {
+      await ctx.notify.toast({
+        type: "warning",
+        title: "Ticket saved",
+        message: `Notification sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    } catch {
+      // Best-effort: the ticket save already succeeded.
+    }
+  }
+};
 
 // undefined → leave the parent untouched; null → unlink; string → resolve the shorthand.
 const resolveParentUpdate = async (

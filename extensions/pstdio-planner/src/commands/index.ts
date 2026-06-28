@@ -20,8 +20,10 @@ import { saveTicketContentCommand } from "./save-ticket-content";
 import { selectTicketDocumentCommand } from "./select-ticket-document";
 import { setTicketAttributeCommand } from "./set-ticket-attribute";
 import {
+  approveProposalCommand,
   breakIntoSubTicketsCommand,
   createWorkspaceCommand,
+  proposalRefinedCommand,
   refineTicketCommand,
   runAttemptCommand,
 } from "./ticket-actions";
@@ -63,6 +65,8 @@ export const plannerCommands = {
   "run-attempt": runAttemptCommand,
   "create-workspace": createWorkspaceCommand,
   "refine-ticket": refineTicketCommand,
+  "proposal-refined": proposalRefinedCommand,
+  "approve-proposal": approveProposalCommand,
   "break-into-sub-tickets": breakIntoSubTicketsCommand,
 
   "query-tickets": queryTicketsCommand,

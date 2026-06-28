@@ -13,6 +13,13 @@ import { findTicket, resolveStatusId } from "./data/resolve";
 import type { StoredTicket } from "./data/types";
 import { ticketShorthandFromWorkspace } from "./data/workspace-ticket-link";
 import {
+  notifyReadyToMerge,
+  notifyReviewReady,
+  resolveReadyToMergeNotification,
+  resolveReviewReadyNotification,
+  ticketAnchor,
+} from "./planner-notifications";
+import {
   createWorkspaceStatusDefinition,
   deleteWorkspaceStatusDefinition,
   ensureDefaultWorkspaceStatuses,
@@ -46,17 +53,6 @@ const ticketRefFrom = (ctx: {
   return ctx.params.ticket?.trim() ?? stringMetadata(ctx.resource?.metadata, "ticket") ?? ctx.resource?.label?.trim();
 };
 
-const ticketAnchor = (ctx: { extensionId: string; projectId: string }, ticket: StoredTicket) =>
-  ({
-    type: "ticket",
-    id: ticket.id,
-    projectId: ctx.projectId,
-    extensionId: ctx.extensionId,
-    label: ticket.shorthand,
-    role: "primary",
-    metadata: { shorthand: ticket.shorthand },
-  }) satisfies ResourceAnchor;
-
 const resolveTicketForWorkspace = async (
   ctx: { storage: Parameters<typeof findTicket>[0] },
   workspace: ExtensionWorkspace,
@@ -79,7 +75,7 @@ const resolveReviewStatusId = async (storage: Parameters<typeof resolveStatusId>
   return null;
 };
 
-const moveTicketToReviewWhenAllWorkspacesReviewed = async (
+const summarizeLinkedWorkspaces = async (
   ctx: {
     storage: Parameters<typeof readWorkspaceStatusData>[0]["storage"];
     workspaces: { list(): Promise<ExtensionWorkspace[]> };
@@ -89,24 +85,56 @@ const moveTicketToReviewWhenAllWorkspacesReviewed = async (
   const workspaces = (await ctx.workspaces.list()).filter(
     (workspace) => ticketShorthandFromWorkspace(workspace) === ticket.shorthand,
   );
-  if (workspaces.length === 0) return { updated: false };
+  if (workspaces.length === 0) return { count: 0, allReviewed: false, readyToMerge: false };
 
   const data = await readWorkspaceStatusData({
     storage: ctx.storage,
     workspaceIds: workspaces.map((workspace) => workspace.id),
   });
-  const allReviewed = workspaces.every((workspace) => data.valuesByWorkspaceId[workspace.id]?.status === "reviewed");
-  if (!allReviewed) return { updated: false };
+  const statuses = workspaces.map((workspace) => data.valuesByWorkspaceId[workspace.id]?.status);
+  const allReviewed = statuses.every((status) => status === "reviewed");
+  // A workspace is "settled" once it is reviewed or merged. The ticket stays
+  // ready-to-merge while every linked workspace is settled AND at least one
+  // is still reviewed (i.e. has merge work pending). All-merged means there's
+  // nothing left to ship, so the inbox item drops.
+  const allSettled = statuses.every((status) => status === "reviewed" || status === "merged");
+  const hasReviewed = statuses.some((status) => status === "reviewed");
+  return { count: workspaces.length, allReviewed, readyToMerge: allSettled && hasReviewed };
+};
+
+const moveTicketToReviewWhenAllWorkspacesReviewed = async (
+  ctx: {
+    storage: Parameters<typeof readWorkspaceStatusData>[0]["storage"];
+    workspaces: { list(): Promise<ExtensionWorkspace[]> };
+  },
+  ticket: StoredTicket,
+) => {
+  const summary = await summarizeLinkedWorkspaces(ctx, ticket);
+  if (!summary.allReviewed) return { readyToMerge: false, updated: false };
 
   const statusId = await resolveReviewStatusId(ctx.storage);
-  if (!statusId || ticket.statusId === statusId) return { updated: false };
+  if (!statusId) return { readyToMerge: false, updated: false };
+  if (ticket.statusId === statusId) return { readyToMerge: true, updated: false, statusId };
 
   await ticketsCollection(ctx.storage).put(ticket.id, {
     ...ticket,
     statusId,
     updatedAt: new Date().toISOString(),
   });
-  return { updated: true, statusId };
+  return { readyToMerge: true, updated: true, statusId };
+};
+
+// Ready-to-merge tracks a derived state across every linked workspace, so it
+// can become stale when one regresses out of `reviewed` (review surfaces more
+// work) AND it must keep showing when one is merged while a sibling is still
+// reviewed. Re-evaluate on every status change and notify/resolve accordingly.
+const syncReadyToMergeNotification = async (ctx: Parameters<typeof runStatusAutomation>[0], ticket: StoredTicket) => {
+  const { readyToMerge } = await summarizeLinkedWorkspaces(ctx, ticket);
+  if (readyToMerge) {
+    await notifyReadyToMerge(ctx, ticket);
+  } else {
+    await resolveReadyToMergeNotification(ctx, ticket);
+  }
 };
 
 const runStatusAutomation = async (
@@ -127,6 +155,10 @@ const runStatusAutomation = async (
       get(id: string): Promise<{ original_session_id?: string | null } | null>;
     };
     storage: Parameters<typeof findTicket>[0];
+    notify: {
+      action(input: Record<string, unknown>): Promise<unknown>;
+      resolve(input: { dedupeKey: string; status: "done" }): Promise<unknown>;
+    };
     workspaces: { get(id: string): Promise<ExtensionWorkspace | null>; list(): Promise<ExtensionWorkspace[]> };
   },
   workspaceId: string,
@@ -138,6 +170,12 @@ const runStatusAutomation = async (
   const ticket = await resolveTicketForWorkspace(ctx, workspace);
   if (!ticket) return { automated: false };
 
+  // The workspace status row has already been persisted by the caller before
+  // this runs, so re-evaluate ready-to-merge here, before any branch that can
+  // throw (session creation, downstream notifications). A failure after this
+  // point can no longer leave a stale ready-to-merge inbox item visible.
+  await syncReadyToMergeNotification(ctx, ticket);
+
   const anchor = ticketAnchor(ctx, ticket);
   if (status === "review-ready") {
     const session = await ctx.sessions.create({
@@ -148,6 +186,7 @@ const runStatusAutomation = async (
       anchors: [anchor],
       originalSessionId: ctx.params.sessionId,
     });
+    await notifyReviewReady(ctx, workspace, ticket, session.id);
     return { automated: true, reviewSessionId: session.id };
   }
 
@@ -176,7 +215,13 @@ const runStatusAutomation = async (
   }
 
   if (status === "reviewed") {
-    return moveTicketToReviewWhenAllWorkspacesReviewed(ctx, ticket);
+    const result = await moveTicketToReviewWhenAllWorkspacesReviewed(ctx, ticket);
+    await resolveReviewReadyNotification(ctx, workspace.id);
+    return result;
+  }
+
+  if (status === "merged") {
+    return { automated: true };
   }
 
   return { automated: false };

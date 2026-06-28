@@ -4,6 +4,7 @@ import { moveTicketToInProgress } from "../data/move-to-in-progress";
 import { findTicket } from "../data/resolve";
 import { buildTicketBreadcrumbItems } from "../data/ticket-breadcrumb";
 import type { StoredTicket } from "../data/types";
+import { notifyProposalRefined, resolveProposalRefinedNotification } from "../planner-notifications";
 
 const ticketActionParams = {
   ticket: params.text({ label: "Ticket" }),
@@ -206,8 +207,7 @@ export const refineTicketCommand = defineCommand({
     const { agent, context, template } = ctx.params;
     const ticketRef = resolveTicket(ctx);
     const { shorthand } = await resolveTicketIdentity(ctx, ticketRef);
-
-    return ctx.sessions.create({
+    const session = await ctx.sessions.create({
       title: `Refine ticket: ${shorthand}`,
       ...harnessInput(agent),
       template: "refine-ticket",
@@ -216,6 +216,39 @@ export const refineTicketCommand = defineCommand({
         ...(context ? { additionalContext: context } : {}),
       },
     });
+
+    return session;
+  },
+});
+
+export const proposalRefinedCommand = defineCommand({
+  title: "Mark proposal refined",
+  cli: {
+    globalAliases: [["tickets", "proposal-refined"]],
+    examples: ["pstdio tickets proposal-refined --id PS-1"],
+  },
+  params: {
+    id: params.text({ label: "Ticket", required: true }),
+  },
+  async run(ctx) {
+    const ticket = await findTicket(ctx.storage, ctx.params.id);
+    if (!ticket) throw new Error(`Unknown ticket "${ctx.params.id}"`);
+    await notifyProposalRefined(ctx, ticket);
+    return { ticket, notified: true };
+  },
+});
+
+export const approveProposalCommand = defineCommand({
+  title: "Approve proposal",
+  params: {
+    ticket: selectedTicketParams.ticket,
+  },
+  async run(ctx) {
+    const ticketRef = resolveTicket(ctx);
+    const ticket = await findTicket(ctx.storage, ticketRef);
+    if (!ticket) throw new Error(`Unknown ticket "${ticketRef}"`);
+    await resolveProposalRefinedNotification(ctx, ticket);
+    return { ticket, approved: true };
   },
 });
 
