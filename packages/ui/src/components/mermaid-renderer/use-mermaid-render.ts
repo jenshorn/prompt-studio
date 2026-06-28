@@ -1,11 +1,16 @@
 import mermaid from "mermaid";
 import { useEffect, useState } from "react";
+import { getThemePreferenceMode, type ThemePreferenceMode } from "../../utils/apply-theme-preference";
+import { useThemePreference } from "../../utils/theme-preference";
 
-let mermaidInitialized = false;
+let initializedMode: ThemePreferenceMode | null = null;
 let renderSequence = 0;
+let renderQueue = Promise.resolve();
 
-const initializeMermaid = () => {
-  if (mermaidInitialized) {
+const getMermaidTheme = (mode: ThemePreferenceMode) => (mode === "dark" ? "dark" : "default");
+
+const initializeMermaid = (mode: ThemePreferenceMode) => {
+  if (initializedMode === mode) {
     return;
   }
 
@@ -16,15 +21,31 @@ const initializeMermaid = () => {
       htmlLabels: true,
     },
     securityLevel: "antiscript",
-    theme: "default",
+    theme: getMermaidTheme(mode),
   });
 
-  mermaidInitialized = true;
+  initializedMode = mode;
 };
 
 const nextRenderId = () => {
   renderSequence += 1;
   return `mermaid-${renderSequence}`;
+};
+
+const renderMermaidDiagram = (mode: ThemePreferenceMode, code: string) => {
+  const render = async () => {
+    // Mermaid keeps render config in a shared singleton, so theme changes must not overlap renders.
+    initializeMermaid(mode);
+    return mermaid.render(nextRenderId(), code);
+  };
+
+  const queuedRender = renderQueue.then(render, render);
+  renderQueue = queuedRender.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return queuedRender;
 };
 
 const formatMermaidError = (error: unknown) => {
@@ -41,6 +62,8 @@ const formatMermaidError = (error: unknown) => {
 };
 
 export const useMermaidRender = (code: string) => {
+  const { themePreference, themePreferences } = useThemePreference();
+  const themeMode = getThemePreferenceMode(themePreference, themePreferences);
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   const [isRendering, setIsRendering] = useState(false);
@@ -49,12 +72,11 @@ export const useMermaidRender = (code: string) => {
     let cancelled = false;
 
     const renderDiagram = async () => {
-      initializeMermaid();
       setIsRendering(true);
       setError("");
 
       try {
-        const result = await mermaid.render(nextRenderId(), code);
+        const result = await renderMermaidDiagram(themeMode, code);
         if (cancelled) {
           return;
         }
@@ -79,7 +101,7 @@ export const useMermaidRender = (code: string) => {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, themeMode]);
 
   return { svg, error, isRendering };
 };
