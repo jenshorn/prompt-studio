@@ -1,16 +1,13 @@
 import { describe, expect, mock, test } from "bun:test";
 import { createWorkbenchCore, type ResourceRef } from "pstdio-workbench/core";
-import { getWriter, markInitialCollectionsSyncComplete } from "@/lib/sync/collections";
 import { selectDashboardProject } from "@/shared/app/project-context";
 import { dashboardResources } from "@/shared/app/resources";
 import { dashboardWidgetIds } from "@/shared/app/widget-ids";
 import { clearCachedDashboardExtensionMetadata } from "@/shared/extensions/workbench-extension-contributions";
 import { createBootstrapModule } from "./bootstrap";
-import { createDashboardViewsModule } from "./dashboard-views/module";
 import { createExtensionsModule } from "./extensions/module";
-import { emptyAppearance, flushMicrotasks, metadataWithTickets } from "./extensions/module-test-fixtures";
+import { emptyAppearance, flushMicrotasks, metadata, metadataWithTickets } from "./extensions/module-test-fixtures";
 import { createStartModule } from "./start/module";
-import { createWorkspacesModule } from "./workspaces/module";
 
 describe("createBootstrapModule", () => {
   test("opens the start view when a selected project has no saved location", async () => {
@@ -107,14 +104,15 @@ describe("createBootstrapModule", () => {
     }
   });
 
-  test("waits for initial sync before restoring a saved workspace", async () => {
-    let savedResource: ResourceRef | undefined = {
-      kind: "workspace",
-      uri: "dashboard-workbench://workspace/deleted-workspace",
-      id: "deleted-workspace",
-      label: "Deleted workspace",
+  test("falls back to start when a saved extension view is no longer available", async () => {
+    const missingExtensionView = {
+      kind: "extension-view",
+      uri: "dashboard-workbench://project/project-1/extension-views/deleted-view",
+      id: "deleted-view",
+      label: "Deleted view",
       metadata: { projectId: "project-1" },
-    };
+    } satisfies ResourceRef;
+    let savedResource: ResourceRef | undefined = missingExtensionView;
     const workbench = createWorkbenchCore({
       lastResourcePersistence: {
         getLastResource: () => savedResource,
@@ -124,24 +122,30 @@ describe("createBootstrapModule", () => {
       },
     });
 
+    workbench.modes.registerMode({ id: "project", label: "Project", activate: () => undefined });
+    const dashboardViewKind = workbench.resources.registerKind({ kind: "dashboard-view", label: "Dashboard view" });
     selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
-    const dashboardViews = workbench.registerModule(createDashboardViewsModule());
-    const workspaces = workbench.registerModule(createWorkspacesModule());
     const start = workbench.registerModule(createStartModule());
+    const extensions = workbench.registerModule(
+      createExtensionsModule({
+        loadAppearance: mock(async () => emptyAppearance),
+        loadMetadata: mock(async () => metadata),
+      }),
+    );
     const bootstrap = workbench.registerModule(createBootstrapModule());
 
     try {
-      getWriter("workspaces")?.truncateAndWrite([]);
-      markInitialCollectionsSyncComplete();
+      await flushMicrotasks();
       await flushMicrotasks();
 
       expect(workbench.getPrimaryResource()?.uri).toBe(dashboardResources.start.uri);
       expect(savedResource?.uri).toBe(dashboardResources.start.uri);
     } finally {
       bootstrap.dispose();
+      extensions.dispose();
       start.dispose();
-      workspaces.dispose();
-      dashboardViews.dispose();
+      dashboardViewKind.dispose();
+      clearCachedDashboardExtensionMetadata("project-1");
     }
   });
 });
