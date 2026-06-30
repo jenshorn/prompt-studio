@@ -56,7 +56,10 @@ export const executeExtensionCommand = async (
   }
 
   const notices: CommandNotice[] = [];
-  const envFor = createEnvironmentCache(state.deps, input.projectId, input.repo, notices);
+  const envFor = createEnvironmentCache(state.deps, input.projectId, input.repo, notices, {
+    workspaceDir: input.workspaceDir,
+    workspaceId: input.workspaceId,
+  });
   let commandEnv: CommandRunnerEnvironment;
   try {
     commandEnv = await envFor(record);
@@ -86,6 +89,7 @@ export const executeExtensionCommand = async (
       input.source,
       input.repo,
       input.depth,
+      { workspaceDir: input.workspaceDir, workspaceId: input.workspaceId },
     );
   const buildMiddlewareCtx = async (invocation: CommandInvocation, middleware: RuntimeMiddlewareRecord) =>
     state.factory.buildCommandContext(
@@ -98,6 +102,7 @@ export const executeExtensionCommand = async (
       input.source,
       input.repo,
       input.depth,
+      { workspaceDir: input.workspaceDir, workspaceId: input.workspaceId },
     );
 
   const requestedPayload = buildRequestPayload(

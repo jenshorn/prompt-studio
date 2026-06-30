@@ -14,6 +14,20 @@ const errorSchema = z.object({
   commandId: z.string().optional(),
 });
 
+// Where a command's `ctx.workspaceFiles` mounts. A worktree-backed workspace runs in its own
+// tree; a root/current-branch workspace spans every linked repo, so it mounts the repo the
+// command was invoked for (body.repo), falling back to the first linked repo only when the
+// request carries no repo context.
+export const resolveCommandWorkspaceDir = (input: {
+  worktreePath: string | null;
+  repos: { id: string; path: string }[];
+  repoId?: string;
+}) => {
+  if (input.worktreePath) return input.worktreePath;
+  const invoked = input.repoId ? input.repos.find((repo) => repo.id === input.repoId) : undefined;
+  return invoked?.path ?? input.repos[0]?.path;
+};
+
 export const executeExtensionCommandRoute = createRoute({
   method: "post",
   path: "/projects/{projectId}/extensions/commands/{commandId}/execute",
@@ -56,6 +70,27 @@ export const executeExtensionCommandHandler = (
         return c.json({ error: `Command "${commandId}" is not registered`, code: "command_not_found", commandId }, 404);
       }
 
+      // A command invoked from inside a worktree-backed workspace identifies it by id;
+      // resolve the worktree path so the env (ctx.workspaceFiles) and ctx.workspaceId match.
+      // The workspace must belong to this route's project, or a caller could mount another
+      // project's worktree by passing a foreign workspace id.
+      let workspaceDir: string | undefined;
+      if (body.workspaceId) {
+        const workspace = await deps.workspaceService.get(body.workspaceId);
+        if (!workspace || workspace.project_id !== projectId) {
+          return c.json(
+            { error: `Workspace "${body.workspaceId}" was not found in this project`, code: "workspace_not_found" },
+            404,
+          );
+        }
+        const repos = await deps.repoService.listByProject(projectId);
+        workspaceDir = resolveCommandWorkspaceDir({
+          worktreePath: workspace.worktree_path,
+          repos,
+          repoId: body.repo?.repoId,
+        });
+      }
+
       const runner = createCommandRunner(runtime, {
         buildEnvironment: (input) =>
           createCommandEnvironment(deps, enabledSources, {
@@ -64,6 +99,8 @@ export const executeExtensionCommandHandler = (
             project,
             projectId: input.projectId,
             repo: input.repo,
+            workspaceDir: input.workspaceDir,
+            workspaceId: input.workspaceId,
             settings: runtime.settings,
           }),
       });
@@ -71,6 +108,8 @@ export const executeExtensionCommandHandler = (
       const outcome = await runner.execute({
         commandId,
         projectId,
+        workspaceId: body.workspaceId,
+        workspaceDir,
         params: body.params as JsonObject | undefined,
         resource: body.resource as never,
         attachment: body.attachment as never,

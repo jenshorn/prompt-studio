@@ -1,25 +1,32 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { cleanupDirs, createGitRepo, runPstdio } from "./helpers";
+import { cleanupDirs, createGitRepo, createTempDir, runPstdio } from "./helpers";
 import { type ApiInstance, startApi } from "./start-api";
 import { SETUP_TIMEOUT, TEST_TIMEOUT } from "./timeouts";
 
 let api: ApiInstance;
+let cliHome = "";
 const dirs: string[] = [];
 
 beforeAll(async () => {
-  api = await startApi();
+  api = await startApi({ env: { PSTDIO_DEFAULT_EXTENSIONS: "[]" } });
 }, SETUP_TIMEOUT);
 
 afterAll(() => {
   api?.stop();
 });
 
+beforeEach(() => {
+  cliHome = createTempDir();
+  dirs.push(cliHome);
+});
+
 afterEach(() => {
   cleanupDirs(dirs);
 });
 
-const run = (args: string, cwd: string) => runPstdio(args, cwd, { PSTDIO_API_URL: api.url });
+const run = (args: string, cwd: string) =>
+  runPstdio(args, cwd, { PSTDIO_API_URL: api.url, PSTDIO_DEFAULT_EXTENSIONS: "[]", PSTDIO_HOME: cliHome });
 const extensionLabPath = join(import.meta.dirname, "../../../../extensions/extension-lab");
 
 describe("pstdio extension commands", () => {

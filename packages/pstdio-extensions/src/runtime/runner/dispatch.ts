@@ -40,11 +40,15 @@ export const createEventDispatcher = (input: DispatcherDeps): EventDispatcher =>
       if (!ext) continue;
 
       try {
+        const workspaceDir = (payload as { workspaceDir?: string }).workspaceDir;
+        const workspaceId = (payload as { workspaceId?: string }).workspaceId;
         const ctx = await input.buildEventContext(
           {
             projectId: (payload as { projectId?: string })?.projectId ?? "",
             extensionId: sub.extensionId,
             name: sub.name,
+            workspaceDir,
+            workspaceId,
           },
           eventId,
           input.generateId(),

@@ -1,20 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import type { BuildEnvironmentInput } from "./runner";
 import { createCommandRunner } from "./runner";
 import { buildRuntime, makeRunner, makeStorage, stubEnvironment } from "./test-helpers.test";
 
 describe("createCommandRunner: hooks and nesting", () => {
-  test("dispatches host events to extension hooks with worktree helpers", async () => {
+  test("dispatches host events to extension hooks with workspace file helpers", async () => {
     const { api: storage } = makeStorage();
-    const bootstraps: unknown[] = [];
+    const syncs: unknown[] = [];
     const runtime = buildRuntime({
       hooks: {
-        onWorktreeCreated: {
-          eventId: "worktree.created",
-          async handler(ctx, event) {
-            await ctx.worktrees.bootstrap({
-              repoPath: event.repoPath as string,
-              worktreePath: event.worktreePath as string,
-            });
+        onProvision: {
+          eventId: "workspace.provision",
+          async handler(ctx) {
+            await ctx.workspaceFiles?.syncDir(".claude/skills", []);
           },
         },
       },
@@ -22,26 +20,25 @@ describe("createCommandRunner: hooks and nesting", () => {
     const runner = createCommandRunner(runtime, {
       buildEnvironment: () => ({
         ...stubEnvironment(storage),
-        worktrees: {
-          bootstrap: async (input) => {
-            bootstraps.push(input);
+        workspaceFiles: {
+          syncDir: async (dir: string, files: unknown) => {
+            syncs.push({ dir, files });
           },
-        },
+        } as never,
       }),
     });
 
-    const worktreeResult = await runner.dispatchEvent({
-      eventId: "worktree.created",
+    const provisionResult = await runner.dispatchEvent({
+      eventId: "workspace.provision",
       projectId: "p1",
       payload: {
         repoPath: "/repo",
-        worktreePath: "/worktree",
-        anchors: [{ type: "ticket", id: "PS-1", label: "PS-1" }],
+        workspaceDir: "/worktree",
       },
     });
 
-    expect(worktreeResult.delivered).toBe(1);
-    expect(bootstraps).toEqual([{ repoPath: "/repo", worktreePath: "/worktree" }]);
+    expect(provisionResult.delivered).toBe(1);
+    expect(syncs).toEqual([{ dir: ".claude/skills", files: [] }]);
   });
 
   test("hook errors are isolated and don't fail the command", async () => {
@@ -103,6 +100,56 @@ describe("createCommandRunner: hooks and nesting", () => {
     const outcome = await runner.execute({ commandId: "lab.outer", projectId: "p1" });
     expect(outcome.ok).toBe(true);
     expect(order).toEqual(["outer-start", "inner-mw", "inner-run", "outer-end"]);
+  });
+
+  test("nested command execution keeps workspace-scoped environment", async () => {
+    const runtime = buildRuntime({
+      commands: {
+        outer: {
+          title: "Outer",
+          async run(ctx) {
+            const result = await ctx.commands.execute("lab.inner", { params: {} });
+            return result.ok ? result.value : result;
+          },
+        },
+        inner: {
+          title: "Inner",
+          async run(ctx) {
+            await ctx.workspaceFiles?.writeText("generated.txt", "ok");
+            return { workspaceId: ctx.workspaceId, hasWorkspaceFiles: Boolean(ctx.workspaceFiles) };
+          },
+        },
+      },
+    });
+    const { api: storage } = makeStorage();
+    const writes: unknown[] = [];
+    const runner = createCommandRunner(runtime, {
+      buildEnvironment: (input: BuildEnvironmentInput) => ({
+        ...stubEnvironment(storage),
+        workspaceId: input.workspaceId,
+        workspaceFiles: input.workspaceDir
+          ? ({
+              writeText: async (path: string, value: string) => {
+                writes.push({ path, value });
+              },
+            } as never)
+          : undefined,
+      }),
+    });
+
+    const outcome = await runner.execute({
+      commandId: "lab.outer",
+      projectId: "p1",
+      workspaceDir: "/worktree",
+      workspaceId: "ws-1",
+    });
+
+    expect(outcome).toEqual({
+      ok: true,
+      status: "success",
+      value: { workspaceId: "ws-1", hasWorkspaceFiles: true },
+    });
+    expect(writes).toEqual([{ path: "generated.txt", value: "ok" }]);
   });
 
   test("recursive command execution is rejected past the depth limit", async () => {

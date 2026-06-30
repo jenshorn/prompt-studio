@@ -15,27 +15,31 @@ import type {
   ExtensionReposApi,
   ExtensionSessionsApi,
   ExtensionSettingsApi,
+  ExtensionSkillsApi,
   ExtensionStorageApi,
   ExtensionWorkspacesApi,
-  ExtensionWorktreesApi,
   JsonObject,
   RepoContext,
   ResourceRef,
   SlotInvocationContext,
   WorkbenchAttachmentInvocationContext,
+  WorkspaceFilesMount,
 } from "@pstdio/sdk/extensions";
 
 export const DEFAULT_MAX_COMMAND_DEPTH = 10;
 
 export interface CommandRunnerEnvironment {
   project: ExtensionProjectContext;
+  /** Host workspace id when the environment is built for a worktree-backed workspace. */
+  workspaceId?: string;
   storage: ExtensionStorageApi;
   artifacts: ExtensionArtifactApi;
   repoFiles?: ArtifactMount;
+  workspaceFiles?: WorkspaceFilesMount;
   files: ExtensionFilesApi;
+  skills?: ExtensionSkillsApi;
   sessions: ExtensionSessionsApi;
   workspaces: ExtensionWorkspacesApi;
-  worktrees: ExtensionWorktreesApi;
   repos: ExtensionReposApi;
   activity: ExtensionActivityApi;
   notify: ExtensionNotifyApi;
@@ -51,6 +55,10 @@ export interface BuildEnvironmentInput {
   name: string;
   /** Repo context of the invocation, when run against a project repo (CLI). */
   repo?: RepoContext;
+  /** Resolved working directory of the workspace, threaded by workspace lifecycle events. */
+  workspaceDir?: string;
+  /** Host workspace id of the invocation, when run from inside a worktree-backed workspace. */
+  workspaceId?: string;
 }
 
 export interface CommandRunnerHostDeps {
@@ -71,6 +79,10 @@ export interface CommandExecuteInput {
   attachment?: WorkbenchAttachmentInvocationContext;
   slot?: SlotInvocationContext;
   repo?: RepoContext;
+  /** Resolved working directory of the workspace the command runs from. */
+  workspaceDir?: string;
+  /** Host workspace id the command runs from. */
+  workspaceId?: string;
   source?: CommandSource;
   metadata?: JsonObject;
 }

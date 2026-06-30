@@ -17,10 +17,6 @@ export const PSTDIO_E2E_DEFAULT_EXTENSIONS = JSON.stringify({
       installName: "pstdio-skills",
     },
     {
-      source: resolve(repoRoot, "extensions/pstdio-worktree-setup"),
-      installName: "pstdio-worktree-setup",
-    },
-    {
       source: resolve(repoRoot, "extensions/harness-claude-code"),
       installName: "harness-claude-code",
     },
@@ -33,8 +29,18 @@ export const PSTDIO_E2E_DEFAULT_EXTENSIONS = JSON.stringify({
       installName: "harness-open-code",
     },
     {
-      source: resolve(repoRoot, "extensions/harness-lab"),
-      installName: "harness-lab",
+      source: resolve(repoRoot, "extensions/extension-lab"),
+      installName: "extension-lab",
     },
   ],
 });
+
+export const PSTDIO_E2E_PLANNER_EXTENSION = JSON.stringify({
+  defaultExtensions: [{ source: resolve(repoRoot, "extensions/pstdio-planner"), installName: "pstdio-planner" }],
+});
+
+const e2eExtension = (name: string) => ({ source: resolve(repoRoot, `extensions/${name}`), installName: name });
+
+// Build a PSTDIO_DEFAULT_EXTENSIONS payload that installs only the named extensions, so a CLI
+// test's first `projects create` skips the npm install of extensions it never exercises.
+export const e2eExtensions = (...names: string[]) => JSON.stringify({ defaultExtensions: names.map(e2eExtension) });

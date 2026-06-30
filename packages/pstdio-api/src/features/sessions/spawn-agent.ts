@@ -7,6 +7,7 @@ import type {
 } from "pstdio-api-contracts";
 import { resolveHarnessExit } from "pstdio-api-runtime-host";
 import { sessionLogger } from "../../lib/logger";
+import { waitForWorkspaceReady } from "../workspaces/wait-for-ready";
 import type { SessionsRouteDeps } from "./deps";
 import { persistSessionMessages } from "./session-messages";
 
@@ -25,6 +26,7 @@ type SpawnInput = {
 type SpawnDeps = Pick<SessionsRouteDeps, "harnessRegistry" | "eventBus" | "fileService" | "sessionService"> & {
   processExitTimeoutMs?: number;
   sessionQueueEntriesService?: SessionsRouteDeps["sessionQueueEntriesService"];
+  workspaceSessionService?: SessionsRouteDeps["workspaceSessionService"];
 };
 
 const DEFAULT_PROCESS_EXIT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -55,11 +57,32 @@ const markSubmittedAttachments = (
   }
 };
 
+// Hard gate shared by every harness entrypoint (start, resume, reattach): a worktree must
+// finish syncing its `.claude/skills` before the harness boots, or skills read as "Unknown".
+// Resume and reattach can land mid re-sync just like a fresh start, so all three wait here —
+// including the startup orphan-recovery path, whose deps now carry `workspaceSessionService`
+// so reattach enforces the gate instead of bypassing it.
+// If provisioning is still running past the cap, or it failed (which clears `initializing` but
+// records `setup_error`), fail loudly instead of launching into a half-synced tree.
+const ensureWorkspaceReady = async (deps: SpawnDeps, sessionId: string) => {
+  if (!deps.workspaceSessionService) return;
+
+  const workspace = await waitForWorkspaceReady({ workspaceSessionService: deps.workspaceSessionService }, sessionId);
+  if (workspace?.initializing) {
+    throw new Error(`Workspace ${workspace.id} is still provisioning; refusing to start the session.`);
+  }
+  if (workspace?.setup_error) {
+    throw new Error(`Workspace ${workspace.id} failed to provision: ${workspace.setup_error}`);
+  }
+};
+
 // Spawns a new harness session and tracks its lifecycle
 export const spawnAgentSession = async (input: SpawnInput, deps: SpawnDeps) => {
   const harness = await resolveHarness(deps, input.agentId, input.projectId);
   const entry = createStoreEntry(deps, input.sessionId);
   markSubmittedAttachments(entry, input.attachments);
+
+  await ensureWorkspaceReady(deps, input.sessionId);
 
   const session = await harness.start(
     {
@@ -105,6 +128,8 @@ export const resumeAgentSession = async (input: ResumeInput, deps: SpawnDeps) =>
   const harness = await resolveHarness(deps, input.agentId, input.projectId);
   const entry = createStoreEntry(deps, input.sessionId);
   markSubmittedAttachments(entry, input.attachments);
+
+  await ensureWorkspaceReady(deps, input.sessionId);
 
   // Resume streams emit index-based message patches, so we align indices with existing history.
   let messageOffset = input.messageOffset;
@@ -159,6 +184,8 @@ export const reattachAgentSession = async (input: ReattachInput, deps: SpawnDeps
   if (!harness.supportsReattach) throw new Error(`Harness does not support reattach: ${input.agentId}`);
 
   const entry = createStoreEntry(deps, input.sessionId);
+
+  await ensureWorkspaceReady(deps, input.sessionId);
 
   const session = await harness.reattach(
     {

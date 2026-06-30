@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { e2eExtensions } from "../default-extensions";
 import { cleanupDirs } from "./helpers";
 import { createInitializedRepo, createWorkspaceInRepo, type HookTestContext, waitForPath } from "./hooks-infra";
 import { type ApiInstance, startApi } from "./start-api";
@@ -10,7 +11,7 @@ let api: ApiInstance;
 const ctx: HookTestContext = { api: null!, dirs: [] };
 
 beforeAll(async () => {
-  api = await startApi();
+  api = await startApi({ env: { PSTDIO_DEFAULT_EXTENSIONS: e2eExtensions("pstdio-planner", "extension-lab") } });
   ctx.api = api;
 }, SETUP_TIMEOUT);
 
@@ -39,9 +40,9 @@ const readProjectId = (repo: string) => {
   return config.project_id as string;
 };
 
-describe("user-scoped worktree setup", () => {
+describe("workspace provisioning", () => {
   test(
-    "bootstraps worktree config and copies the ticket file",
+    "provisions worktree config and copies the ticket file",
     async () => {
       const repo = createRepoWithDefaultExtensions();
       const projectId = readProjectId(repo);
@@ -49,9 +50,6 @@ describe("user-scoped worktree setup", () => {
       const projectExtensions = await readProjectExtensions(projectId);
       const extensionsByName = new Map(
         projectExtensions.extensions.map((extension) => [extension.installName, extension]),
-      );
-      expect(realpathSync(extensionsByName.get("pstdio-worktree-setup")!.sourcePath)).toBe(
-        realpathSync(join(api.homePath, "extensions", "pstdio-worktree-setup")),
       );
       expect(realpathSync(extensionsByName.get("pstdio-planner")!.sourcePath)).toBe(
         realpathSync(join(api.homePath, "extensions", "pstdio-planner")),

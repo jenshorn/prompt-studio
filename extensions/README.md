@@ -67,7 +67,6 @@ The API auto-installs a configured list of default extensions. Each package deci
 
 - `pstdio-planner`
 - `pstdio-skills`
-- `pstdio-worktree-setup`
 
 Default extensions use user scope. Subsequent project creates skip existing installs, so user edits under
 `~/.pstdio-dev/extensions/pstdio-*/` survive across restarts.
@@ -98,7 +97,6 @@ Override the config by setting `PSTDIO_DEFAULT_EXTENSIONS` (JSON) — `bun run p
   defaultExtensions: [
     { source: "./extensions/pstdio-planner",        skipInstall: true },
     { source: "./extensions/pstdio-skills",         skipInstall: true },
-    { source: "./extensions/pstdio-worktree-setup", skipInstall: true },
   ],
 }
 ```
@@ -168,6 +166,6 @@ extensions/<name>/
   README.md          # extension-specific docs
 ```
 
-Reference: `extensions/extension-lab/` shows commands, middlewares, hooks, schedules, routes, navigation, templates, and skills.
+Reference: `extensions/extension-lab/` shows commands, middlewares, hooks, schedules, harnesses, routes, navigation, templates, and skills.
 
 For the full extension API surface, see [the product extension API docs](../.pstdio/docs/product/extensions/pstdio-extension-api.md). For loader internals, see [the extension runtime loader architecture doc](../.pstdio/docs/architecture/extensions-runtime.md).

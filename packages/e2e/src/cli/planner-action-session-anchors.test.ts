@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { e2eExtensions } from "../default-extensions";
 import { cleanupDirs } from "./helpers";
 import { createInitializedRepo, createRun, getProjectId, type HookTestContext, registerRepo } from "./hooks-infra";
 import { type ApiInstance, startApi } from "./start-api";
@@ -8,7 +9,7 @@ let api: ApiInstance;
 const ctx: HookTestContext = { api: null!, dirs: [] };
 
 beforeAll(async () => {
-  api = await startApi();
+  api = await startApi({ env: { PSTDIO_DEFAULT_EXTENSIONS: e2eExtensions("pstdio-planner", "extension-lab") } });
   ctx.api = api;
 }, SETUP_TIMEOUT);
 
@@ -55,7 +56,7 @@ describe("planner action session anchors", () => {
 
       const result = await executePlannerCommand(projectId, "pstdio-planner.refine-ticket", {
         source: "api",
-        params: { agent: { harnessId: "pstdio.harness-lab.fake" } },
+        params: { agent: { harnessId: "pstdio.extension-lab.fake" } },
         resource: {
           type: "ticket",
           id: ticket.id,

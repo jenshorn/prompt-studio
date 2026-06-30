@@ -8,6 +8,7 @@ import type {
 } from "@pstdio/sdk/api";
 import type { Repo } from "@pstdio/sdk/resources";
 import { apiClient } from "../api-client";
+import { resolveOwningRepoRoot as defaultResolveOwningRepoRoot } from "../config/config";
 import { resolveProjectId as defaultResolveProjectId } from "../projects/resolve-project-id";
 
 type ParamDescriptor = NonNullable<ExtensionCommandRecord["params"]>[string];
@@ -29,9 +30,13 @@ type DispatchDeps = {
   execute: (commandId: string, request: CommandExecuteRequest) => Promise<CommandExecuteResponse>;
   listCommands: (projectId: string) => Promise<ListExtensionCommandsResponse>;
   listRepos: (projectId: string) => Promise<Repo[]>;
+  resolveOwningRepoRoot: (root: string) => string;
   log: (message: string) => void;
   error?: (message: string) => void;
-  resolveProjectId: (cwd: string, explicitId?: string) => { projectId: string; root: string | null };
+  resolveProjectId: (
+    cwd: string,
+    explicitId?: string,
+  ) => { projectId: string; root: string | null; workspaceId?: string };
 };
 
 export const missingCommandHints = new Map([
@@ -160,6 +165,7 @@ const defaultDeps = (): DispatchDeps => ({
   execute: (commandId, request) => apiClient().extensions.execute(commandId, request),
   listCommands: (projectId) => apiClient().extensions.listCommands(projectId),
   listRepos: (projectId) => apiClient().projects.listRepos(projectId),
+  resolveOwningRepoRoot: defaultResolveOwningRepoRoot,
   log: (message) => console.log(message),
   error: (message) => console.error(message),
   resolveProjectId: defaultResolveProjectId,
@@ -351,16 +357,18 @@ const hasExtensionCommandRoute = (parts: string[], table: ExtensionCommandTable)
 const resolveRepoContext = async (deps: DispatchDeps, projectId: string, root: string | null) => {
   if (!root) return undefined;
   const repos = await deps.listRepos(projectId);
-  const normalizedRoot = resolvePath(root);
-  const repo = repos.find((candidate) => resolvePath(candidate.path) === normalizedRoot);
+  // A worktree-backed workspace resolves to its owning repo for registration, but keeps
+  // its own working-tree path so repoFiles operate on the workspace, not the main checkout.
+  const owningRoot = resolvePath(deps.resolveOwningRepoRoot(root));
+  const repo = repos.find((candidate) => resolvePath(candidate.path) === owningRoot);
   if (!repo) return undefined;
-  return { projectId, repoId: repo.id, path: repo.path };
+  return { projectId, repoId: repo.id, path: resolvePath(root) };
 };
 
 export const dispatchExtensionCliCommand = async (input: { rawArgs: string[]; deps?: Partial<DispatchDeps> }) => {
   const deps = { ...defaultDeps(), ...input.deps };
   const global = extractGlobalOptions(input.rawArgs);
-  const { projectId, root } = deps.resolveProjectId(deps.cwd(), global.projectId);
+  const { projectId, root, workspaceId } = deps.resolveProjectId(deps.cwd(), global.projectId);
   const metadata = await deps.listCommands(projectId);
   const commands = localizeCommands(metadata.commands, metadata.translations ?? [], processLocale());
   const table = buildExtensionCommandTable(commands);
@@ -408,6 +416,7 @@ export const dispatchExtensionCliCommand = async (input: { rawArgs: string[]; de
 
   const response = await deps.execute(command.id, {
     projectId,
+    workspaceId,
     params,
     repo: await resolveRepoContext(deps, projectId, root),
     source: "cli",

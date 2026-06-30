@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import type { HarnessSession } from "pstdio-api-contracts";
 import { createEventStore } from "pstdio-api-runtime-host";
 import { createTestHarnessRecord, createTestHarnessRegistry, testHarnessId } from "../harnesses/test-harness-registry";
-import { resumeAgentSession, spawnAgentSession } from "./spawn-agent";
+import { reattachAgentSession, resumeAgentSession, spawnAgentSession } from "./spawn-agent";
 
 const CLAUDE_CODE_ID = testHarnessId("claude-code");
 
@@ -16,6 +16,10 @@ const completedSession = (): HarnessSession => ({
   done: Promise.resolve({ status: "completed" }),
   stop: () => {},
 });
+
+// The readiness gate is required on every entrypoint now, so tests that don't exercise it
+// supply a "no workspace" service: a null lookup means "not provisioning, not errored".
+const readyWorkspaceSession = { getWorkspaceBySessionId: async () => null };
 
 const buildHarness = () => {
   const getMessages = mock(async () => [
@@ -70,6 +74,7 @@ describe("resumeAgentSession", () => {
         eventBus: {
           emit: () => {},
         },
+        workspaceSessionService: readyWorkspaceSession,
       } as unknown as Parameters<typeof resumeAgentSession>[1],
     );
 
@@ -108,6 +113,7 @@ describe("resumeAgentSession", () => {
         eventBus: {
           emit: () => {},
         },
+        workspaceSessionService: readyWorkspaceSession,
       } as unknown as Parameters<typeof resumeAgentSession>[1],
     );
 
@@ -118,6 +124,50 @@ describe("resumeAgentSession", () => {
     await resumePromise;
 
     expect(resume).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("workspace readiness gate", () => {
+  // A failed provision clears `initializing` but records `setup_error`. Every harness
+  // entrypoint must refuse to launch into that half-synced tree, not just the new-session path.
+  const erroredWorkspace = {
+    getWorkspaceBySessionId: async () => ({ id: "w1", initializing: false, setup_error: "skill sync failed" }),
+  };
+
+  test("resumeAgentSession refuses to launch when the workspace failed to provision", async () => {
+    const { registry, resume } = buildHarness();
+    const sessionService = createSessionServiceMock();
+
+    await expect(
+      resumeAgentSession(
+        { sessionId: "s_1", agentSessionId: "agent_1", agentId: CLAUDE_CODE_ID, prompt: "continue", cwd: "/repo" },
+        {
+          harnessRegistry: registry,
+          sessionService,
+          eventBus: { emit: () => {} },
+          workspaceSessionService: erroredWorkspace,
+        } as unknown as Parameters<typeof resumeAgentSession>[1],
+      ),
+    ).rejects.toThrow(/failed to provision/);
+
+    expect(resume).not.toHaveBeenCalled();
+  });
+
+  test("reattachAgentSession refuses to launch when the workspace failed to provision", async () => {
+    const reattach = mock((_ctx: unknown, _input: unknown) => completedSession());
+    const registry = createTestHarnessRegistry([createTestHarnessRecord("claude-code", { provider: { reattach } })]);
+    const sessionService = createSessionServiceMock();
+
+    await expect(
+      reattachAgentSession({ sessionId: "s_1", agentSessionId: "agent_1", agentId: CLAUDE_CODE_ID, cwd: "/repo" }, {
+        harnessRegistry: registry,
+        sessionService,
+        eventBus: { emit: () => {} },
+        workspaceSessionService: erroredWorkspace,
+      } as unknown as Parameters<typeof reattachAgentSession>[1]),
+    ).rejects.toThrow(/failed to provision/);
+
+    expect(reattach).not.toHaveBeenCalled();
   });
 });
 
@@ -140,6 +190,7 @@ describe("spawnAgentSession lifecycle", () => {
         eventBus: {
           emit: () => {},
         },
+        workspaceSessionService: readyWorkspaceSession,
         fileService: {
           get: async () => null,
           upload: async () => ({ id: "file_1" }),
@@ -188,6 +239,7 @@ describe("spawnAgentSession lifecycle", () => {
         eventBus: {
           emit: () => {},
         },
+        workspaceSessionService: readyWorkspaceSession,
         fileService: {
           get: async () => null,
           upload: async () => ({ id: "file_1" }),

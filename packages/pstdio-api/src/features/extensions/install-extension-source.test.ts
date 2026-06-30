@@ -236,7 +236,6 @@ describe("installExtensionSource", () => {
         source,
         env: { PSTDIO_HOME: pstdioHome },
         homedir: () => "/unused",
-        isCommandAvailable: async () => true,
         runCommand,
       }),
     ).rejects.toThrow("Dependency install failed");
@@ -247,7 +246,9 @@ describe("installExtensionSource", () => {
     });
   });
 
-  test("falls back from the declared package manager to an available one", async () => {
+  test("installs dependencies with bun regardless of any declared package manager", async () => {
+    // Prompt Studio is bun-only: even an extension that declares another manager is installed with
+    // bun (the workspace manager installs npm packages fine and reuses the warm bun cache).
     const source = join(root, "source-extension");
     makeExtension(source);
     writeManifest(source, { packageManager: "yarn@4.0.0" });
@@ -257,7 +258,6 @@ describe("installExtensionSource", () => {
       source,
       env: { PSTDIO_HOME: pstdioHome },
       homedir: () => "/unused",
-      isCommandAvailable: async (command) => command === "bun",
       runCommand,
     });
 
@@ -276,7 +276,6 @@ describe("installExtensionSource", () => {
       source,
       env: { PSTDIO_HOME: pstdioHome },
       homedir: () => "/unused",
-      isCommandAvailable: async () => false,
       isPackagedRuntime: () => true,
       processExecPath: "/Applications/Prompt Studio.app/pstdio",
       runCommand,
@@ -346,7 +345,6 @@ describe("installExtensionSource dependency reinstall", () => {
       source,
       env: { PSTDIO_HOME: pstdioHome },
       homedir: () => "/unused",
-      isCommandAvailable: async () => true,
       runCommand,
     });
     expect(runCommand).toHaveBeenCalledTimes(1);
@@ -358,7 +356,6 @@ describe("installExtensionSource dependency reinstall", () => {
       existsOk: true,
       env: { PSTDIO_HOME: pstdioHome },
       homedir: () => "/unused",
-      isCommandAvailable: async () => true,
       runCommand,
     });
 
@@ -380,7 +377,6 @@ describe("installExtensionSource dependency reinstall", () => {
       source,
       env: { PSTDIO_HOME: pstdioHome },
       homedir: () => "/unused",
-      isCommandAvailable: async () => true,
       runCommand,
     });
     expect(runCommand).toHaveBeenCalledTimes(1);
@@ -390,7 +386,6 @@ describe("installExtensionSource dependency reinstall", () => {
       existsOk: true,
       env: { PSTDIO_HOME: pstdioHome },
       homedir: () => "/unused",
-      isCommandAvailable: async () => true,
       runCommand,
     });
 
