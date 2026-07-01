@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Circle, CircleDot, MoreHorizontal, Paperclip, Pin, PinOff, Tag, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import { ScrollArea } from "../scroll-area";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { Activity, type ActivityActor } from "./index";
 
 const author: ActivityActor = {
@@ -214,12 +214,7 @@ const ActivitySetupExample = () => {
         <Activity.Header />
         <Activity.Feed>
           <Activity.Timeline>
-            <Activity.Event
-              actor={bot}
-              icon={<Circle size={8} fill="currentColor" />}
-              iconColor="fg.muted"
-              timestamp="3mo ago"
-            >
+            <Activity.Event actor={bot} icon={<Circle size={8} fill="currentColor" />} timestamp="3mo ago">
               created the issue
             </Activity.Event>
           </Activity.Timeline>
@@ -235,7 +230,7 @@ const ActivitySetupExample = () => {
           ) : null}
 
           <Activity.Timeline>
-            <Activity.Event actor={author} icon={<CircleDot size={12} />} iconColor="yellow.400" timestamp="2mo ago">
+            <Activity.Event actor={author} icon={<CircleDot size={12} />} timestamp="2mo ago">
               moved from Todo to In Progress
             </Activity.Event>
 

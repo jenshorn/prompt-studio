@@ -1,11 +1,10 @@
 import { Badge, Button, HStack, Icon, IconButton, Popover, Portal, Stack, Text } from "@chakra-ui/react";
 import { Filter } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-import { Checkbox } from "../checkbox";
-import { Header } from "../header";
+import { Header } from "@/components/layout/header";
+import { Checkbox } from "@/components/primitives/checkbox";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { ListRow } from "../list-row/list-row";
-import { ScrollArea } from "../scroll-area";
 import type { FilterCategoryView } from "./data-renderer-helpers";
 import type { DataRendererFilterState } from "./types";
 
@@ -24,6 +23,13 @@ interface FilterOptionRowProps {
   count: number;
   onSelect: () => void;
 }
+
+const filterGroupContentProps = {
+  p: "xs",
+  display: "flex",
+  flexDirection: "column",
+  gap: "1px",
+} as const;
 
 const normalizeSelectedValues = (selected: string[] | undefined) => {
   if (!selected || selected.length === 0) return [];
@@ -154,7 +160,11 @@ export const FilterMenu = (props: FilterMenuProps) => {
         <IconButton ref={triggerRef} aria-label="Filter rows" variant="ghost" size="sm">
           <HStack gap="2xs">
             <Icon as={Filter} boxSize="14px" />
-            {activeFilterCount > 0 ? <Badge variant="solid">{activeFilterCount}</Badge> : null}
+            {activeFilterCount > 0 ? (
+              <Badge variant="number" colorPalette="blue">
+                {activeFilterCount}
+              </Badge>
+            ) : null}
           </HStack>
         </IconButton>
       </Popover.Trigger>
@@ -170,12 +180,12 @@ export const FilterMenu = (props: FilterMenuProps) => {
             overflow="hidden"
           >
             <HStack align="stretch" gap="0" minH="0" height="full">
-              <Stack minWidth="188px" borderRightWidth="1px" borderColor="border.muted" gap="0" minH="0">
+              <Stack minWidth="188px" borderRightWidth="1px" borderColor="border.subtle" gap="0" minH="0">
                 <Header
                   variant="narrow"
                   justifyContent="space-between"
                   borderBottomWidth="1px"
-                  borderColor="border.muted"
+                  borderColor="border.subtle"
                 >
                   <Text textStyle="label/XS/medium" color="fg.muted">
                     Filters
@@ -184,7 +194,12 @@ export const FilterMenu = (props: FilterMenuProps) => {
                     Clear all
                   </Button>
                 </Header>
-                <ScrollArea flex="1" minH="0" viewportProps={{ overscrollBehavior: "contain" }} p="0" gap="0">
+                <ScrollArea
+                  flex="1"
+                  minH="0"
+                  viewportProps={{ overscrollBehavior: "contain" }}
+                  contentProps={filterGroupContentProps}
+                >
                   {categories.map((category) => {
                     const selectedValues = normalizedFilters[category.id] ?? [];
                     const selectedDescription = getSelectedFilterDescription(category, selectedValues);
@@ -199,7 +214,7 @@ export const FilterMenu = (props: FilterMenuProps) => {
                         isSelected={activeCategory?.id === category.id}
                         endContent={
                           selectedValues.length > 0 ? (
-                            <Badge variant="subtle" bg="bg.muted" color="fg.muted">
+                            <Badge variant="number" colorPalette="gray">
                               {selectedValues.length}
                             </Badge>
                           ) : undefined
@@ -218,14 +233,19 @@ export const FilterMenu = (props: FilterMenuProps) => {
                       variant="narrow"
                       justifyContent="space-between"
                       borderBottomWidth="1px"
-                      borderColor="border.muted"
+                      borderColor="border.subtle"
                     >
                       <Text textStyle="label/S/medium">{activeCategory.label}</Text>
                       <Button size="2xs" variant="ghost" onClick={() => onClearFilter(activeCategory.id)}>
                         Clear
                       </Button>
                     </Header>
-                    <ScrollArea flex="1" minH="0" viewportProps={{ overscrollBehavior: "contain" }} p="0" gap="0">
+                    <ScrollArea
+                      flex="1"
+                      minH="0"
+                      viewportProps={{ overscrollBehavior: "contain" }}
+                      contentProps={filterGroupContentProps}
+                    >
                       {activeCategory.options.map((option) => {
                         const checked = (normalizedFilters[activeCategory.id] ?? []).includes(option.value);
                         const count = countsByCategory[activeCategory.id]?.[option.value] ?? 0;

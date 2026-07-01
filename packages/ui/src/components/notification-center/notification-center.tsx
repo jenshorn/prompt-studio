@@ -1,17 +1,15 @@
 import { Badge, Box, Button, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { Bell, Search, X } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { AlertMessage } from "../alert";
+import { SearchModalContent } from "@/components/overlays/search-modal-content";
+import { AlertMessage } from "@/components/primitives/alert";
 import { ListRow } from "../list-row/list-row";
 import type { ListRowAction } from "../list-row/list-row.types";
-import { SearchModalContent } from "../search-modal-content";
 import type {
   NotificationCenterAction,
   NotificationCenterItem,
   NotificationCenterProps,
 } from "./notification-center.types";
-
-const ACTIVE_ROW_BG = "bg.menu-item.hover";
 
 const priorityColorPalette = (priority: NotificationCenterItem["priority"]) => {
   if (priority === "urgent") return "red";
@@ -150,8 +148,6 @@ const NotificationRows = (
                 iconColor={`${priorityColorPalette(item.priority)}.500`}
                 variant="compact"
                 isSelected={currentIndex === activeIndex}
-                selectedBg={ACTIVE_ROW_BG}
-                hoverBg={ACTIVE_ROW_BG}
                 endContent={
                   <NotificationEndContent item={item} actions={item.actions ?? []} onRunAction={onRunAction} />
                 }

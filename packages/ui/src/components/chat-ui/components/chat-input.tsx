@@ -1,6 +1,6 @@
 import { Box, Flex, HStack, Spacer, Text } from "@chakra-ui/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ScrollArea } from "@/components/scroll-area";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { getTextFromSerializedEditorState, PromptEditor } from "../../rich-text";
 import {
   type ChatInputAction,
@@ -52,6 +52,8 @@ const ChatInputPlaceholder = (props: { placeholder?: string }) => {
     </Text>
   );
 };
+
+const selectedChatInputBorderColor = "border.accent-light";
 
 export const ChatInput = (props: ChatInputProps) => {
   const {
@@ -241,15 +243,15 @@ export const ChatInput = (props: ChatInputProps) => {
       borderTopRadius={attachedToTop ? "0" : undefined}
       borderWidth="1px"
       borderStyle="solid"
-      borderColor={isSelected ? "blue.border" : "border.muted"}
+      borderColor={isSelected ? selectedChatInputBorderColor : "border"}
       zIndex={isSelected ? 1 : 0}
       transition="border-color 0.2s ease-in-out"
       _hover={{
-        borderColor: isSelected ? "blue.border" : "border",
+        borderColor: isSelected ? selectedChatInputBorderColor : "border",
         zIndex: 1,
       }}
       _focusWithin={{
-        borderColor: "blue.border",
+        borderColor: selectedChatInputBorderColor,
         zIndex: 1,
       }}
       onPasteCapture={attachmentEventHandlers.onPasteCapture}

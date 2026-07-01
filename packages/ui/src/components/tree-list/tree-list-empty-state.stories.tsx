@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { GitBranch, Plus } from "lucide-react";
-import { EmptyState } from "../empty-state";
+import { EmptyState } from "@/components/primitives/empty-state";
 import { TreeList } from "./tree-list";
 import type { TreeListSection } from "./tree-list.types";
 
@@ -50,7 +50,13 @@ const rowSections: TreeListSection[] = [
 export const ExpandedSection: Story = {
   render: () => (
     <Box maxW="20rem" borderWidth="1px" p="xs">
-      <TreeList sections={sections} expandedSectionIds={["workspaces"]} rowVariant="compact" sectionGap="md" />
+      <TreeList
+        sections={sections}
+        expandedSectionIds={["workspaces"]}
+        rowVariant="compact"
+        sectionGap="md"
+        nodeGap="1px"
+      />
     </Box>
   ),
 };
@@ -58,7 +64,12 @@ export const ExpandedSection: Story = {
 export const PlaceholderRows: Story = {
   render: () => (
     <Box maxW="20rem" borderWidth="1px" p="xs">
-      <TreeList sections={rowSections} expandedSectionIds={["files", "workspaces"]} rowVariant="compact" />
+      <TreeList
+        sections={rowSections}
+        expandedSectionIds={["files", "workspaces"]}
+        rowVariant="compact"
+        nodeGap="1px"
+      />
     </Box>
   ),
 };

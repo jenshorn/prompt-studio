@@ -1,7 +1,7 @@
 import { HStack, Stack, Text, Wrap } from "@chakra-ui/react";
 import type { DragEventHandler, MouseEvent, ReactNode } from "react";
-import type { WorkspaceBadgeProps } from "@/components/workspace-badge";
-import { WorkspaceBadge } from "@/components/workspace-badge";
+import type { WorkspaceBadgeProps } from "@/components/primitives/workspace-badge";
+import { WorkspaceBadge } from "@/components/primitives/workspace-badge";
 import { isDataRendererCardClickSuppressed } from "./card-interaction-guard";
 import { DataRendererAttributeBadge } from "./data-renderer-attribute-badge";
 import type { AttributeBadge } from "./data-renderer-helpers";
@@ -48,7 +48,7 @@ export const DataRendererCard = (props: DataRendererCardProps) => {
       padding="sm"
       borderRadius="xs"
       borderWidth="1px"
-      borderColor={isSelected ? "border.accent" : "border.muted"}
+      borderColor={isSelected ? "border.accent" : "border.subtle"}
       width="100%"
       background="bg"
       transition="border-color 0.2s ease-in-out, background 0.2s ease-in-out"

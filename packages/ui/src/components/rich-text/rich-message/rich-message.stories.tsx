@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { ScrollArea } from "@/components/scroll-area";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { RichMessage } from "./rich-message";
 
 const message = `
@@ -149,7 +149,7 @@ export const Basic: Story = {
     <ScrollArea
       maxH="36rem"
       borderWidth="1px"
-      borderColor="border.muted"
+      borderColor="border.subtle"
       borderRadius="md"
       bg="bg"
       contentProps={{ p: "md" }}

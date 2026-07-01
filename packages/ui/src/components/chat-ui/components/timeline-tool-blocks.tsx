@@ -1,7 +1,7 @@
 import { Box, Stack, Text, Textarea } from "@chakra-ui/react";
 import type { FormEvent } from "react";
-import { Checkbox } from "@/components/checkbox";
-import { Radio, RadioGroup } from "@/components/radio";
+import { Checkbox } from "@/components/primitives/checkbox";
+import { Radio, RadioGroup } from "@/components/primitives/radio";
 import type { QuestionFormBlockQuestion, TodoListBlockItem } from "./timeline";
 
 const preventSubmit = (event: FormEvent) => {
@@ -140,7 +140,7 @@ export const QuestionFormBlockView = (props: QuestionFormBlockViewProps) => {
             key={name}
             gap="xs"
             borderWidth="1px"
-            borderColor="border.muted"
+            borderColor="border.subtle"
             borderRadius="sm"
             padding="sm"
             minWidth="0"
@@ -178,7 +178,7 @@ export const QuestionFormBlockView = (props: QuestionFormBlockViewProps) => {
                 aria-label={question.question}
                 rows={2}
                 borderWidth="1px"
-                borderColor="border.muted"
+                borderColor="border.subtle"
                 borderRadius="sm"
                 padding="xs"
                 resize={editable ? "vertical" : "none"}

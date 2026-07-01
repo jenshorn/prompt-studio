@@ -18,8 +18,11 @@ const computePaddingLeft = (depth: number) => {
   return `calc(var(--chakra-spacing-1) + ${depth} * 12px)`;
 };
 
+const isFixedHeightDenseVariant = (variant: ListRowProps["variant"]) =>
+  variant === "compact" || variant === "full-width" || variant === "empty-state";
+
 const resolveListRowSizing = (variant: ListRowProps["variant"], hasDescription: boolean) => {
-  if ((variant === "compact" || variant === "empty-state") && !hasDescription) {
+  if (isFixedHeightDenseVariant(variant) && !hasDescription) {
     return { rowHeight: "1.75rem", minHeight: undefined };
   }
 
@@ -39,9 +42,11 @@ const createRowBackgroundProps = (input: {
   bg: input.isSelected ? input.selectedBg : "transparent",
   _hover: (() => {
     if (input.variant === "empty-state") return { bg: "transparent" };
+    if (input.isSelected) return { bg: input.selectedBg };
     if (input.tone === "danger") return { outline: "1px solid", outlineColor: "red.500", outlineOffset: "-1px" };
     return { bg: input.hoverBg };
   })(),
+  _active: input.variant === "empty-state" ? { bg: "transparent" } : { bg: input.selectedBg },
 });
 
 const createListRowRootProps = (input: {
@@ -78,7 +83,7 @@ const createListRowRootProps = (input: {
   px: "sm",
   py: input.verticalPadding,
   pl: input.paddingLeft,
-  borderRadius: "0" as const,
+  borderRadius: input.variant === "full-width" ? "0" : ("xs" as const),
   ...createRowBackgroundProps({ ...input }),
   cursor:
     input.variant === "empty-state"
@@ -119,8 +124,8 @@ export const ListRow = forwardRef<HTMLElement, ListRowProps>((props, ref) => {
     showExpandToggle = false,
     variant = "default",
     tone = "default",
-    selectedBg = "bg.menu-item.selected",
-    hoverBg = "bg.menu-item.hover",
+    selectedBg = "bg.active",
+    hoverBg = "bg.hover",
     asChild = false,
     className,
     role: roleProp,

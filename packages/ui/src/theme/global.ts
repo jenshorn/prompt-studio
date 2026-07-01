@@ -10,7 +10,7 @@ export const globalCss = {
   },
 
   ":root": {
-    "--focus-border": "blue.border",
+    "--focus-border": "border.accent-light",
     "--separator-border": "transparent !important",
   },
 
@@ -18,6 +18,10 @@ export const globalCss = {
     height: "100%",
     width: "100%",
     overflow: "hidden",
+  },
+
+  hr: {
+    borderColor: "border.subtle",
   },
 
   body: {

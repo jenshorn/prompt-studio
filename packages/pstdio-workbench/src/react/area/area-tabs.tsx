@@ -149,8 +149,8 @@ export const WorkbenchAreaTabs = (props: WorkbenchAreaTabsProps) => {
                 textStyle="label/XS/medium"
                 title={label}
                 className="group"
-                _selected={{ color: "fg", borderColor: "border.muted" }}
-                _hover={isActive ? undefined : { bg: "bg.hover", borderColor: "border.muted", color: "fg" }}
+                _selected={{ color: "fg", borderColor: "border.subtle" }}
+                _hover={isActive ? undefined : { bg: "bg.hover", borderColor: "border.subtle", color: "fg" }}
               >
                 {icon ? <WorkbenchIcon name={icon} size={12} flexShrink={0} color="fg.muted" /> : null}
                 <Text as="span" minW="0" truncate>
@@ -204,7 +204,7 @@ export const WorkbenchAreaTabs = (props: WorkbenchAreaTabsProps) => {
                   <Menu.Item key={action.key} value={action.key} asChild>
                     <ListRow
                       asChild
-                      variant="compact"
+                      variant="full-width"
                       label={action.label}
                       icon={action.icon}
                       endContent={action.endContent}

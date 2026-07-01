@@ -1,6 +1,6 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { useEffect, useRef } from "react";
-import { ScrollArea } from "../scroll-area";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { TreeList } from "../tree-list/tree-list";
 import { useSidebarStore } from "./sidebar.store";
 import type { SidebarProps } from "./sidebar.types";
@@ -82,7 +82,7 @@ export const Sidebar = (props: SidebarProps) => {
       maxW={widthCss}
       flexShrink={0}
       borderRightWidth="1px"
-      borderRightColor="border.muted"
+      borderRightColor="border.subtle"
       bg="bg"
     >
       <SidebarHeader>{header}</SidebarHeader>
@@ -110,6 +110,7 @@ export const Sidebar = (props: SidebarProps) => {
               backgroundContextActions={backgroundContextActions}
               rowVariant="compact"
               sectionGap="md"
+              nodeGap="1px"
               linkComponent={linkComponent}
               onNavigate={onNavigate}
               onToggleSection={toggleSection}

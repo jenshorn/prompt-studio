@@ -1,7 +1,7 @@
 import { Button, HStack, Stack } from "@chakra-ui/react";
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { Tooltip } from "@/components/tooltip";
+import { Tooltip } from "@/components/primitives/tooltip";
 import { QuestionFormBlockView } from "./timeline-tool-blocks";
 
 export interface ChatInputQuestionOption {
@@ -215,7 +215,7 @@ const QuestionStepTab = (props: QuestionStepTabProps) => {
   const tabVariant = isActive ? "outline" : "ghost";
 
   return (
-    <Tooltip content={question.question} showArrow>
+    <Tooltip content={question.question}>
       <Button
         id={`question-step-tab-${question.id}`}
         role="tab"

@@ -11,10 +11,9 @@ import {
 } from "@tanstack/react-table";
 import { ArrowDownAZ, ArrowUpAZ, MoreVertical } from "lucide-react";
 import { useEffect, useState } from "react";
-
+import { ScrollArea } from "@/components/primitives/scroll-area";
+import { Tooltip } from "@/components/primitives/tooltip";
 import { ListRow } from "../list-row/list-row";
-import { ScrollArea } from "../scroll-area";
-import { Tooltip } from "../tooltip";
 import { buildColumns } from "./build-columns";
 import { PaginationFooter } from "./pagination-footer";
 import { SelectionToolbar } from "./selection-toolbar";
@@ -97,14 +96,14 @@ export const DataTable = (props: DataTableProps) => {
                 background="bg.muted"
                 key={headerGroup.id}
                 borderRight={noBorder ? "none" : "1px solid"}
-                borderColor="border.muted"
+                borderColor="border.subtle"
               >
                 {headerGroup.headers.map((header) => (
                   <Table.ColumnHeader
                     textTransform="none"
                     borderRight="1px solid"
                     _last={{ borderRight: "none" }}
-                    borderColor="border.muted"
+                    borderColor="border.subtle"
                     paddingX="xs"
                     paddingY="2xs"
                     key={header.id}
@@ -149,7 +148,7 @@ export const DataTable = (props: DataTableProps) => {
                                   <Menu.Item value="sort-asc" asChild>
                                     <ListRow
                                       asChild
-                                      variant="compact"
+                                      variant="full-width"
                                       label="Sort ascending"
                                       icon={<ChakraIcon as={ArrowUpAZ} boxSize="16px" />}
                                       disabled={header.column.getIsSorted() === "asc"}
@@ -159,7 +158,7 @@ export const DataTable = (props: DataTableProps) => {
                                   <Menu.Item value="sort-desc" asChild>
                                     <ListRow
                                       asChild
-                                      variant="compact"
+                                      variant="full-width"
                                       label="Sort descending"
                                       icon={<ChakraIcon as={ArrowDownAZ} boxSize="16px" />}
                                       disabled={header.column.getIsSorted() === "desc"}
@@ -170,7 +169,7 @@ export const DataTable = (props: DataTableProps) => {
                                     <Menu.Item value="clear-sort" asChild>
                                       <ListRow
                                         asChild
-                                        variant="compact"
+                                        variant="full-width"
                                         label="Clear sort"
                                         onActivate={() => header.column.clearSorting()}
                                       />
@@ -210,8 +209,8 @@ export const DataTable = (props: DataTableProps) => {
                   borderTop={noBorder ? "none" : "1px solid"}
                   borderBottom={"1px solid"}
                   borderRight={noBorder ? "none" : "1px solid"}
-                  _last={{ borderBottom: noBorder ? "none" : "1px solid", borderColor: "border.muted" }}
-                  borderColor="border.muted"
+                  _last={{ borderBottom: noBorder ? "none" : "1px solid", borderColor: "border.subtle" }}
+                  borderColor="border.subtle"
                   background={
                     activeRowId && typeof row.original.id === "string" && row.original.id === activeRowId
                       ? "bg.panel"
@@ -226,7 +225,7 @@ export const DataTable = (props: DataTableProps) => {
                       overflow={"hidden"}
                       padding="xs"
                       borderRight="1px solid"
-                      borderColor="border.muted"
+                      borderColor="border.subtle"
                       _last={{ borderRight: "none" }}
                       borderBottom="none"
                       key={cell.id}

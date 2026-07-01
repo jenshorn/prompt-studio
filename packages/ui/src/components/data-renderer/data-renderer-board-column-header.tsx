@@ -2,7 +2,7 @@ import { Badge, HStack, Icon, IconButton, Menu, Spacer, Text } from "@chakra-ui/
 import { MoreHorizontal, Plus } from "lucide-react";
 
 import { ListRow } from "@/components/list-row/list-row";
-import { Tooltip } from "@/components/tooltip";
+import { Tooltip } from "@/components/primitives/tooltip";
 import type { DataRendererBoardColumn } from "./data-renderer-board";
 
 interface ColumnHeaderProps {
@@ -18,10 +18,7 @@ export const ColumnHeader = (props: ColumnHeaderProps) => {
     <HStack minH="2.5rem" padding="xs" gap="xs" alignItems="center">
       <Text textStyle="label/S/medium">{column.label}</Text>
 
-      <Badge
-        variant="subtle"
-        {...(column.color ? { colorPalette: column.color } : { bg: "bg.muted", color: "fg.muted" })}
-      >
+      <Badge variant="number" colorPalette={column.color ?? "gray"}>
         {column.items.length}
       </Badge>
 
@@ -53,7 +50,7 @@ export const ColumnHeader = (props: ColumnHeaderProps) => {
                 <Menu.Item key={action.id} value={action.id} asChild>
                   <ListRow
                     asChild
-                    variant="compact"
+                    variant="full-width"
                     label={action.label}
                     icon={<Icon as={action.icon} boxSize="16px" />}
                     onActivate={() => onColumnAction?.(column.id, action.id)}

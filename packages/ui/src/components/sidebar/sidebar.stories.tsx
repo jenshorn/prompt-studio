@@ -15,12 +15,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { ResizableSplitLayout } from "../resizable-split-layout";
+import { ResizableSplitLayout } from "@/components/layout/resizable-split-layout";
 import {
   resolveSessionIndicatorColor,
   resolveSessionIndicatorIcon,
   type SessionCompletionStatus,
-} from "../session-indicator";
+} from "@/components/primitives/session-indicator";
 import type { TreeListSection } from "../tree-list/tree-list.types";
 import { Sidebar } from "./sidebar";
 import { useSidebarStore } from "./sidebar.store";
@@ -179,7 +179,7 @@ const SidebarShell = (props: { storageKey: string; sections?: TreeListSection[];
   };
 
   return (
-    <Stack align="stretch" h="560px" borderWidth="1px" borderColor="border.muted">
+    <Stack align="stretch" h="560px" borderWidth="1px" borderColor="border.subtle">
       <ResizableSplitLayout
         flex="1"
         minH="0"
@@ -233,14 +233,14 @@ const SidebarShell = (props: { storageKey: string; sections?: TreeListSection[];
               <Badge colorPalette={openState ? "green" : "orange"}>{openState ? "Open" : "Hidden"}</Badge>
             </HStack>
 
-            <Box borderWidth="1px" borderColor="border.muted" borderRadius="md" p="3">
+            <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p="3">
               <Text textStyle="paragraph/S/medium">Navigation output</Text>
               <Text textStyle="paragraph/S/regular" color="fg.muted">
                 {navigationOutput}
               </Text>
             </Box>
 
-            <Box borderWidth="1px" borderColor="border.muted" borderRadius="md" p="3" flex="1">
+            <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p="3" flex="1">
               <Text textStyle="paragraph/S/regular" color="fg.muted">
                 Content area reclaims width when sidebar is hidden.
               </Text>

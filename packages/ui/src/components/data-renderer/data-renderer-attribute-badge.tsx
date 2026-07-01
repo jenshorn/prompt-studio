@@ -1,8 +1,7 @@
 import { Badge, Icon, Menu, Portal } from "@chakra-ui/react";
 import { Check, ChevronDown, Square, SquareCheck, X } from "lucide-react";
-
-import { getIconComponent } from "@/components/icon-color-picker";
 import { ListRow } from "@/components/list-row/list-row";
+import { getIconComponent } from "@/components/primitives/icon-color-picker";
 import { suppressNextDataRendererCardClick } from "./card-interaction-guard";
 import type { AttributeBadge } from "./data-renderer-helpers";
 
@@ -116,7 +115,7 @@ export const DataRendererAttributeBadge = (props: DataRendererAttributeBadgeProp
                     asChild
                     role="menuitemradio"
                     aria-checked={selectedValues.length === 0}
-                    variant="compact"
+                    variant="full-width"
                     id="__clear"
                     label={`No ${attributeLabel}`}
                     icon={<X size={16} />}
@@ -138,7 +137,7 @@ export const DataRendererAttributeBadge = (props: DataRendererAttributeBadgeProp
                     asChild
                     role={isMultiValue ? "menuitemcheckbox" : "menuitemradio"}
                     aria-checked={isSelected}
-                    variant="compact"
+                    variant="full-width"
                     id={option.value}
                     label={option.label}
                     icon={<Icon as={getIconComponent(option.icon)} boxSize="16px" />}

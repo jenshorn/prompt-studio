@@ -2,7 +2,7 @@ import { Badge, Box, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import { ChevronRight } from "lucide-react";
 import { type DragEvent, useState } from "react";
 
-import { ResourceContextMenu } from "@/components/resource-context-menu";
+import { ResourceContextMenu } from "@/components/overlays/resource-context-menu";
 import type { DataRendererBoardGroup } from "./data-renderer-board";
 import { DataRendererCard } from "./data-renderer-card";
 
@@ -69,7 +69,7 @@ export const GroupSection = (props: GroupSectionProps) => {
         <Text textStyle="label/S/medium" color="fg.muted">
           {group.label}
         </Text>
-        <Badge variant="subtle" bg="bg.muted" color="fg.muted" size="sm">
+        <Badge variant="number" colorPalette="gray" size="sm">
           {group.items.length}
         </Badge>
       </HStack>

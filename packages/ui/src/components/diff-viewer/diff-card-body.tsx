@@ -1,5 +1,5 @@
 import { Box, Button, Grid, Image, Text } from "@chakra-ui/react";
-import { EmptyState } from "../empty-state";
+import { EmptyState } from "@/components/primitives/empty-state";
 import type { Diff } from "./diff-card";
 import { DiffEditor } from "./diff-editor";
 import { getDiffLineCount, isBinaryDiffPath, isImageDiffPath } from "./diff-size";
@@ -139,7 +139,7 @@ const ImageDiffPreview = (props: ImageDiffPreviewProps) => {
       gap="sm"
       p="sm"
       borderTop="1px solid"
-      borderColor="border.muted"
+      borderColor="border.subtle"
       bg="bg"
     >
       <ImageDiffPanel label="Old" src={oldSrc} fallback="No old image" />
@@ -158,14 +158,14 @@ const ImageDiffPanel = (props: ImageDiffPanelProps) => {
   const { label, src, fallback } = props;
 
   return (
-    <Box border="1px solid" borderColor="border.muted" borderRadius="xs" overflow="hidden" bg="bg.subtle" minW="0">
+    <Box border="1px solid" borderColor="border.subtle" borderRadius="xs" overflow="hidden" bg="bg.subtle" minW="0">
       <Text
         px="xs"
         py="2xs"
         textStyle="label/S/medium"
         color="fg.muted"
         borderBottom="1px solid"
-        borderColor="border.muted"
+        borderColor="border.subtle"
       >
         {label}
       </Text>
@@ -192,7 +192,7 @@ const LargeDiffPlaceholder = (props: LargeDiffPlaceholderProps) => {
   const { filePath, onShowFullDiff } = props;
 
   return (
-    <Box p="md" borderTop="1px solid" borderColor="border.muted" bg="bg">
+    <Box p="md" borderTop="1px solid" borderColor="border.subtle" bg="bg">
       <EmptyState title="Large diffs are hidden by default" paddingY="sm">
         {onShowFullDiff ? (
           <Button size="xs" variant="outline" aria-label={`Render full diff for ${filePath}`} onClick={onShowFullDiff}>
@@ -213,7 +213,7 @@ const BinaryDiffPlaceholder = (props: BinaryDiffPlaceholderProps) => {
   const title = isImage ? "Image diffs are not shown" : "Binary diffs are not shown";
 
   return (
-    <Box p="md" borderTop="1px solid" borderColor="border.muted" bg="bg">
+    <Box p="md" borderTop="1px solid" borderColor="border.subtle" bg="bg">
       <EmptyState title={title} paddingY="sm" />
     </Box>
   );

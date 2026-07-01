@@ -2,7 +2,7 @@ import { Box, Button, Flex, HStack, Kbd, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Check, Copy, EllipsisVertical, FileText, Folder, Plus, Search, Settings, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
-import { ScrollArea } from "../scroll-area";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { TreeList } from "./tree-list";
 import type { TreeListNavigateEvent, TreeListNode, TreeListSection } from "./tree-list.types";
 import { applyTreeListOrder } from "./tree-list-order-filter";
@@ -220,7 +220,13 @@ const shortcutSections: TreeListSection[] = [
 
 const ShortcutTreeStory = () => (
   <Stack maxW="20rem" borderWidth="1px" p="xs">
-    <TreeList sections={shortcutSections} expandedSectionIds={["workspace"]} rowVariant="compact" sectionGap="md" />
+    <TreeList
+      sections={shortcutSections}
+      expandedSectionIds={["workspace"]}
+      rowVariant="compact"
+      sectionGap="md"
+      nodeGap="1px"
+    />
     <Text textStyle="label/XS" color="fg.muted">
       Hover the Add icon for a tooltip with a Kbd hint. Click the row chevron / right-click for menus with trailing Kbd.
     </Text>
@@ -261,6 +267,7 @@ const ReorderableStory = () => {
           expandedSectionIds={["favorites", "projects"]}
           rowVariant="compact"
           sectionGap="md"
+          nodeGap="1px"
           draggable
           onReorderSections={setSectionOrder}
           onReorderNodes={(sectionId, nextNodeIds) =>
@@ -316,6 +323,7 @@ const VisibilityStory = () => {
           expandedSectionIds={["primary", "advanced"]}
           rowVariant="compact"
           sectionGap="md"
+          nodeGap="1px"
         />
       </Stack>
       <HStack gap="xs">
@@ -420,6 +428,7 @@ const BackgroundContextMenuStory = () => {
           expandedSectionIds={["workspace-actions", "navigation"]}
           rowVariant="compact"
           sectionGap="md"
+          nodeGap="1px"
           backgroundContextActions={backgroundContextActions}
         />
       </Box>
@@ -474,6 +483,7 @@ const BackgroundContextMenuInScrollAreaStory = () => {
             expandedSectionIds={["workspace-actions", "navigation"]}
             rowVariant="compact"
             sectionGap="md"
+            nodeGap="1px"
             backgroundContextActions={backgroundContextActions}
             scrollRef={scrollRef}
           />

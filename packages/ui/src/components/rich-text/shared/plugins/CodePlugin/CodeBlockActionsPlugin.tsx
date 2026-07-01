@@ -8,7 +8,7 @@ import { Check, Copy } from "lucide-react";
 import type React from "react";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Tooltip } from "../../../../tooltip";
+import { Tooltip } from "@/components/primitives/tooltip";
 import { $isCodeNode } from "../../lexical-code";
 
 function getCodeElementFromSelection(editor: ReturnType<typeof useLexicalComposerContext>[0]) {
@@ -139,7 +139,7 @@ export function CodeBlockActionsPlugin({ anchorElem }: { anchorElem?: HTMLElemen
       <Tooltip content={isCopied ? "Copied" : "Copy code"}>
         <IconButton
           aria-label={isCopied ? "Copied" : "Copy code"}
-          variant="surface"
+          variant="subtle"
           size="xs"
           onClick={async () => {
             const code = activeCodeElement.textContent ?? "";

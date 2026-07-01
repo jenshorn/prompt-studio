@@ -1,5 +1,5 @@
 import { IconButton, Menu } from "@chakra-ui/react";
-import { SearchableMenu } from "../searchable-menu";
+import { SearchableMenu } from "@/components/overlays/searchable-menu";
 import { ListRow } from "./list-row";
 import type { ListRowAction } from "./list-row.types";
 
@@ -14,7 +14,7 @@ export const SearchableActionMenu = (props: SearchableActionMenuProps) => {
     label: item.label,
     searchText: [item.label, item.description].filter(Boolean).join(" "),
     tooltipLabel: item.description,
-    variant: "compact" as const,
+    variant: "full-width" as const,
     onSelect: () => item.onAction?.(),
   }));
 
@@ -29,7 +29,7 @@ export const SearchableActionMenu = (props: SearchableActionMenuProps) => {
       searchPlaceholder={action.searchPlaceholder ?? "Search..."}
       emptyState={
         <Menu.Item value="empty" asChild>
-          <ListRow asChild variant="compact" label={action.emptyMenuLabel ?? "No results found"} disabled />
+          <ListRow asChild variant="full-width" label={action.emptyMenuLabel ?? "No results found"} disabled />
         </Menu.Item>
       }
       onFocusOutside={(event) => event.preventDefault()}

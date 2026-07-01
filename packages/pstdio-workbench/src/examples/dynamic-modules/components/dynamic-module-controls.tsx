@@ -28,7 +28,7 @@ export const DynamicModuleControls = (props: {
       minW="0"
       showHorizontalScrollbar
       showVerticalScrollbar={false}
-      contentProps={{ display: "flex", alignItems: "center", px: "xs", gap: "sm" }}
+      contentProps={{ display: "flex", alignItems: "center", h: "full", minH: "full", px: "xs", gap: "sm" }}
     >
       <HStack gap="xs" flexShrink={0}>
         <WorkbenchIcon name="Puzzle" size={14} color="fg.muted" />
@@ -45,7 +45,7 @@ export const DynamicModuleControls = (props: {
             gap="2xs"
             flexShrink={0}
             borderLeftWidth="1px"
-            borderColor="border.muted"
+            borderColor="border.subtle"
             pl="sm"
           >
             <WorkbenchIcon name={definition.icon} size={14} color={enabled ? "fg" : "fg.muted"} />

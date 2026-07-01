@@ -1,8 +1,8 @@
 import { Box, Flex, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
-import { EmptyState } from "../empty-state";
-import { Header } from "../header";
-import { ResizableSplitLayout } from "../resizable-split-layout";
+import { Header } from "@/components/layout/header";
+import { ResizableSplitLayout } from "@/components/layout/resizable-split-layout";
+import { EmptyState } from "@/components/primitives/empty-state";
 import { buildChangedFilesTree, collectExpandedFolderIds, sortPathsByViewMode } from "./build-changed-files-tree";
 import { DiffBubble } from "./diff-bubble";
 import type { Diff } from "./diff-card";
@@ -150,7 +150,7 @@ export const DiffViewer = (props: DiffViewerProps) => {
 
   const diffPanel = (
     <Stack h="full" minH="0" minW="0" flex="1" bg="bg" gap="0">
-      <Header variant="main" borderBottomWidth="1px" borderColor="border.muted" bg="bg" justifyContent="space-between">
+      <Header variant="main" borderBottomWidth="1px" borderColor="border.subtle" bg="bg" justifyContent="space-between">
         <HStack gap="xs" minW="0">
           <DiffViewerOptionsMenu
             isTreePanelOpen={isTreePanelOpen}

@@ -1,8 +1,8 @@
 import { Badge, Box, HStack, Icon, Text, Wrap } from "@chakra-ui/react";
 import { type ComponentType, type DragEvent, type ReactNode, useState } from "react";
+import type { ResourceContextAction } from "@/components/overlays/resource-context-menu";
 import { ListRow } from "../list-row/list-row";
 import type { ListRowItem } from "../list-row/list-row.types";
-import type { ResourceContextAction } from "../resource-context-menu";
 import { DataRendererAttributeBadge } from "./data-renderer-attribute-badge";
 import type { AttributeBadge } from "./data-renderer-helpers";
 
@@ -96,12 +96,7 @@ const renderLabel = (item: DataRendererListItem) => (
       {item.title}
     </Text>
     {typeof item.countBadge === "number" ? (
-      <Badge
-        variant="subtle"
-        size="sm"
-        flexShrink={0}
-        {...(item.countColorPalette ? { colorPalette: item.countColorPalette } : { bg: "bg.muted", color: "fg.muted" })}
-      >
+      <Badge variant="number" size="sm" flexShrink={0} colorPalette={item.countColorPalette ?? "gray"}>
         {item.countBadge}
       </Badge>
     ) : null}
@@ -261,7 +256,7 @@ const DataRendererListRow = (props: DataRendererListRowProps) => {
       data-drop-target={isDropTarget ? "true" : undefined}
       position="relative"
       borderBottomWidth="1px"
-      borderBottomColor="border.muted"
+      borderBottomColor="border.subtle"
       bg={isDropTarget ? "bg.subtle" : "transparent"}
       draggable={item.draggable}
       transition="background 120ms ease"

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { mermaidFixtures } from "@/components/mermaid-renderer/mermaid-fixtures";
-import { ScrollArea } from "@/components/scroll-area";
+import { ScrollArea } from "@/components/primitives/scroll-area";
 import { MarkdownEditor } from "./markdown-editor";
 
 const message = `
@@ -192,7 +192,7 @@ const meta: Meta<typeof MarkdownEditor> = {
   component: MarkdownEditor,
   decorators: [
     (Story) => (
-      <ScrollArea height="520px" bg="bg" borderWidth="1px" borderColor="border.muted">
+      <ScrollArea height="520px" bg="bg" borderWidth="1px" borderColor="border.subtle">
         <Story />
       </ScrollArea>
     ),

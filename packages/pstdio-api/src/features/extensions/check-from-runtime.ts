@@ -1,5 +1,6 @@
 import type {
   ExtensionCommandPaletteContribution,
+  ExtensionControlsRendererRecord,
   ExtensionDataRendererRecord,
   ExtensionFileIconThemeRecord,
   ExtensionMenuContribution,
@@ -179,6 +180,10 @@ const toViewRecord = (view: ExtensionRuntime["views"][number]) => ({
     typeof view.contribution.fileRenderer === "string"
       ? resolveContributionId(view.name, view.contribution.fileRenderer)
       : undefined,
+  controlsRendererId:
+    typeof view.contribution.controlsRenderer === "string"
+      ? resolveContributionId(view.name, view.contribution.controlsRenderer)
+      : undefined,
 });
 
 const resolveContributionId = (extensionName: string, localOrFullId: string) =>
@@ -222,6 +227,32 @@ export const toCheckDataRenderers = (renderers: ExtensionRuntime["dataRenderers"
 
 export const toCheckCommandPaletteResources = (resources: ExtensionRuntime["commandPaletteResources"]) =>
   compact(resources.map(toCommandPaletteResourceRecord));
+
+export const toCheckControlsRenderers = (
+  renderers: ExtensionRuntime["controlsRenderers"],
+): ExtensionControlsRendererRecord[] =>
+  compact(
+    renderers.map((renderer) => {
+      const queryCommandId = refIdOf(renderer.contribution.queryCommand);
+      if (!queryCommandId) return null;
+
+      const refreshEventIds = compact(renderer.contribution.refreshEvents?.map(refIdOf) ?? []);
+
+      return {
+        id: renderer.id,
+        extensionId: renderer.extensionId,
+        title: renderer.contribution.title,
+        queryCommandId,
+        updateValueCommandId: refIdOf(renderer.contribution.updateValueCommand),
+        applyCommandId: refIdOf(renderer.contribution.applyCommand),
+        resetCommandId: refIdOf(renderer.contribution.resetCommand),
+        ...(refreshEventIds.length > 0 ? { refreshEventIds } : {}),
+        defaultValues: renderer.contribution.defaultValues,
+        emptyTitle: renderer.contribution.emptyTitle,
+        emptyDescription: renderer.contribution.emptyDescription,
+      };
+    }),
+  );
 
 export const toCheckTreeRenderers = (renderers: ExtensionRuntime["treeRenderers"]) =>
   compact(
