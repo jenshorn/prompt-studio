@@ -18,6 +18,7 @@ import {
   type CreateBridgeWebviewProps,
   type CreateBridgeWebviewTheme,
   createBridgeWebviewRenderer,
+  getBridgeWebviewHostEventPublisher,
   renderBridgeWebviewFrame,
 } from "../bridge/bridge-webview-renderer";
 import {
@@ -257,6 +258,7 @@ const registerSettings = (input: RegisterWorkbenchExtensionContributionsInput) =
               workbench: renderInput.workbench,
               webviewId: panel.id,
               placement: { ...renderInput.placement, contributionId: panel.id },
+              hostEvents: getBridgeWebviewHostEventPublisher(renderInput.workbench, renderInput.placement),
             },
             createHostCapabilities: createExtensionHostCapabilities(input, "settings"),
             createProps: input.createWebviewProps ?? (({ placement }) => ({ placement, resource: placement.resource })),

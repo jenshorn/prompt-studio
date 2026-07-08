@@ -3,7 +3,7 @@ import type {
   ThemePreference,
   WebviewCapabilityDiagnostic,
 } from "pstdio-extensions/bridge/contract";
-import { ExtensionFrame } from "pstdio-extensions/bridge/host";
+import { createHostEventPublisher, ExtensionFrame, type HostEventPublisher } from "pstdio-extensions/bridge/host";
 import type {
   WorkbenchCore,
   WorkbenchRendererRegistration,
@@ -26,6 +26,8 @@ export interface BridgeWebviewRenderContext {
   workbench: WorkbenchCore;
   webviewId: string;
   placement: WorkbenchWidgetPlacement;
+  /** Channel for pushing host events (e.g. terminal output) into this webview. */
+  hostEvents: HostEventPublisher;
 }
 
 // How guest capability calls reach the host. Hosts inject this to swap the workbench-native
@@ -66,6 +68,25 @@ const createPlacementProps: CreateBridgeWebviewProps = ({ placement }) => ({
 
 const createLightTheme: CreateBridgeWebviewTheme = () => "light";
 
+const hostEventPublishersByWorkbench = new WeakMap<WorkbenchCore, Map<string, HostEventPublisher>>();
+
+export const getBridgeWebviewHostEventPublisher = (workbench: WorkbenchCore, placement: WorkbenchWidgetPlacement) => {
+  let hostEventsByWidget = hostEventPublishersByWorkbench.get(workbench);
+  if (!hostEventsByWidget) {
+    hostEventsByWidget = new Map();
+    hostEventPublishersByWorkbench.set(workbench, hostEventsByWidget);
+  }
+
+  const key = placement.widgetId;
+  let hostEvents = hostEventsByWidget.get(key);
+  if (!hostEvents) {
+    hostEvents = createHostEventPublisher();
+    hostEventsByWidget.set(key, hostEvents);
+  }
+
+  return hostEvents;
+};
+
 export const renderBridgeWebviewFrame = (input: {
   context: BridgeWebviewRenderContext;
   createHostCapabilities: CreateBridgeWebviewHostCapabilities;
@@ -100,6 +121,7 @@ export const renderBridgeWebviewFrame = (input: {
       props={createProps(context)}
       theme={createTheme(context)}
       capabilities={createHostCapabilities(context)}
+      hostEvents={context.hostEvents}
       onDiagnostics={(diagnostics) => logWebviewDiagnostics(context.webviewId, diagnostics)}
       onError={(error) => logWebviewError(context.webviewId, error.message)}
     />
@@ -117,7 +139,12 @@ const renderBridgeWebview = (
   if (!webview) return null;
 
   return renderBridgeWebviewFrame({
-    context: { workbench, webviewId: placement.contributionId, placement },
+    context: {
+      workbench,
+      webviewId: placement.contributionId,
+      placement,
+      hostEvents: getBridgeWebviewHostEventPublisher(workbench, placement),
+    },
     createHostCapabilities,
     createProps,
     createTheme,

@@ -21,6 +21,41 @@ const decode = (events: TerminalEvent[]) =>
     .join("");
 
 describe("terminal supervisor", () => {
+  test("provides terminal metadata when the host environment omits it", async () => {
+    const { logger } = createRecordingLogger();
+    const supervisor = createTerminalSupervisor({ logger });
+    const previousTerm = process.env.TERM;
+    const previousColorTerm = process.env.COLORTERM;
+
+    delete process.env.TERM;
+    delete process.env.COLORTERM;
+
+    try {
+      const handle = supervisor.api.openSession({
+        command: ["/bin/sh", "-lc", 'printf \'%s|%s\\n\' "$TERM" "$COLORTERM"'],
+        cols: 80,
+        rows: 24,
+      });
+
+      const events: TerminalEvent[] = [];
+      for await (const event of handle.events()) events.push(event);
+
+      expect(decode(events)).toContain("xterm-256color|truecolor");
+    } finally {
+      if (previousTerm === undefined) {
+        delete process.env.TERM;
+      } else {
+        process.env.TERM = previousTerm;
+      }
+      if (previousColorTerm === undefined) {
+        delete process.env.COLORTERM;
+      } else {
+        process.env.COLORTERM = previousColorTerm;
+      }
+      await supervisor.dispose();
+    }
+  });
+
   test("opens a session, echoes input, and exits cleanly", async () => {
     const { logger, records } = createRecordingLogger();
     const supervisor = createTerminalSupervisor({ logger });
@@ -36,6 +71,9 @@ describe("terminal supervisor", () => {
     await consumed;
 
     expect(decode(events)).toContain("hi-marker");
+    // On open the session reports its launched process name (deterministic across
+    // platforms) so the UI can title the tab; the live foreground is tracked after.
+    expect(events.some((event) => event.kind === "title" && event.title === "sh")).toBe(true);
     const last = events.at(-1);
     expect(last?.kind).toBe("exit");
     expect(last).toMatchObject({ kind: "exit", code: 0 });
@@ -43,6 +81,24 @@ describe("terminal supervisor", () => {
     // Lifecycle is logged, but PTY content never is.
     expect(records.some((entry) => entry.message === "terminal session opened")).toBe(true);
     expect(JSON.stringify(records)).not.toContain("hi-marker");
+  });
+
+  test("opens interactive bash with job control", async () => {
+    const { logger } = createRecordingLogger();
+    const supervisor = createTerminalSupervisor({ logger });
+    const handle = supervisor.api.openSession({ command: ["/bin/bash"], cols: 80, rows: 24 });
+
+    const events: TerminalEvent[] = [];
+    const consumed = (async () => {
+      for await (const event of handle.events()) events.push(event);
+    })();
+
+    handle.write("exit\n");
+    await consumed;
+
+    const output = decode(events);
+    expect(output).not.toContain("cannot set terminal process group");
+    expect(output).not.toContain("no job control in this shell");
   });
 
   test("propagates resize to the child PTY geometry", async () => {

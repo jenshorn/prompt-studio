@@ -1,4 +1,5 @@
 import { createWorkbenchCore } from "pstdio-workbench/core";
+import { createWorkbenchTerminalModule } from "pstdio-workbench/react";
 import { createLocalStorageWorkbenchPersistence, type WorkbenchStorageLike } from "pstdio-workbench/storage";
 import { createDashboardLastResourcePersistence } from "@/shared/app/last-resource-persistence";
 import { createDashboardProjectSelectionPersistence } from "@/shared/app/project-selection-persistence";
@@ -16,6 +17,7 @@ import { createSessionsModule } from "./modules/sessions/module";
 import { createSettingsModule } from "./modules/settings/module";
 import { createSidebarModule } from "./modules/sidebar/module";
 import { createStartModule } from "./modules/start/module";
+import { createTerminalModule } from "./modules/terminal/module";
 import { createWorkspacesModule } from "./modules/workspaces/module";
 
 const dashboardWorkbenchStorageNamespace = "dashboard-wb";
@@ -63,6 +65,8 @@ export const createDashboardModules = (input: CreateDashboardModulesInput = {}) 
   createNotificationsModule(),
   createSettingsModule(),
   createStartModule(),
+  createWorkbenchTerminalModule(),
+  createTerminalModule(),
   createBootstrapModule({ projectSelectionPersistence: input.projectSelectionPersistence }),
 ];
 

@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import type { ITheme } from "@xterm/xterm";
 import { Terminal as Xterm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import "./terminal.css";
 import { useEffect, useRef } from "react";
 import { bindSessionToSink, type TerminalSink } from "./bind-session";
 import { resolveTerminalTheme, type TerminalThemeName } from "./terminal-theme";
@@ -34,6 +35,14 @@ const createSink = (xterm: Xterm): TerminalSink => ({
     return () => disposable.dispose();
   },
 });
+
+const fitTerminal = (fit: FitAddon | null) => {
+  try {
+    fit?.fit();
+  } catch {
+    // fit() throws if the container has zero size (e.g. hidden via CSS).
+  }
+};
 
 export const resizeSessionToTerminalGeometry = (
   terminal: Pick<Xterm, "cols" | "rows">,
@@ -153,21 +162,17 @@ export const Terminal = (props: TerminalProps) => {
     xtermRef.current = xterm;
     fitRef.current = fit;
 
-    const measure = () => {
-      try {
-        fit.fit();
-      } catch {
-        // fit() throws if the container has zero size (e.g. hidden via CSS).
-        // We silently retry on the next ResizeObserver callback.
-        return;
-      }
-    };
+    const measure = () => fitTerminal(fit);
 
     measure();
+    const animationFrame = window.requestAnimationFrame(measure);
+    const timeout = window.setTimeout(measure, 50);
     const observer = new ResizeObserver(measure);
     observer.observe(container);
 
     return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(timeout);
       observer.disconnect();
       xterm.dispose();
       xtermRef.current = null;
@@ -181,11 +186,7 @@ export const Terminal = (props: TerminalProps) => {
     xterm.options.theme = resolvedTheme;
     xterm.options.fontFamily = fontFamily;
     xterm.options.fontSize = fontSize;
-    try {
-      fitRef.current?.fit();
-    } catch {
-      // Hidden containers can report zero dimensions while theme/font updates apply.
-    }
+    fitTerminal(fitRef.current);
   }, [resolvedTheme, fontFamily, fontSize]);
 
   const { session } = useTerminalSession({ bridge, request: initialSessionRequestRef.current, killOnUnmount });
@@ -193,23 +194,37 @@ export const Terminal = (props: TerminalProps) => {
   useEffect(() => {
     const xterm = xtermRef.current;
     if (!xterm || !session) return;
+    fitTerminal(fitRef.current);
+    const animationFrame = window.requestAnimationFrame(() => fitTerminal(fitRef.current));
     const sink = createSink(xterm);
-    return bindTerminalSessionWithCallbackRefs(xterm, sink, session, {
+    const unbind = bindTerminalSessionWithCallbackRefs(xterm, sink, session, {
       onSessionOpen: onSessionOpenRef,
       onSessionExit: onSessionExitRef,
     });
+    // Opening a terminal is an explicit action; hand it the keyboard so the
+    // user can type immediately instead of clicking into it first.
+    xterm.focus();
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      unbind();
+    };
   }, [session]);
 
+  // The mount element fills its box absolutely so xterm sizes to the panel
+  // rather than growing it: inside a scrollable host, a self-sized terminal
+  // would define its own height and never fit, leaving the host to scroll it.
   return (
     <div
-      ref={containerRef}
       className={className}
       style={{
+        position: "relative",
         width: "100%",
         height: "100%",
         backgroundColor: typeof resolvedTheme.background === "string" ? resolvedTheme.background : undefined,
         ...style,
       }}
-    />
+    >
+      <div ref={containerRef} className="pstdio-terminal" style={{ position: "absolute", inset: 0 }} />
+    </div>
   );
 };

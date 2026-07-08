@@ -89,6 +89,13 @@ export const labTreeItems = {
     icon: "flask-conical",
     action: { kind: "route", route: "lab" },
   },
+  openTerminal: {
+    target: "workbench.left.tree",
+    group: "Lab",
+    label: l10n("tree.openTerminal.label", "Open terminal"),
+    icon: "square-terminal",
+    action: { kind: "command", command: "workbench.terminal.open" },
+  },
   faultyPage: {
     target: "workbench.left.tree",
     group: "Lab",
