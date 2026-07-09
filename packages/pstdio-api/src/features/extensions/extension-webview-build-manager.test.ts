@@ -231,6 +231,83 @@ describe("createExtensionWebviewBuildManager lifecycle", () => {
     }
   });
 
+  test("does not retry a failed unchanged source until its hash changes", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-webview-build-backoff-test-"));
+    const sourcePath = join(root, "extension");
+    writeExtension(sourcePath, { labPage: "src/main.tsx" });
+    const failures: string[] = [];
+    let sourceHash = "hash-1";
+    let runCount = 0;
+
+    const manager = createExtensionWebviewBuildManager({
+      listInstalledSources: async () => [
+        { install_name: "extension-lab", source_hash: sourceHash, source_path: sourcePath },
+      ],
+      reportBuildFailure: async (_installName, webviewId) => {
+        failures.push(webviewId);
+      },
+      reportBuildSuccess: async () => {},
+      runCommand: async () => {
+        runCount++;
+        return { exitCode: 1, stderr: "build failed", stdout: "" };
+      },
+      webviewCacheRoot: join(root, "cache"),
+    });
+
+    try {
+      await manager.refresh();
+      await manager.refresh();
+      expect(runCount).toBe(1);
+      expect(failures).toEqual(["lab.labPage"]);
+
+      sourceHash = "hash-2";
+      await manager.refresh();
+
+      expect(runCount).toBe(2);
+      expect(failures).toEqual(["lab.labPage", "lab.labPage"]);
+    } finally {
+      manager.dispose();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("retries an unchanged source after a transient source load failure", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-webview-source-load-retry-test-"));
+    const sourcePath = join(root, "extension");
+    mkdirSync(sourcePath, { recursive: true });
+    const managerErrors: unknown[] = [];
+    let runCount = 0;
+
+    const manager = createExtensionWebviewBuildManager({
+      listInstalledSources: async () => [
+        { install_name: "extension-lab", source_hash: "hash-1", source_path: sourcePath },
+      ],
+      onError: (error) => {
+        managerErrors.push(error);
+      },
+      reportBuildFailure: async () => {},
+      reportBuildSuccess: async () => {},
+      runCommand: async (_file, args) => {
+        runCount++;
+        writeManagedBuildOutput(args);
+        return { exitCode: 0, stderr: "", stdout: "" };
+      },
+      webviewCacheRoot: join(root, "cache"),
+    });
+
+    try {
+      await manager.refresh();
+      writeExtension(sourcePath, { labPage: "src/main.tsx" });
+      await manager.refresh();
+
+      expect(managerErrors).toHaveLength(1);
+      expect(runCount).toBe(1);
+    } finally {
+      manager.dispose();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("reports command errors as build failures", async () => {
     const root = mkdtempSync(join(tmpdir(), "pstdio-webview-command-error-test-"));
     const sourcePath = join(root, "extension");
