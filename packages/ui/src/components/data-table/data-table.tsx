@@ -1,22 +1,38 @@
 import "./data-table.css";
 
-import { Icon as ChakraIcon, Flex, IconButton, Menu, Portal, Table, Text } from "@chakra-ui/react";
+import { Flex, Table } from "@chakra-ui/react";
 import {
-  flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type PaginationState,
+  type RowSelectionState,
   type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDownAZ, ArrowUpAZ, MoreVertical } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ScrollArea } from "@/components/primitives/scroll-area";
-import { Tooltip } from "@/components/primitives/tooltip";
-import { ListRow } from "../list-row/list-row";
+import { useDataRendererStore } from "../data-renderer/use-data-renderer-store";
 import { buildColumns } from "./build-columns";
+import { DataTableColumnMenu } from "./data-table-column-menu";
+import { DataTableHeader } from "./data-table-header";
+import {
+  buildDataTableRendererAttributes,
+  buildDataTableRendererRows,
+  filterDataTableRows,
+  getSelectedOriginalRows,
+  reorderDataTableColumns,
+  resolveDataTableColumnOrder,
+  resolveDataTableRowId,
+  resolveDataTableToolbarStorageKey,
+  resolveInitialPageSize,
+  resolveSelectionActions,
+  shouldEnableSelection,
+  shouldHighlightActiveRow,
+} from "./data-table-state";
+import { DataTableStatsRow } from "./data-table-stats-row";
+import { DataTableBodyRow, DataTableColumnHeader } from "./data-table-table-parts";
 import { PaginationFooter } from "./pagination-footer";
-import { SelectionToolbar } from "./selection-toolbar";
 import type { DataTableProps } from "./types";
 
 export const DataTable = (props: DataTableProps) => {
@@ -24,37 +40,90 @@ export const DataTable = (props: DataTableProps) => {
     data,
     noBorder,
     fullWidth,
-    onCSVDownload,
     hiddenColumns,
     onRowClick,
     isRowInteractive,
     activeRowId,
     columnIcons,
+    columnDescriptions,
+    compactHeaders,
+    columnStats,
+    columnRenderers,
+    initialPageSize,
+    pageSizeOptions = [10, 20, 30, 50, 100],
+    rowActions = [],
+    getRowId,
+    toolbarStorageKey,
+    enableRowActivation = false,
+    getCellContextMenuActions,
   } = props;
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>(() => ({
+    pageIndex: 0,
+    pageSize: resolveInitialPageSize({ initialPageSize }),
+  }));
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    const propHiddenColumnsSet = new Set(hiddenColumns ?? []);
+    return Object.keys(data[0] || {}).filter((key) => !propHiddenColumnsSet.has(key));
+  });
+  const [hiddenColumnMenuIds, setHiddenColumnMenuIds] = useState<Set<string>>(() => new Set());
   const hiddenColumnsSet = new Set(hiddenColumns ?? []);
-  const columnKeys = Object.keys(data[0] || {}).filter((key) => !hiddenColumnsSet.has(key));
-  const columns = buildColumns(data, columnKeys, columnIcons);
+  const baseColumnKeys = Object.keys(data[0] || {}).filter((key) => !hiddenColumnsSet.has(key));
+  const orderedBaseColumnKeys = resolveDataTableColumnOrder(baseColumnKeys, columnOrder);
+  const visibleColumnIds = new Set(orderedBaseColumnKeys.filter((key) => !hiddenColumnMenuIds.has(key)));
+  const columnKeys = orderedBaseColumnKeys.filter((key) => visibleColumnIds.has(key));
+  const enableSelection = shouldEnableSelection(props);
+  const selectionActions = resolveSelectionActions(props);
+  const rendererAttributes = buildDataTableRendererAttributes(data, orderedBaseColumnKeys, compactHeaders);
+  const rendererRows = buildDataTableRendererRows(data, orderedBaseColumnKeys, getRowId);
+  const resolvedToolbarStorageKey = resolveDataTableToolbarStorageKey({
+    toolbarStorageKey,
+    columnKeys: baseColumnKeys,
+  });
+  const filters = useDataRendererStore(resolvedToolbarStorageKey, (state) => state.filters, {
+    settings: { viewMode: "list" },
+  });
+  const filteredRendererRows = filterDataTableRows(rendererRows, filters, rendererAttributes);
+  const filteredData = filteredRendererRows.map((row) => row.sourceRow);
+  const columns = buildColumns(data, columnKeys, {
+    columnIcons,
+    columnDescriptions,
+    compactHeaders,
+    enableSelection,
+    rowActions,
+    selectedRowIds: rowSelection,
+    columnRenderers,
+  });
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     defaultColumn: { size: 150, minSize: 40, maxSize: 800 },
-    state: { sorting },
+    state: { sorting, pagination, rowSelection },
+    getRowId: (row, index) => resolveDataTableRowId(row, index, getRowId),
     columnResizeMode: "onChange",
     columnResizeDirection: "ltr",
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
     getSortedRowModel: getSortedRowModel(),
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    enableMultiRowSelection: true,
-    enableRowSelection: true,
-    autoResetAll: true,
+    enableMultiRowSelection: enableSelection,
+    enableRowSelection: enableSelection,
+    autoResetAll: false,
   });
 
   useEffect(() => {
-    table.setPageSize(30);
-  }, [table]);
+    const pageCount = table.getPageCount();
+    if (pageCount === 0 || pagination.pageIndex < pageCount) return;
+
+    setPagination((current) => ({
+      ...current,
+      pageIndex: Math.max(pageCount - 1, 0),
+    }));
+  }, [pagination.pageIndex, table]);
 
   const columnSizeVars = (() => {
     const headers = table.getFlatHeaders();
@@ -69,179 +138,114 @@ export const DataTable = (props: DataTableProps) => {
 
   const selectedRows = table.getSelectedRowModel().rows;
   const allRows = table.getCoreRowModel().rows;
-  const selectedRowIds = selectedRows
-    .map((row) => row.original.id)
-    .filter((id): id is string => typeof id === "string");
+  const selectedOriginalRows = getSelectedOriginalRows(selectedRows);
+  const columnControl = (
+    <DataTableColumnMenu
+      columns={orderedBaseColumnKeys.map((columnId) => ({
+        id: columnId,
+        label: compactHeaders?.[columnId] ?? columnId,
+      }))}
+      visibleColumnIds={visibleColumnIds}
+      onColumnToggle={(columnId) =>
+        setHiddenColumnMenuIds((current) => {
+          const next = new Set(current);
+          if (next.has(columnId)) {
+            next.delete(columnId);
+          } else {
+            next.add(columnId);
+          }
+          return next;
+        })
+      }
+      onColumnReorder={(activeColumnId, overColumnId) =>
+        setColumnOrder((current) =>
+          reorderDataTableColumns(resolveDataTableColumnOrder(baseColumnKeys, current), activeColumnId, overColumnId),
+        )
+      }
+    />
+  );
 
   return (
     <Flex direction="column" height="100%" width="100%">
-      {!!selectedRows.length && (
-        <SelectionToolbar
-          selectedCount={selectedRows.length}
-          totalCount={allRows.length}
-          onClearSelection={() => table.toggleAllRowsSelected(false)}
-          onSelectAll={() => table.toggleAllRowsSelected(true)}
-          onCSVDownload={() => onCSVDownload?.(selectedRowIds)}
-        />
-      )}
+      <DataTableHeader
+        rows={rendererRows}
+        storageKey={resolvedToolbarStorageKey}
+        attributes={rendererAttributes}
+        selectedCount={enableSelection ? selectedRows.length : 0}
+        totalCount={allRows.length}
+        visibleCount={filteredData.length}
+        onClearSelection={() => table.toggleAllRowsSelected(false)}
+        onSelectAll={() => table.toggleAllRowsSelected(true)}
+        actions={selectionActions}
+        selectedRows={selectedOriginalRows}
+        columnControl={columnControl}
+      />
       <ScrollArea height="100%" maxWidth="unset" showHorizontalScrollbar>
         <Table.Root
           className={`data-table${fullWidth ? " full-width" : ""}`}
-          stickyHeader
           style={{ ...columnSizeVars, width: fullWidth ? "100%" : table.getTotalSize() }}
         >
           <Table.Header>
             {table.getHeaderGroups().map((headerGroup) => (
-              <Table.Row
-                background="bg.muted"
-                key={headerGroup.id}
-                borderRight={noBorder ? "none" : "1px solid"}
-                borderColor="border.subtle"
-              >
-                {headerGroup.headers.map((header) => (
-                  <Table.ColumnHeader
-                    textTransform="none"
-                    borderRight="1px solid"
-                    _last={{ borderRight: "none" }}
-                    borderColor="border.subtle"
-                    paddingX="xs"
-                    paddingY="2xs"
-                    key={header.id}
-                    overflow={"hidden"}
-                    position="relative"
-                    style={{
-                      width:
-                        fullWidth && headerGroup.headers.indexOf(header) === headerGroup.headers.length - 1
-                          ? undefined
-                          : `calc(var(--header-${header?.id}-size) * 1px)`,
-                    }}
-                  >
-                    <Tooltip content={flexRender(header.column.columnDef.header, header.getContext())}>
-                      <Flex
-                        className="group"
-                        alignItems="center"
-                        justifyContent="space-between"
-                        gap="1"
-                        flex="1"
-                        paddingY="2xs"
-                      >
-                        <Text textStyle="label/S/medium">
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                        </Text>
-                        {header.column.id !== "rowIndex" && table.getCoreRowModel().rows.length > 1 && (
-                          <Menu.Root>
-                            <Menu.Trigger asChild>
-                              <IconButton
-                                ml="2px"
-                                size="2xs"
-                                aria-label="sort column"
-                                variant="ghost"
-                                visibility="hidden"
-                                _groupHover={{ visibility: "visible" }}
-                              >
-                                <ChakraIcon as={MoreVertical} boxSize="14px" />
-                              </IconButton>
-                            </Menu.Trigger>
-                            <Portal>
-                              <Menu.Positioner>
-                                <Menu.Content zIndex="popover" bg="bg">
-                                  <Menu.Item value="sort-asc" asChild>
-                                    <ListRow
-                                      asChild
-                                      variant="full-width"
-                                      label="Sort ascending"
-                                      icon={<ChakraIcon as={ArrowUpAZ} boxSize="16px" />}
-                                      disabled={header.column.getIsSorted() === "asc"}
-                                      onActivate={() => header.column.toggleSorting(false)}
-                                    />
-                                  </Menu.Item>
-                                  <Menu.Item value="sort-desc" asChild>
-                                    <ListRow
-                                      asChild
-                                      variant="full-width"
-                                      label="Sort descending"
-                                      icon={<ChakraIcon as={ArrowDownAZ} boxSize="16px" />}
-                                      disabled={header.column.getIsSorted() === "desc"}
-                                      onActivate={() => header.column.toggleSorting(true)}
-                                    />
-                                  </Menu.Item>
-                                  {header.column.getIsSorted() && (
-                                    <Menu.Item value="clear-sort" asChild>
-                                      <ListRow
-                                        asChild
-                                        variant="full-width"
-                                        label="Clear sort"
-                                        onActivate={() => header.column.clearSorting()}
-                                      />
-                                    </Menu.Item>
-                                  )}
-                                </Menu.Content>
-                              </Menu.Positioner>
-                            </Portal>
-                          </Menu.Root>
-                        )}
-                        {header.column.getCanResize() && (
-                          <span
-                            {...{
-                              onDoubleClick: () => header.column.resetSize(),
-                              onMouseDown: header.getResizeHandler(),
-                              onTouchStart: header.getResizeHandler(),
-                              className: `resizer ${header.column.getIsResizing() ? "isResizing" : ""}`,
-                            }}
-                          />
-                        )}
-                      </Flex>
-                    </Tooltip>
-                  </Table.ColumnHeader>
-                ))}
-              </Table.Row>
+              <Fragment key={headerGroup.id}>
+                <Table.Row
+                  className="data-table-column-header-row"
+                  borderRight={noBorder ? "none" : "1px solid"}
+                  borderColor="border.subtle"
+                >
+                  {headerGroup.headers.map((header) => (
+                    <DataTableColumnHeader
+                      key={header.id}
+                      header={header}
+                      headerGroup={headerGroup}
+                      table={table}
+                      fullWidth={fullWidth}
+                      hasDescription={Boolean(columnDescriptions?.[header.column.id])}
+                    />
+                  ))}
+                </Table.Row>
+                {columnStats ? (
+                  <DataTableStatsRow
+                    headerGroup={headerGroup}
+                    rows={filteredData}
+                    columnStats={columnStats}
+                    noBorder={noBorder}
+                    fullWidth={fullWidth}
+                  />
+                ) : null}
+              </Fragment>
             ))}
           </Table.Header>
           <Table.Body>
             {table.getRowModel().rows.map((row) => {
               const rowIsInteractive = onRowClick ? (isRowInteractive?.(row.original) ?? true) : false;
+              const rowIsActive = shouldHighlightActiveRow({ enableRowActivation, activeRowId, rowId: row.id });
+              const rowIsSelected = row.getIsSelected();
 
               return (
-                <Table.Row
+                <DataTableBodyRow
                   key={row.id}
-                  cursor={rowIsInteractive ? "pointer" : undefined}
-                  onClick={rowIsInteractive ? () => onRowClick?.(row.original) : undefined}
-                  borderTop={noBorder ? "none" : "1px solid"}
-                  borderBottom={"1px solid"}
-                  borderRight={noBorder ? "none" : "1px solid"}
-                  _last={{ borderBottom: noBorder ? "none" : "1px solid", borderColor: "border.subtle" }}
-                  borderColor="border.subtle"
-                  background={
-                    activeRowId && typeof row.original.id === "string" && row.original.id === activeRowId
-                      ? "bg.panel"
-                      : "bg"
-                  }
-                  _hover={rowIsInteractive ? { background: "bg.panel" } : undefined}
-                >
-                  {row.getVisibleCells().map((cell, index) => (
-                    <Table.Cell
-                      width="fit-content"
-                      maxWidth={"12rem"}
-                      overflow={"hidden"}
-                      padding="xs"
-                      borderRight="1px solid"
-                      borderColor="border.subtle"
-                      _last={{ borderRight: "none" }}
-                      borderBottom="none"
-                      key={cell.id}
-                      textStyle="paragraph/S/regular"
-                      background={index === 0 ? "bg.muted" : "inherit"}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </Table.Cell>
-                  ))}
-                </Table.Row>
+                  row={row}
+                  noBorder={noBorder}
+                  rowIsInteractive={rowIsInteractive}
+                  rowIsActive={rowIsActive}
+                  rowIsSelected={rowIsSelected}
+                  onRowClick={onRowClick}
+                  getCellContextMenuActions={getCellContextMenuActions}
+                />
               );
             })}
           </Table.Body>
         </Table.Root>
       </ScrollArea>
-      {table.getPageCount() > 1 && <PaginationFooter table={table} />}
+      {table.getPageCount() > 1 && (
+        <PaginationFooter
+          table={table}
+          pageIndex={pagination.pageIndex}
+          pageSize={pagination.pageSize}
+          pageSizeOptions={pageSizeOptions}
+        />
+      )}
     </Flex>
   );
 };
