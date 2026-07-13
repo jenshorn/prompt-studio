@@ -16,6 +16,27 @@ const ctx: HarnessContext = {
 };
 
 describe("codex harness detection", () => {
+  test("declares discrete run params", () => {
+    const harness = createCodexHarness();
+
+    expect(harness.params).toEqual({
+      model_reasoning_effort: {
+        type: "select",
+        label: "Reasoning effort",
+        defaultValue: "medium",
+        options: [
+          { label: "Minimal", value: "minimal", icon: "CircleDot" },
+          { label: "Low", value: "low", icon: "Gauge" },
+          { label: "Medium", value: "medium", icon: "Brain" },
+          { label: "High", value: "high", icon: "Zap" },
+          { label: "XHigh", value: "xhigh", icon: "Flame" },
+        ],
+      },
+    });
+    expect(harness.params).not.toHaveProperty("approval_policy");
+    expect(harness.params).not.toHaveProperty("sandbox_mode");
+  });
+
   test("reports availability with the CLI version", async () => {
     const harness = createCodexHarness();
     expect(await harness.detect!(ctx)).toEqual({ available: true, version: "codex-cli 0.130.0" });
@@ -36,9 +57,17 @@ describe("codex harness detection", () => {
     expect(await harness.detect!(missingCtx)).toEqual({ available: false });
   });
 
-  test("lists known models only when the CLI is present", async () => {
-    const harness = createCodexHarness();
-    expect((await harness.listModels!(ctx)).map((model) => model.id)).toEqual(["gpt-5.5", "gpt-5.3-codex"]);
+  test("lists discovered models only when the CLI is present and caches the catalog", async () => {
+    let discoveries = 0;
+    const harness = createCodexHarness({
+      listModels: async () => {
+        discoveries += 1;
+        return [{ id: "gpt-live" }];
+      },
+    });
+    expect((await harness.listModels!(ctx)).map((model) => model.id)).toEqual(["gpt-live"]);
+    expect((await harness.listModels!(ctx)).map((model) => model.id)).toEqual(["gpt-live"]);
+    expect(discoveries).toBe(1);
 
     const missing = createCodexHarness({ detect: async () => ({ available: false }) });
     expect(await missing.listModels!(ctx)).toEqual([]);

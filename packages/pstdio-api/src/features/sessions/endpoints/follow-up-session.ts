@@ -1,10 +1,11 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import type { HarnessAttachment } from "pstdio-api-contracts";
+import type { HarnessAttachment, HarnessParams } from "pstdio-api-contracts";
 import type { AppRouteHandler } from "../../../types";
 import { composeSummary } from "../compose-summary";
 import type { SessionsRouteDeps } from "../deps";
 import { followUpBodySchema, followUpResponseSchema, notFoundResponseSchema } from "../dto";
 import { getSessionMessages } from "../get-session-messages";
+import { HarnessParamError, resolveHarnessRunParams } from "../harness-params";
 import { resolvePrompt } from "../resolve-prompt";
 import { SessionAttachmentError, withResolvedSubmittingSessionAttachments } from "../session-attachments";
 import { createSessionScheduler } from "../session-scheduler";
@@ -37,6 +38,8 @@ export const followUpSessionRoute = createRoute({
   },
 });
 
+type ExistingSession = NonNullable<Awaited<ReturnType<SessionsRouteDeps["sessionService"]["get"]>>>;
+
 const buildFollowUpPrompt = async (
   input: {
     prompt?: string;
@@ -67,6 +70,32 @@ const buildFollowUpPrompt = async (
   return prompt;
 };
 
+const resolveFollowUpParams = async (
+  deps: SessionsRouteDeps,
+  session: ExistingSession,
+  input: { agent?: string; model?: string; params?: HarnessParams },
+) => {
+  const agentId = input.agent ?? session.agent;
+  if (!agentId) return { type: "ok" as const, params: undefined };
+
+  const sameAgent = agentId === session.agent;
+  const model = input.model?.trim() || (sameAgent ? (session.last_selected_model ?? undefined) : undefined);
+
+  try {
+    const params = await resolveHarnessRunParams(deps, {
+      projectId: session.project_id ?? undefined,
+      agentId,
+      model,
+      persistedOverrides: sameAgent ? (session.params_json ?? undefined) : undefined,
+      overrides: input.params,
+    });
+    return { type: "ok" as const, params: params ?? (sameAgent && session.params_json ? {} : undefined) };
+  } catch (error) {
+    if (error instanceof HarnessParamError) return { type: "error" as const, error: error.message };
+    throw error;
+  }
+};
+
 export const followUpSessionHandler = (deps: SessionsRouteDeps): AppRouteHandler<typeof followUpSessionRoute> => {
   return async (c) => {
     const { id } = c.req.valid("param");
@@ -79,6 +108,8 @@ export const followUpSessionHandler = (deps: SessionsRouteDeps): AppRouteHandler
 
     const prompt = await buildFollowUpPrompt(input, session.project_id!, deps);
     const cwd = session.cwd!;
+    const resolvedParams = await resolveFollowUpParams(deps, session, input);
+    if (resolvedParams.type === "error") return c.json({ error: resolvedParams.error }, 400);
     const scheduler = createSessionScheduler(deps);
 
     try {
@@ -93,6 +124,7 @@ export const followUpSessionHandler = (deps: SessionsRouteDeps): AppRouteHandler
             cwd,
             agentId: input.agent,
             model: input.model?.trim() || undefined,
+            params: resolvedParams.params,
             respectCapacity: true,
             questionResponse: input.question_response,
             attachments,

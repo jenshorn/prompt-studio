@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { AgentModel, HarnessContext, HarnessProvider } from "@pstdio/sdk/extensions";
-import { l10n } from "@pstdio/sdk/extensions";
+import { l10n, params } from "@pstdio/sdk/extensions";
+import { discoverClaudeModels } from "./models";
 import { normalizeClaudeCodeMessages } from "./normalize-transcript";
 import { resumeClaudeCodeSession, startClaudeCodeSession } from "./spawn";
 import type { ClaudeCodeTranscriptEntry } from "./types";
@@ -61,8 +62,6 @@ export const parseTranscript = (content: string): ClaudeCodeTranscriptEntry[] =>
   return entries;
 };
 
-const knownModels: AgentModel[] = [{ id: "sonnet" }, { id: "opus" }, { id: "haiku" }];
-
 const detectClaude = async (ctx: HarnessContext) => {
   try {
     // CLAUDECODE is cleared so a nested session is not mistaken for the CLI itself.
@@ -82,31 +81,65 @@ const sessionEnv = (ctx: HarnessContext, sessionId: string) => ({
 
 type ClaudeCodeDeps = {
   detect: typeof detectClaude;
+  listModels: (ctx: HarnessContext) => Promise<AgentModel[]>;
+  now: () => number;
   readTranscript: (agentSessionId: string, cwd?: string) => Promise<string>;
 };
 
 const defaultDeps: ClaudeCodeDeps = {
   detect: detectClaude,
+  listModels: discoverClaudeModels,
+  now: Date.now,
   readTranscript: defaultReadTranscript,
 };
 
+const MODEL_CACHE_TTL_MS = 5 * 60 * 1_000;
+
 export const createClaudeCodeHarness = (overrides: Partial<ClaudeCodeDeps> = {}): HarnessProvider => {
   const deps = { ...defaultDeps, ...overrides };
+  let modelCache: { expiresAt: number; value: Promise<AgentModel[]> } | undefined;
+
+  const listModels = async (ctx: HarnessContext) => {
+    if (!(await deps.detect(ctx)).available) return [];
+    if (modelCache && modelCache.expiresAt > deps.now()) return modelCache.value;
+
+    const value = deps.listModels(ctx).catch((error) => {
+      modelCache = undefined;
+      ctx.logger.warn(`Claude model discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+      return [];
+    });
+    modelCache = { expiresAt: deps.now() + MODEL_CACHE_TTL_MS, value };
+    return value;
+  };
 
   return {
     id: "claude-code",
     label: l10n("harness.claudeCode", "Claude Code"),
     skills: { dir: ".claude/skills" },
+    params: {
+      thinking: params.select({
+        label: "Thinking",
+        defaultValue: "high",
+        options: [
+          { label: "Low", value: "low", icon: "Gauge" },
+          { label: "Medium", value: "medium", icon: "Brain" },
+          { label: "High", value: "high", icon: "Zap" },
+          { label: "XHigh", value: "xhigh", icon: "Flame" },
+          { label: "Max", value: "max", icon: "Sparkles" },
+        ],
+      }),
+    },
 
     capabilities: () => ["SessionFork", "ContextUsage", "Approvals"],
     detect: (ctx) => deps.detect(ctx),
-    listModels: async (ctx) => ((await deps.detect(ctx)).available ? knownModels : []),
+    listModels,
 
     start: (ctx, input) =>
       startClaudeCodeSession({
         prompt: input.prompt,
         attachments: input.attachments,
         model: input.model,
+        params: input.params,
         cwd: input.cwd,
         env: sessionEnv(ctx, input.sessionId),
         events: input.events,
@@ -118,6 +151,7 @@ export const createClaudeCodeHarness = (overrides: Partial<ClaudeCodeDeps> = {})
         prompt: input.prompt,
         attachments: input.attachments,
         model: input.model,
+        params: input.params,
         cwd: input.cwd,
         env: sessionEnv(ctx, input.sessionId),
         events: input.events,

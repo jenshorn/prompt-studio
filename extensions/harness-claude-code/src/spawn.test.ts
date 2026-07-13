@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { PassThrough, Writable } from "node:stream";
 import type { HarnessEventSink, JsonPatch } from "@pstdio/sdk/extensions";
-import { resumeClaudeCodeSession, type SpawnDeps, startClaudeCodeSession } from "./spawn";
+import {
+  buildResumeArgs,
+  buildStartSessionArgs,
+  resumeClaudeCodeSession,
+  type SpawnDeps,
+  startClaudeCodeSession,
+} from "./spawn";
 
 const recordingSink = () => {
   const patches: JsonPatch[] = [];
@@ -44,6 +50,35 @@ const createMockSpawnDeps = (stdoutLines: string[], options?: { delayMs?: number
     }),
   };
 };
+
+describe("arg building", () => {
+  test("uses the host-owned permission mode", () => {
+    const args = buildStartSessionArgs({ model: null });
+
+    expect(args).toContain("--permission-mode");
+    expect(args.at(args.indexOf("--permission-mode") + 1)).toBe("bypassPermissions");
+  });
+
+  test("ignores permission-mode params from stale callers", () => {
+    const startArgs = buildStartSessionArgs({ model: "sonnet", params: { "permission-mode": "plan" } });
+    const resumeArgs = buildResumeArgs({ agentSessionId: "session-abc", model: null });
+
+    expect(startArgs.at(startArgs.indexOf("--permission-mode") + 1)).toBe("bypassPermissions");
+    expect(startArgs.slice(-2)).toEqual(["--model", "sonnet"]);
+    expect(resumeArgs.at(resumeArgs.indexOf("--permission-mode") + 1)).toBe("bypassPermissions");
+    expect(resumeArgs.slice(0, 2)).toEqual(["--resume", "session-abc"]);
+  });
+
+  test("maps every thinking level to start and resume effort args", () => {
+    for (const thinking of ["low", "medium", "high", "xhigh", "max"]) {
+      const startArgs = buildStartSessionArgs({ model: null, params: { thinking } });
+      const resumeArgs = buildResumeArgs({ agentSessionId: "session-abc", model: null, params: { thinking } });
+
+      expect(startArgs.at(startArgs.indexOf("--effort") + 1)).toBe(thinking);
+      expect(resumeArgs.at(resumeArgs.indexOf("--effort") + 1)).toBe(thinking);
+    }
+  });
+});
 
 describe("startClaudeCodeSession", () => {
   test("extracts the agent session id, streams events, and completes on clean exit", async () => {

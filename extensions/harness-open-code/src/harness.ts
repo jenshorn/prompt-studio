@@ -1,5 +1,4 @@
 import type {
-  AgentModel,
   HarnessContext,
   HarnessDetectionResult,
   HarnessExit,
@@ -8,58 +7,12 @@ import type {
   HarnessSession,
   QuestionResponse,
 } from "@pstdio/sdk/extensions";
-import { l10n } from "@pstdio/sdk/extensions";
+import { l10n, params } from "@pstdio/sdk/extensions";
+import { parseOpencodeModels } from "./models";
 import { normalizeOpencodeMessage } from "./opencode-normalizer";
 import { pollOpencodeQuestionReply } from "./opencode-question-reply-poller";
 import { createOpencodeService } from "./opencode-service";
 import { pollOpencodeMessages, pollOpencodeUntilIdle } from "./opencode-session-poller";
-
-// --- Model listing ---
-
-const parseModelCandidates = (items: unknown[]) => {
-  const ids = items
-    .map((item) => {
-      if (typeof item === "string") return item.trim();
-
-      if (item && typeof item === "object") {
-        const record = item as Record<string, unknown>;
-        if (typeof record.id === "string") return record.id.trim();
-        if (typeof record.model === "string") return record.model.trim();
-        if (typeof record.name === "string") return record.name.trim();
-      }
-
-      return "";
-    })
-    .filter((value) => value.includes("/"));
-
-  return [...new Set(ids)];
-};
-
-export const parseOpencodeModels = (output: string) => {
-  if (!output.trim()) return [];
-
-  try {
-    const parsed = JSON.parse(output) as unknown;
-
-    if (Array.isArray(parsed)) return parseModelCandidates(parsed);
-
-    if (parsed && typeof parsed === "object") {
-      const record = parsed as Record<string, unknown>;
-      if (Array.isArray(record.models)) return parseModelCandidates(record.models);
-    }
-  } catch {
-    // Fall back to line-based parsing
-  }
-
-  const ids = output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.includes("/"))
-    .map((line) => line.split(/\s+/)[0] ?? "")
-    .filter((line) => line.includes("/"));
-
-  return [...new Set(ids)];
-};
 
 // --- Detection ---
 
@@ -76,7 +29,7 @@ const detectOpencode = async (ctx: HarnessContext): Promise<HarnessDetectionResu
 
 const readOpencodeModels = async (ctx: HarnessContext) => {
   try {
-    const result = await ctx.process.run({ command: ["opencode", "models"] });
+    const result = await ctx.process.run({ command: ["opencode", "models", "--verbose"] });
     if (result.exitCode !== 0) return "";
     return result.stdout.trim();
   } catch {
@@ -93,6 +46,24 @@ const defaultDeps: OpencodeHarnessDeps = {
   detect: detectOpencode,
   getModelsOutput: readOpencodeModels,
 };
+
+const opencodeParams = {
+  variant: params.select({
+    label: "Thinking",
+    defaultValue: "medium",
+    options: [
+      { label: "None", value: "none", icon: "CircleSlash" },
+      { label: "Minimal", value: "minimal", icon: "CircleDot" },
+      { label: "Low", value: "low", icon: "Gauge" },
+      { label: "Medium", value: "medium", icon: "Brain" },
+      { label: "High", value: "high", icon: "Zap" },
+      { label: "XHigh", value: "xhigh", icon: "Flame" },
+      { label: "Max", value: "max", icon: "Sparkles" },
+    ],
+  }),
+};
+
+const MODEL_CACHE_TTL_MS = 5 * 60 * 1_000;
 
 // --- Session handle ---
 
@@ -127,6 +98,23 @@ export const createOpencodeHarness = (
 ): HarnessProvider => {
   const deps = { ...defaultDeps, ...overrides };
   const opencode = createOpencodeService(serviceOverrides);
+  let modelCache: { expiresAt: number; value: Promise<ReturnType<typeof parseOpencodeModels>> } | undefined;
+
+  const listModels = async (ctx: HarnessContext) => {
+    if (!(await deps.detect(ctx)).available) return [];
+    if (modelCache && modelCache.expiresAt > Date.now()) return modelCache.value;
+
+    const value = deps
+      .getModelsOutput(ctx)
+      .then(parseOpencodeModels)
+      .catch((error) => {
+        modelCache = undefined;
+        ctx.logger.warn(`OpenCode model discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+        return [];
+      });
+    modelCache = { expiresAt: Date.now() + MODEL_CACHE_TTL_MS, value };
+    return value;
+  };
 
   const fetchBaselineCount = async (sessionId: string, cwd: string | undefined) => {
     try {
@@ -167,22 +155,19 @@ export const createOpencodeHarness = (
     id: "opencode",
     label: l10n("harness.opencode", "OpenCode"),
     skills: { dir: ".agents/skills" },
+    params: opencodeParams,
 
     capabilities: () => ["SessionFork", "ContextUsage", "SessionReattach"],
     detect: (ctx) => deps.detect(ctx),
 
-    listModels: async (ctx) => {
-      if (!(await deps.detect(ctx)).available) return [];
-
-      const ids = parseOpencodeModels(await deps.getModelsOutput(ctx));
-      return ids.map((id) => ({ id }) satisfies AgentModel);
-    },
+    listModels,
 
     start: async (_ctx, input) => {
       const { sessionId, messageComplete } = await opencode.startSession({
         prompt: input.prompt,
         attachments: input.attachments,
         model: input.model,
+        params: input.params,
         cwd: input.cwd,
       });
 
@@ -217,6 +202,7 @@ export const createOpencodeHarness = (
         prompt: input.prompt,
         attachments: input.attachments,
         model: input.model,
+        params: input.params,
         cwd: input.cwd,
       });
       const abortController = new AbortController();

@@ -1,11 +1,4 @@
-export type AgentInfo = {
-  id: string;
-  name: string;
-  availability: {
-    type: "INSTALLED" | "NOT_FOUND";
-  };
-};
+import type { AgentInfo as ContractAgentInfo, AgentModel as ContractAgentModel } from "pstdio-api-contracts";
 
-export type AgentModel = {
-  id: string;
-};
+export type AgentInfo = ContractAgentInfo;
+export type AgentModel = ContractAgentModel;

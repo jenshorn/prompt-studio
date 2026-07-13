@@ -27,14 +27,21 @@ const BASE_ARGS = [
   "--verbose",
   "--permission-prompt-tool",
   "stdio",
-  "--permission-mode",
-  "bypassPermissions",
   "--disallowedTools",
   "AskUserQuestion",
 ];
 
-export const buildStartSessionArgs = (input: { model?: string | null }) => {
-  const args = [...BASE_ARGS];
+type ClaudeCodeParams = Partial<Record<"thinking", string | boolean>> & Record<string, string | boolean | undefined>;
+
+const permissionModeArgs = () => ["--permission-mode", "bypassPermissions"];
+
+const thinkingArgs = (params?: ClaudeCodeParams) => {
+  const thinking = params?.thinking;
+  return typeof thinking === "string" ? ["--effort", thinking] : [];
+};
+
+export const buildStartSessionArgs = (input: { model?: string | null; params?: ClaudeCodeParams }) => {
+  const args = [...BASE_ARGS, ...permissionModeArgs(), ...thinkingArgs(input.params)];
 
   if (input.model) {
     args.push("--model", input.model);
@@ -43,8 +50,12 @@ export const buildStartSessionArgs = (input: { model?: string | null }) => {
   return args;
 };
 
-export const buildResumeArgs = (input: { agentSessionId: string; model?: string | null }) => {
-  const args = ["--resume", input.agentSessionId, ...BASE_ARGS];
+export const buildResumeArgs = (input: {
+  agentSessionId: string;
+  model?: string | null;
+  params?: ClaudeCodeParams;
+}) => {
+  const args = ["--resume", input.agentSessionId, ...BASE_ARGS, ...permissionModeArgs(), ...thinkingArgs(input.params)];
 
   if (input.model) {
     args.push("--model", input.model);
@@ -273,6 +284,7 @@ export type StartSpawnInput = {
   prompt: string;
   attachments?: HarnessAttachment[];
   model?: string | null;
+  params?: ClaudeCodeParams;
   cwd?: string;
   env?: Record<string, string>;
   events: HarnessEventSink;

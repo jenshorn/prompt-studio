@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 export interface WorkspacePanelMenuOption {
   label: string;
   value: string;
+  description?: string;
   icon?: React.ComponentType<{ size?: number }>;
 }
 
@@ -85,14 +86,11 @@ const buildModelMenuItems = (
     return [{ id: "model-loading", label: labels.modelLoading, icon: Cpu, isDisabled: true }];
   }
 
-  if (modelOptions.length === 0) {
-    return [{ id: "model-none-available", label: labels.modelNoneAvailable, icon: Cpu, isDisabled: true }];
-  }
-
   return modelOptions.map((option) => ({
     id: option.value,
     label: option.label,
-    searchText: option.value,
+    secondaryLabel: option.description,
+    searchText: `${option.value} ${option.description ?? ""}`,
     isSelected: option.value === selectedModel,
     onSelect: () => onSelectModel(option.value),
   }));

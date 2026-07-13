@@ -93,6 +93,25 @@ describe("claude-code harness getMessages", () => {
 });
 
 describe("claude-code harness detection", () => {
+  test("declares discrete run params", () => {
+    const harness = createClaudeCodeHarness();
+
+    expect(harness.params).toMatchObject({
+      thinking: {
+        type: "select",
+        defaultValue: "high",
+        options: [
+          { label: "Low", value: "low", icon: "Gauge" },
+          { label: "Medium", value: "medium", icon: "Brain" },
+          { label: "High", value: "high", icon: "Zap" },
+          { label: "XHigh", value: "xhigh", icon: "Flame" },
+          { label: "Max", value: "max", icon: "Sparkles" },
+        ],
+      },
+    });
+    expect(harness.params).not.toHaveProperty("permission-mode");
+  });
+
   test("reports availability with the CLI version", async () => {
     const harness = createClaudeCodeHarness();
     expect(await harness.detect!(ctx)).toEqual({ available: true, version: "1.0.0" });
@@ -103,8 +122,16 @@ describe("claude-code harness detection", () => {
     expect(await harness.listModels!(ctx)).toEqual([]);
   });
 
-  test("lists known models when the CLI is present", async () => {
-    const harness = createClaudeCodeHarness();
-    expect((await harness.listModels!(ctx)).map((model) => model.id)).toEqual(["sonnet", "opus", "haiku"]);
+  test("lists discovered models when the CLI is present and caches the catalog", async () => {
+    let discoveries = 0;
+    const harness = createClaudeCodeHarness({
+      listModels: async () => {
+        discoveries += 1;
+        return [{ id: "sonnet-live" }];
+      },
+    });
+    expect((await harness.listModels!(ctx)).map((model) => model.id)).toEqual(["sonnet-live"]);
+    expect((await harness.listModels!(ctx)).map((model) => model.id)).toEqual(["sonnet-live"]);
+    expect(discoveries).toBe(1);
   });
 });

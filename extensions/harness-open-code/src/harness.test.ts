@@ -56,6 +56,27 @@ describe("createOpencodeHarness", () => {
     expect(h.label).toEqual({ $l10n: "harness.opencode", default: "OpenCode" });
   });
 
+  test("declares model thinking variants", () => {
+    const h = harness();
+
+    expect(h.params).toMatchObject({
+      variant: {
+        type: "select",
+        label: "Thinking",
+        defaultValue: "medium",
+        options: [
+          { label: "None", value: "none", icon: "CircleSlash" },
+          { label: "Minimal", value: "minimal", icon: "CircleDot" },
+          { label: "Low", value: "low", icon: "Gauge" },
+          { label: "Medium", value: "medium", icon: "Brain" },
+          { label: "High", value: "high", icon: "Zap" },
+          { label: "XHigh", value: "xhigh", icon: "Flame" },
+          { label: "Max", value: "max", icon: "Sparkles" },
+        ],
+      },
+    });
+  });
+
   test("reports capabilities", () => {
     const h = harness();
 
@@ -195,6 +216,25 @@ describe("listModels", () => {
     };
 
     expect(await h.listModels!(modelsCtx)).toEqual([{ id: "openai/gpt-4" }]);
+  });
+
+  test("caches discovered models", async () => {
+    let discoveries = 0;
+    const h = createOpencodeHarness(
+      {
+        detect: async () => ({ available: true }),
+        getModelsOutput: async () => {
+          discoveries += 1;
+          return "openai/gpt-4";
+        },
+      },
+      serviceOverrides(),
+    );
+
+    await h.listModels!(ctx);
+    await h.listModels!(ctx);
+
+    expect(discoveries).toBe(1);
   });
 });
 

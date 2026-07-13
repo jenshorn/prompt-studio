@@ -1,4 +1,5 @@
-import { Box, Flex } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
+import { findAgentModel, resolveAgentModelParams } from "pstdio-api-contracts/agent-model-params";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
 import { useAgentModels } from "@/shared/agents/use-agent-models";
@@ -8,11 +9,14 @@ import { WorkspaceAgentMenu } from "@/shared/components/workspace-agent-menu";
 import { useProject } from "@/shared/projects/use-project";
 import { createDashboardWorkspaceOptions, type DashboardWorkspaceOption } from "@/shared/workspaces/workspace-options";
 import type { DashboardSessionView } from "../data/dashboard-sessions";
+import { useHarnessParamDefaults } from "../hooks/use-harness-param-defaults";
 import {
   resolveRuntimeAgentSelection,
   resolveRuntimeModelSelection,
   resolveRuntimeWorkspaceSelection,
 } from "../runtime/session-runtime-selection";
+import { HarnessParamControls, type HarnessParamValues } from "./harness-param-controls";
+import { filterHarnessParamValues, harnessParamValuesEqual } from "./harness-param-values";
 import { SessionWorkspaceMenu } from "./session-workspace-menu";
 
 const fallbackAgentId = "pstdio.harness-open-code.opencode";
@@ -26,6 +30,8 @@ interface SessionRuntimeControlsProps {
   setSelectedModel: Dispatch<SetStateAction<string>>;
   selectedWorkspaceId: string;
   setSelectedWorkspaceId: Dispatch<SetStateAction<string>>;
+  harnessParamOverrides: HarnessParamValues;
+  setHarnessParamOverrides: Dispatch<SetStateAction<HarnessParamValues>>;
   onSelectWorkspace?: (workspace: DashboardWorkspaceOption) => void;
 }
 
@@ -50,6 +56,8 @@ export const SessionRuntimeControls = (props: SessionRuntimeControlsProps) => {
     setSelectedModel,
     selectedWorkspaceId,
     setSelectedWorkspaceId,
+    harnessParamOverrides,
+    setHarnessParamOverrides,
     onSelectWorkspace,
   } = props;
   const { data: project, isLoading: isProjectLoading } = useProject(projectId);
@@ -59,19 +67,29 @@ export const SessionRuntimeControls = (props: SessionRuntimeControlsProps) => {
     value: agent.id,
     disabled: agent.availability.type === "NOT_FOUND",
   }));
+  const selectedAgentInfo = agents.find((agent) => agent.id === selectedAgent);
   const defaultAgent = project?.default_agent_id ?? fallbackAgentId;
   // A stored selection can point at a harness whose extension is disabled; treat it as
   // unselected so the menu shows its empty state instead of fetching 404ing models.
   const isResolvedAgent = agents.some((agent) => agent.id === selectedAgent);
+  const harnessParamDefaults = useHarnessParamDefaults(projectId, isResolvedAgent ? selectedAgent : undefined);
   const { data: models = [], isLoading: isModelsLoading } = useAgentModels(selectedAgent, {
     enabled: Boolean(selectedAgent) && isResolvedAgent,
     projectId,
   });
-  const modelOptions = models.map((model) => ({ label: model.id, value: model.id }));
+  const modelOptions = models.map((model) => ({
+    label: model.label ?? model.id,
+    value: model.id,
+    description: model.description,
+  }));
   if (selectedModel && !modelOptions.some((option) => option.value === selectedModel)) {
-    modelOptions.push({ label: selectedModel, value: selectedModel });
+    modelOptions.push({ label: selectedModel, value: selectedModel, description: undefined });
   }
   const preferredModel = view.lastSelectedModel ?? project?.default_agent_model ?? "";
+  const baseParamSchema = harnessParamDefaults.data?.schema ?? selectedAgentInfo?.params;
+  const selectedModelInfo = findAgentModel(models, selectedModel);
+  const effectiveParamSchema = resolveAgentModelParams(baseParamSchema, selectedModelInfo);
+  const effectiveParamDefaults = filterHarnessParamValues(effectiveParamSchema, harnessParamDefaults.data?.defaults);
   const workspaceOptions = createDashboardWorkspaceOptions(projectId);
   const defaultWorkspaceId = workspaceOptions.find((workspace) => workspace.isDefault)?.id ?? null;
   const selectedWorkspaceLabel = getSelectedWorkspaceLabel({
@@ -104,6 +122,14 @@ export const SessionRuntimeControls = (props: SessionRuntimeControlsProps) => {
   }, [isModelsLoading, models, preferredModel, selectedModel, setSelectedModel]);
 
   useEffect(() => {
+    setHarnessParamOverrides((current) => {
+      const schema = resolveAgentModelParams(baseParamSchema, selectedModelInfo);
+      const next = filterHarnessParamValues(schema, current);
+      return harnessParamValuesEqual(current, next) ? current : next;
+    });
+  }, [baseParamSchema, selectedModelInfo, setHarnessParamOverrides]);
+
+  useEffect(() => {
     const nextWorkspaceId = resolveRuntimeWorkspaceSelection({
       workspaces: workspaceOptions,
       selectedWorkspaceId,
@@ -118,6 +144,7 @@ export const SessionRuntimeControls = (props: SessionRuntimeControlsProps) => {
   const handleSelectAgent = (agent: string) => {
     setSelectedAgent(agent);
     setSelectedModel("");
+    setHarnessParamOverrides({});
     saveRecentHarnessSelection(projectId, { harnessId: agent });
   };
 
@@ -133,8 +160,8 @@ export const SessionRuntimeControls = (props: SessionRuntimeControlsProps) => {
   };
 
   return (
-    <Flex justifyContent="space-between" align="center" gap="2xs" w="full" minW="0" px="xs" pb="xs" wrap="nowrap">
-      <Box flexShrink="0">
+    <Flex justifyContent="space-between" align="center" gap="2xs" w="full" minW="0" px="xs" pb="xs" wrap="wrap">
+      <Flex align="center" justify="flex-end" gap="2xs" minW="0" wrap="wrap">
         <WorkspaceAgentMenu
           agentOptions={agentOptions}
           selectedAgent={isResolvedAgent ? selectedAgent : ""}
@@ -146,7 +173,14 @@ export const SessionRuntimeControls = (props: SessionRuntimeControlsProps) => {
           isAgentsLoading={isAgentsLoading}
           isModelsLoading={isModelsLoading}
         />
-      </Box>
+        <HarnessParamControls
+          schema={effectiveParamSchema ?? undefined}
+          defaults={effectiveParamDefaults}
+          overrides={harnessParamOverrides}
+          onOverridesChange={setHarnessParamOverrides}
+          disabled={!isResolvedAgent}
+        />
+      </Flex>
       <SessionWorkspaceMenu
         workspaces={workspaceOptions}
         selectedWorkspaceId={selectedWorkspaceId}
