@@ -15,6 +15,7 @@ import { createWorkspacesModule } from "../workspaces/module";
 import { createSidebarModule } from "./module";
 
 const PROJECT_ID = "demo-project";
+const WORKSPACES_KEYBINDING = "mod+shift+w";
 
 const seedSessions = () => {
   getWriter("sessions")?.truncateAndWrite([
@@ -108,7 +109,10 @@ const bootstrapWorkbench = () => {
     workbench.registerModule(module);
   }
 
-  workbench.keybindings.registerKeybinding({ commandId: dashboardCommandIds.openCommandPalette, keybinding: "mod+k" });
+  workbench.keybindings.registerKeybinding({
+    commandId: dashboardCommandIds.openWorkspaces,
+    keybinding: WORKSPACES_KEYBINDING,
+  });
 
   selectDashboardProject(workbench, { id: PROJECT_ID, name: "Prompt Studio" });
   return workbench;
@@ -146,6 +150,15 @@ export const ProjectMode: Story = {
 // Workspaces view: project, search, and notifications stay fixed above project navigation; create is on the Workspaces row.
 export const WorkspacesView: Story = {
   render: () => <SidebarStory open={(workbench) => openInMode(workbench, dashboardResources.workspaces)} />,
+};
+
+export const WorkspacesViewHover: Story = {
+  render: () => <SidebarStory open={(workbench) => openInMode(workbench, dashboardResources.workspaces)} />,
+  play: async ({ canvasElement }) => {
+    canvasElement
+      .querySelector('[data-tree-list-focus-id="dashboard-workbench://dashboard-view/workspaces"]')
+      ?.setAttribute("data-hover", "");
+  },
 };
 
 // Session mode: project · search · new-session stay fixed above one collapsible "Sessions" group.
