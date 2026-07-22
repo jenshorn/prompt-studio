@@ -23,13 +23,14 @@ import { createDashboardSessions, findDashboardSession } from "./data/dashboard-
 import { createSessionsSidebarSections } from "./sessions-sidebar-tree";
 
 const registerSessionWidgets = (ctx: WorkbenchModuleContributionContext) => {
-  ctx.layout.registerWidget(
+  ctx.layout.registerLocation(
     {
       id: dashboardWidgetIds.session,
       title: "Session",
       region: "main",
       singleton: true,
       rendererId: dashboardWidgetIds.session,
+      floatingPanels: "hidden",
       priority: 40,
     },
     { priority: 40 },
@@ -187,11 +188,7 @@ export const createSessionsModule = () =>
       ctx.modes.registerMode({
         id: "sessions",
         label: "Sessions",
-        activate(modeCtx) {
-          modeCtx.layout.clearRegion("side");
-          modeCtx.layout.clearRegion("side-header");
-          return undefined;
-        },
+        activate: () => undefined,
       });
 
       ctx.resources.registerProvider({

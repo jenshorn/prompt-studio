@@ -3,18 +3,12 @@ import type {
   WorkbenchModuleContribution,
   WorkbenchModuleContributionContext,
 } from "@pstdio/workbench/core";
-import { workbenchRegionTabAddMenuPath } from "@pstdio/workbench/core";
 import { SessionWidget } from "@/modules/sessions/components/session-widget";
-import {
-  forgetDashboardSession,
-  getDashboardSelectedSession,
-  rememberDashboardSessionResource,
-} from "@/modules/sessions/state/session-selection";
+import { forgetDashboardSession, rememberDashboardSessionResource } from "@/modules/sessions/state/session-selection";
 import { dashboardCommandIds } from "@/shared/app/commands";
 import { getDashboardSelectedProjectId } from "@/shared/app/project-context";
-import { createDashboardResource } from "@/shared/app/resources";
+import { createDashboardResource, dashboardResources } from "@/shared/app/resources";
 import { dashboardWidgetIds } from "@/shared/app/widget-ids";
-import { registerModeChromeContribution } from "@/shared/workbench/contributions/mode-chrome-contributions";
 import { createDashboardWorkspaceOptions } from "@/shared/workspaces/workspace-options";
 import { openSessionBubbleWidgets } from "./session-bubble";
 import { SessionTabContent, SessionTabContextMenu } from "./session-tab";
@@ -78,15 +72,35 @@ const selectSidebarSessionNode = (ctx: WorkbenchModuleContributionContext, resou
   }
 };
 
+const getReusableSessionPlacementId = (ctx: WorkbenchModuleContributionContext) => {
+  const region = ctx.layout.getLayout().regions.side;
+  const active = region.widgets.find(
+    (placement) =>
+      placement.widgetId === region.activeWidgetId && placement.contributionId === dashboardWidgetIds.sessionBubble,
+  );
+  if (active) return active.widgetId;
+
+  const locationUri = ctx.getPrimaryResource()?.uri;
+  return region.widgets.find(
+    (placement) =>
+      placement.contributionId === dashboardWidgetIds.sessionBubble && placement.ownerResourceUri === locationUri,
+  )?.widgetId;
+};
+
 const registerSessionBubbleWidgets = (ctx: WorkbenchModuleContributionContext) => {
-  ctx.layout.registerWidget(
+  ctx.layout.registerSubPanel(
     {
       id: dashboardWidgetIds.sessionBubble,
-      title: "Session bubble",
+      title: "New session",
       region: "side",
       singleton: false,
       closable: true,
       rendererId: dashboardWidgetIds.sessionBubble,
+      openCommandId: dashboardCommandIds.createSession,
+      eligibleLocations: {
+        resourceKinds: ["dashboard-view", "ticket", "workspace"],
+        canOpen: (resource) => resource.kind !== "dashboard-view" || resource.id !== dashboardResources.sessions.id,
+      },
       icon: "MessageCircle",
       tab: {
         contentRendererId: sessionTabRendererId,
@@ -109,11 +123,12 @@ const registerSessionBubbleWidgets = (ctx: WorkbenchModuleContributionContext) =
     id: sessionTabContextMenuRendererId,
     render: (input) => <SessionTabContextMenu input={input} />,
   });
-
-  openSessionBubbleWidgets(ctx);
 };
 
-const openNewSessionDraft = (ctx: WorkbenchModuleContributionContext, input: { workspace?: ResourceRef } = {}) => {
+const openNewSessionDraft = (
+  ctx: WorkbenchModuleContributionContext,
+  input: { workspace?: ResourceRef; replaceWidgetId?: string } = {},
+) => {
   const workspace = input.workspace ?? getWorkspaceModeResource(ctx) ?? createDefaultWorkspaceResource(ctx);
   const draftResource = createNewSessionDraftResource(workspace);
   forgetDashboardSession(ctx);
@@ -127,14 +142,9 @@ const openNewSessionDraft = (ctx: WorkbenchModuleContributionContext, input: { w
   const placement = openSessionBubbleWidgets(ctx, {
     resource: draftResource,
     title: draftResource.label,
+    replaceWidgetId: input.replaceWidgetId,
   });
   return placement.bubble;
-};
-
-const openRememberedSessionBubble = (ctx: WorkbenchModuleContributionContext) => {
-  const session = getDashboardSelectedSession(ctx);
-  openSessionBubbleWidgets(ctx, session ? { resource: session.resource, title: session.title } : {});
-  return undefined;
 };
 
 const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) => {
@@ -147,14 +157,23 @@ const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) 
     },
     {
       execute: async (args) => {
-        const { resource, selectWorkspaceSidebar = true } = (args ?? {}) as {
+        const {
+          resource,
+          replaceWidgetId,
+          selectWorkspaceSidebar = true,
+        } = (args ?? {}) as {
           resource?: ResourceRef;
+          replaceWidgetId?: string;
           selectWorkspaceSidebar?: boolean;
         };
         if (resource?.kind !== "session" || !resource.id) return undefined;
 
         rememberDashboardSessionResource(ctx, resource);
-        const placement = openSessionBubbleWidgets(ctx, { resource, title: resource.label });
+        const placement = openSessionBubbleWidgets(ctx, {
+          resource,
+          title: resource.label,
+          replaceWidgetId: replaceWidgetId ?? getReusableSessionPlacementId(ctx),
+        });
         selectSidebarSessionNode(ctx, resource);
         if (
           selectWorkspaceSidebar &&
@@ -173,17 +192,16 @@ const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) 
   ctx.commands.registerCommand(
     { id: dashboardCommandIds.createSession, label: "New session", category: "Dashboard", icon: "PenBox" },
     {
-      execute: (args) => {
-        const { workspace } = (args ?? {}) as { workspace?: ResourceRef };
-        return openNewSessionDraft(ctx, { workspace });
+      execute: (args, context) => {
+        const { replaceWidgetId, workspace } = (args ?? {}) as { replaceWidgetId?: string; workspace?: ResourceRef };
+        return openNewSessionDraft(ctx, {
+          workspace,
+          replaceWidgetId:
+            context?.source === "panel-add" ? undefined : (replaceWidgetId ?? getReusableSessionPlacementId(ctx)),
+        });
       },
     },
   );
-  ctx.layout.registerMenuItem(workbenchRegionTabAddMenuPath("side"), {
-    commandId: dashboardCommandIds.createSession,
-    label: "New session",
-    icon: "PenBox",
-  });
 };
 
 export const createSessionBubbleModule = () =>
@@ -192,9 +210,5 @@ export const createSessionBubbleModule = () =>
     activate(ctx) {
       registerSessionBubbleWidgets(ctx);
       registerSessionBubbleCommands(ctx);
-      registerModeChromeContribution(ctx, "*", {
-        id: "dashboard.session-bubble",
-        activate: openRememberedSessionBubble,
-      });
     },
   }) satisfies WorkbenchModuleContribution;

@@ -61,9 +61,10 @@ test("PS-167 keeps navigation and region controls in one stable Nav Chrome", asy
   await prepareDashboard(page, project.id);
   await page.goto(`/projects/${project.id}/tickets`);
 
-  const nav = page.locator('[data-workbench-region="nav"]');
-  const navNode = await nav.elementHandle();
-  expect(navNode).not.toBeNull();
+  const nav = page
+    .locator('[data-workbench-region="nav"]')
+    .filter({ has: page.getByRole("button", { name: "Navigate back" }) })
+    .first();
   await expect(nav).toBeVisible();
 
   const back = nav.getByRole("button", { name: "Navigate back" });
@@ -77,10 +78,9 @@ test("PS-167 keeps navigation and region controls in one stable Nav Chrome", asy
   await expect(nav.getByRole("button", { name: /Sidebar/ })).toHaveCount(0);
   await expect(secondary).toHaveAttribute("aria-pressed", "true");
   await expect(side).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("workbench-session-bubble")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open session panel" })).toHaveCount(0);
+  await expect(page.getByTestId("workbench-session-bubble")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Open session panel" })).toBeVisible();
   const selectedBackground = await backgroundColor(secondary);
-  expect(await backgroundColor(side)).not.toBe(selectedBackground);
   await orderedCenters([back, forward, secondary, side]);
 
   const mainHeader = page.locator('[data-workbench-panel-header="main"]');
@@ -94,14 +94,16 @@ test("PS-167 keeps navigation and region controls in one stable Nav Chrome", asy
   const closedSidebar = nav.getByRole("button", { name: "Show Sidebar" });
   await expect(closedSidebar).toHaveAttribute("aria-pressed", "false");
   await expect.poll(() => backgroundColor(closedSidebar)).not.toBe(selectedBackground);
-  await orderedCenters([closedSidebar, back, forward, secondary, side]);
+  await orderedCenters([closedSidebar, back, forward, secondary]);
 
   await page.getByText("Own navigation chrome", { exact: true }).click();
   await expect(page.getByRole("link", { name: `${ticket.shorthand} Own navigation chrome` })).toBeVisible();
-  await expect(back).toBeDisabled();
+  await expect(back).toBeEnabled();
   await expect(forward).toBeDisabled();
+  await back.click();
+  await expect(page.getByText("Own navigation chrome", { exact: true })).toBeVisible();
+  await expect(forward).toBeEnabled();
   await expect(closedSidebar).toBeVisible();
-  expect(await navNode!.evaluate((element) => element.isConnected)).toBe(true);
 
   await closedSidebar.focus();
   await expect(closedSidebar).toBeFocused();
@@ -109,11 +111,21 @@ test("PS-167 keeps navigation and region controls in one stable Nav Chrome", asy
   await expect(sidebarSeparator).toBeVisible();
   await expect(nav.getByRole("button", { name: /Sidebar/ })).toHaveCount(0);
 
+  await forward.click();
+  await expect(page.getByRole("link", { name: `${ticket.shorthand} Own navigation chrome` })).toBeVisible();
+  await expect(nav.getByRole("button", { name: /Sidebar/ })).toHaveCount(0);
+  await expect(side).toHaveAttribute("aria-pressed", "false");
+  expect(await backgroundColor(side)).not.toBe(selectedBackground);
+
   await side.click();
   const openSide = nav.getByRole("button", { name: "Hide Side Panel" });
   await expect(openSide).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => backgroundColor(openSide)).toBe(selectedBackground);
   await expect(page.getByTestId("workbench-session-attached-panel")).toBeVisible();
+  await page.locator('[data-workbench-panel-header="side"]').getByRole("button", { name: "Add panel" }).click();
+  await expect(
+    page.locator('[data-workbench-panel-header="side"]').getByRole("tab", { name: /New session/ }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Open session panel" })).toHaveCount(0);
   await openSide.click();
   const closedSide = nav.getByRole("button", { name: "Show Side Panel" });
@@ -195,7 +207,6 @@ test.describe("PS-167 breadcrumb Storybook contract", () => {
     await page.getByRole("button", { name: "Search PS" }).click();
     await page.getByText("PS-101 Palette resource providers", { exact: true }).click();
 
-    const paletteTab = page.getByRole("tab", { name: "Palette resources" });
     const ticketTab = page.getByRole("tab", { name: "PS-101" });
     const tabNames = async () => page.getByRole("tab").allTextContents();
     const initialTabNames = await tabNames();
@@ -203,7 +214,7 @@ test.describe("PS-167 breadcrumb Storybook contract", () => {
     await expect(ticketTab).toHaveAttribute("aria-selected", "true");
 
     await nav.getByRole("button", { name: "Navigate back" }).click();
-    await expect(paletteTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("button", { name: "Search PS" })).toBeVisible();
     expect(await tabNames()).toEqual(initialTabNames);
 
     await nav.getByRole("button", { name: "Navigate forward" }).click();
@@ -229,20 +240,25 @@ test.describe("PS-167 breadcrumb Storybook contract", () => {
       "PS-144 Resource activation",
     ];
     for (const [index, result] of results.entries()) {
-      if (index > 0) await page.getByRole("tab", { name: "Palette resources" }).click();
-      await page.getByRole("button", { name: "Search PS" }).click();
+      if (index > 0)
+        await page.locator('[data-workbench-region="main"]').getByRole("button", { name: "Search PS" }).click();
+      else await page.getByRole("button", { name: "Search PS" }).click();
       await page.getByText(result, { exact: true }).click();
+      if (index < results.length - 1)
+        await page.locator('[data-workbench-region="nav"]').getByRole("button", { name: "Navigate back" }).click();
     }
 
-    const mainTabList = page.getByRole("tablist").filter({ has: page.getByRole("tab", { name: "Palette resources" }) });
+    const mainTabList = page.locator('[data-workbench-panel-header="main"]').getByRole("tablist");
     await expect(mainTabList.getByRole("tab")).toHaveCount(4);
     for (let remaining = 3; remaining > 0; remaining -= 1) {
-      const closeButtons = page.getByRole("button", { name: /^Close PS-/ });
-      await expect(closeButtons).toHaveCount(remaining);
-      await closeButtons.last().click();
+      const tabs = mainTabList.getByRole("tab");
+      await expect(tabs).toHaveCount(remaining + 1);
+      const tab = tabs.last();
+      await tab.click();
+      await tab.getByRole("button", { name: /^Close PS-/ }).click();
     }
 
-    await expect(mainTabList.getByRole("tab")).toHaveCount(1);
+    await expect(mainTabList).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Search PS" })).toBeVisible();
     const nav = page.locator('[data-workbench-region="nav"]');
     await expect(nav.getByRole("button", { name: "Navigate back" })).toBeDisabled();
@@ -252,8 +268,21 @@ test.describe("PS-167 breadcrumb Storybook contract", () => {
   test("renders code documents inside the workbench theme provider", async ({ page }) => {
     await page.goto(storyUrl(baseUrl, documentRendererStoryId));
 
+    await expect(page.getByRole("tab", { name: "Documents" })).toHaveCount(0);
     await page.getByRole("tab", { name: "example.ts" }).click();
 
     await expect(page.locator(".monaco-editor")).toBeVisible();
+
+    const mainHeader = page.locator('[data-workbench-panel-header="main"]');
+    for (const name of ["notes.md", "example.ts", "logo.svg"]) {
+      const tab = mainHeader.getByRole("tab", { name });
+      await tab.click();
+      await tab.getByRole("button", { name: `Close ${name}` }).click();
+    }
+
+    const addPanel = mainHeader.getByRole("button", { name: "Add panel" });
+    await expect(addPanel).toBeVisible();
+    await addPanel.click();
+    await expect(page.getByRole("menu", { name: "Add panel" }).getByRole("menuitem")).toHaveCount(3);
   });
 });

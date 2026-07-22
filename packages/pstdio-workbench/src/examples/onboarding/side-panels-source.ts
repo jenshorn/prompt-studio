@@ -133,28 +133,30 @@ export const createSidePanelsModule = (): WorkbenchModuleContribution => ({
       region: "sidebar",
       rendererId: PICKER_RENDERER_ID,
     });
-    ctx.layout.registerWidget({
-      id: CONTEXT_ID,
-      title: "Context",
-      icon: "ListTree",
-      region: "main-left-menu",
-      rendererId: CONTEXT_RENDERER_ID,
-    });
-    ctx.layout.registerWidget({
+    ctx.layout.registerLocation({
       id: DETAIL_ID,
       title: "Detail",
       region: "main",
       singleton: false,
       resourceKinds: [ITEM_KIND],
       rendererId: DETAIL_RENDERER_ID,
+      panelMenus: [
+        {
+          id: CONTEXT_ID,
+          title: "Context",
+          icon: "ListTree",
+          side: "left",
+          rendererId: CONTEXT_RENDERER_ID,
+        },
+      ],
     });
-    ctx.layout.registerWidget({
+    ctx.layout.registerSubPanel({
       id: INSPECTOR_ID,
       title: "Inspector",
       region: "side",
       rendererId: INSPECTOR_RENDERER_ID,
     });
-    ctx.layout.registerWidget({
+    ctx.layout.registerSubPanel({
       id: ACTIVITY_ID,
       title: "Activity",
       region: "secondary",
@@ -163,7 +165,6 @@ export const createSidePanelsModule = (): WorkbenchModuleContribution => ({
     });
 
     ctx.layout.openWidget(PICKER_ID, { pinned: true });
-    ctx.layout.openWidget(CONTEXT_ID, { pinned: true });
     ctx.layout.openWidget(INSPECTOR_ID, { pinned: true });
     ctx.layout.openWidget(ACTIVITY_ID, { pinned: true });
     void ctx.resources.openResource(itemResource(items[0]));

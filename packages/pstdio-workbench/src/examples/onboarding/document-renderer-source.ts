@@ -10,6 +10,10 @@ let notes = [
 export const createDocumentRendererModule = (): WorkbenchModuleContribution => ({
   id: "docs.document-renderer",
   activate(ctx) {
+    ctx.renderers.registerRenderer({
+      id: "docs.documents",
+      render: () => null,
+    });
     ctx.renderers.registerFileRenderer({
       id: "docs.notes",
       title: "notes.md",
@@ -19,7 +23,13 @@ export const createDocumentRendererModule = (): WorkbenchModuleContribution => (
       },
     });
 
-    ctx.layout.registerWidget({
+    ctx.layout.registerPlaceholder({
+      id: "docs.documents.placeholder",
+      title: "Documents",
+      region: "main",
+      rendererId: "docs.documents",
+    });
+    ctx.layout.registerSubPanel({
       id: "docs.notes",
       title: "notes.md",
       region: "main",

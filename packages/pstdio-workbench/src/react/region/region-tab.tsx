@@ -8,6 +8,7 @@ interface WorkbenchRegionTabProps {
   workbench: WorkbenchCore;
   placement: WorkbenchWidgetPlacement;
   activeWidgetId: string | undefined;
+  disabled?: boolean;
 }
 
 const noopRefresh = () => undefined;
@@ -26,7 +27,7 @@ const WorkbenchTabRenderer = (props: {
 };
 
 export const WorkbenchRegionTab = (props: WorkbenchRegionTabProps) => {
-  const { activeWidgetId, placement, workbench } = props;
+  const { activeWidgetId, disabled = false, placement, workbench } = props;
   const closable = placement.closable === true;
   const isActive = placement.widgetId === activeWidgetId;
   const label = placement.title ?? placement.contributionId;
@@ -39,10 +40,9 @@ export const WorkbenchRegionTab = (props: WorkbenchRegionTabProps) => {
   const contextMenuRendererId = placement.tab?.contextMenuRendererId;
   const [menuOpen, setMenuOpen] = useState(false);
   const [anchor, setAnchor] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  const openContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
-    if (!contextMenuRendererId) return;
+  const openTabMenu = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!contextMenuRendererId || disabled) return;
 
-    event.preventDefault();
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     setAnchor({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
@@ -55,8 +55,11 @@ export const WorkbenchRegionTab = (props: WorkbenchRegionTabProps) => {
       minW="0"
       flexShrink={0}
       title={label}
+      disabled={disabled}
       className="group"
-      onContextMenu={contextMenuRendererId ? openContextMenu : undefined}
+      aria-haspopup={contextMenuRendererId ? "menu" : undefined}
+      aria-expanded={contextMenuRendererId ? menuOpen : undefined}
+      onClick={contextMenuRendererId && isActive && !disabled ? openTabMenu : undefined}
     >
       {contentRendererId ? (
         <WorkbenchTabRenderer workbench={workbench} placement={placement} rendererId={contentRendererId} />
@@ -73,6 +76,7 @@ export const WorkbenchRegionTab = (props: WorkbenchRegionTabProps) => {
           as="span"
           role="button"
           aria-label={`Close ${label}`}
+          aria-disabled={disabled}
           size="2xs"
           boxSize="1rem"
           minW="1rem"
@@ -91,6 +95,7 @@ export const WorkbenchRegionTab = (props: WorkbenchRegionTabProps) => {
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
+            if (disabled) return;
             workbench.layout.closeWidget(placement.widgetId);
           }}
         />

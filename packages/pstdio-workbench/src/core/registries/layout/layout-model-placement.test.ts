@@ -94,6 +94,106 @@ describe("createLayoutModel widget placement", () => {
     expect(layout.getLayout().regions.main.widgets).toEqual([placement]);
     expect(layout.getLayout().activeWidgetId).toBe(tickets.widgetId);
   });
+});
+
+describe("createLayoutModel Location-owned placements", () => {
+  test("keeps singleton Sub Panels scoped to their Location when switching Locations", () => {
+    const layout = createLayoutModel();
+
+    layout.registerLocation({
+      id: "project.location",
+      title: "Project",
+      region: "main",
+      singleton: false,
+      rendererId: "test.renderer",
+    });
+    layout.registerSubPanel({
+      id: "project.notes",
+      title: "Notes",
+      region: "main",
+      rendererId: "test.renderer",
+    });
+
+    const alphaResource = { kind: "project", uri: "pstdio://project/alpha", label: "Alpha" };
+    const betaResource = { kind: "project", uri: "pstdio://project/beta", label: "Beta" };
+    layout.openWidget("project.location", { resource: alphaResource, replaceActive: true });
+    const alphaNotes = layout.openWidget("project.notes");
+    layout.openWidget("project.location", { resource: betaResource, replaceActive: true });
+    const betaNotes = layout.openWidget("project.notes");
+
+    layout.openWidget("project.location", { resource: alphaResource, replaceActive: true });
+
+    expect(alphaNotes.widgetId).not.toBe(betaNotes.widgetId);
+    expect(layout.getLayout().regions.main.widgets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ widgetId: alphaNotes.widgetId, ownerResourceUri: alphaResource.uri }),
+        expect.objectContaining({ widgetId: betaNotes.widgetId, ownerResourceUri: betaResource.uri }),
+      ]),
+    );
+    expect(layout.getLayout().regions.main.activeWidgetId).toBe(alphaNotes.widgetId);
+  });
+
+  test("keeps singleton Panel Menus scoped to their Location", () => {
+    const layout = createLayoutModel();
+
+    layout.registerLocation({
+      id: "project.location",
+      title: "Project",
+      region: "main",
+      singleton: false,
+      rendererId: "test.renderer",
+    });
+    layout.registerPanelMenu({
+      id: "project.inspector",
+      title: "Inspector",
+      region: "main-right-menu",
+      rendererId: "test.renderer",
+    });
+
+    const alphaResource = { kind: "project", uri: "pstdio://project/alpha", label: "Alpha" };
+    const betaResource = { kind: "project", uri: "pstdio://project/beta", label: "Beta" };
+    layout.openWidget("project.location", { resource: alphaResource, replaceActive: true });
+    const alphaInspector = layout.openWidget("project.inspector");
+    layout.openWidget("project.location", { resource: betaResource, replaceActive: true });
+    const betaInspector = layout.openWidget("project.inspector");
+
+    expect(alphaInspector.widgetId).not.toBe(betaInspector.widgetId);
+    expect(layout.getLayout().regions["main-right-menu"].widgets).toEqual([
+      expect.objectContaining({ widgetId: alphaInspector.widgetId, ownerResourceUri: alphaResource.uri }),
+      expect.objectContaining({ widgetId: betaInspector.widgetId, ownerResourceUri: betaResource.uri }),
+    ]);
+  });
+});
+
+describe("createLayoutModel placement lifecycle", () => {
+  test("replaces one explicit Sub Panel placement without creating another tab", () => {
+    const layout = createLayoutModel();
+    const sessionA = { kind: "session", uri: "pstdio://session/a", label: "Session A" };
+    const sessionB = { kind: "session", uri: "pstdio://session/b", label: "Session B" };
+    const sessionC = { kind: "session", uri: "pstdio://session/c", label: "Session C" };
+
+    layout.registerSubPanel({
+      id: "project.session",
+      title: "Session",
+      region: "side",
+      singleton: false,
+      rendererId: "test.renderer",
+    });
+
+    const first = layout.openWidget("project.session", { resource: sessionA, pinned: true });
+    const second = layout.openWidget("project.session", { resource: sessionB });
+    const replaced = layout.openWidget("project.session", {
+      resource: sessionC,
+      replaceWidgetId: first.widgetId,
+    });
+
+    expect(replaced.widgetId).toBe(first.widgetId);
+    expect(layout.getLayout().regions.side.widgets).toEqual([
+      expect.objectContaining({ widgetId: first.widgetId, resourceUri: sessionC.uri }),
+      expect.objectContaining({ widgetId: second.widgetId, resourceUri: sessionB.uri }),
+    ]);
+    expect(layout.getLayout().regions.side.activeWidgetId).toBe(first.widgetId);
+  });
 
   test("moves a reusable placement when reopened in a different region without a resource update", () => {
     const layout = createLayoutModel();

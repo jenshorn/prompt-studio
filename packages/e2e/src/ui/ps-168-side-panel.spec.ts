@@ -1,5 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { expect, test } from "@playwright/test";
+import { createPlannerTicket } from "../helpers/planner-api";
 import { startStorybook, storyUrl } from "./mermaid-renderer-storybook";
 
 const apiPort = Number(process.env.E2E_API_PORT ?? "3200");
@@ -35,7 +36,7 @@ const expectNear = (actual: number, expected: number) => {
 };
 
 const expectDashboardAttachedBounds = async (page: import("@playwright/test").Page) => {
-  const main = page.locator('[data-workbench-region="main"]');
+  const main = page.locator('[data-workbench-panel="main"]');
   const side = page.getByTestId("workbench-session-attached-panel");
   const [mainBox, sideBox] = await Promise.all([main.boundingBox(), side.boundingBox()]);
   expect(mainBox).not.toBeNull();
@@ -51,11 +52,15 @@ const expectDashboardAttachedBounds = async (page: import("@playwright/test").Pa
 test("PS-168 closes and keyboard-restores the same full-height Side Panel", async ({ page, request }) => {
   await deleteAllProjects(request);
   const project = await createProject(request);
+  const ticket = await createPlannerTicket(request, apiBase, project.id, { content: "Inspect Side Panel geometry" });
   await prepareDashboard(page, project.id);
+  await page.getByRole("option", { name: "Tickets", exact: true }).click();
+  await page.getByText(ticket.content, { exact: true }).click();
 
   const nav = page.locator('[data-workbench-region="nav"]');
   await nav.getByRole("button", { name: "Show Side Panel" }).click();
   await expect(page.getByTestId("workbench-session-attached-panel")).toBeVisible();
+  await page.locator('[data-workbench-panel-header="side"]').getByRole("button", { name: "Add panel" }).click();
   await expectDashboardAttachedBounds(page);
 
   const mainNode = await page.locator('[data-workbench-region="main"]').elementHandle();
@@ -70,7 +75,7 @@ test("PS-168 closes and keyboard-restores the same full-height Side Panel", asyn
   await expect(page.getByRole("button", { name: "Open session panel" })).toBeVisible();
   await expect(page.getByTestId("workbench-session-bubble")).toHaveCount(0);
 
-  const closedMainBox = await page.locator('[data-workbench-region="main"]').boundingBox();
+  const closedMainBox = await page.locator('[data-workbench-panel="main"]').boundingBox();
   expect(closedMainBox).not.toBeNull();
   expectNear(closedMainBox!.x + closedMainBox!.width, 1280);
   expect(await mainNode!.evaluate((element) => element.isConnected)).toBe(true);
@@ -109,7 +114,7 @@ test.describe("PS-168 Side Panels Storybook contract", () => {
 
     const side = page.getByTestId("workbench-session-attached-panel");
     const sidebar = page.locator('[data-workbench-region="sidebar"]');
-    const main = page.locator('[data-workbench-region="main"]');
+    const main = page.locator('[data-workbench-panel="main"]');
     const separator = page.getByRole("separator", { name: "Resize Side Panel" });
     await expect(side).toBeVisible({ timeout: 30_000 });
     const [sideBox, sidebarBox, mainBox] = await Promise.all([

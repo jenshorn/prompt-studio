@@ -12,9 +12,13 @@ export const workbenchRegions = [
   "main",
   "main-right-menu",
   "secondary-header",
+  "secondary-left-menu",
   "secondary",
+  "secondary-right-menu",
   "side-header",
+  "side-left-menu",
   "side",
+  "side-right-menu",
   "status",
   "overlay",
 ] as const;
@@ -25,6 +29,27 @@ export const workbenchPanelRegions = ["main", "secondary", "side"] as const sati
 
 export type WorkbenchPanelRegion = (typeof workbenchPanelRegions)[number];
 
+export type WorkbenchPanelMenuSide = "left" | "right";
+
+export const workbenchPanelMenuRegions = {
+  main: { left: "main-left-menu", right: "main-right-menu" },
+  secondary: { left: "secondary-left-menu", right: "secondary-right-menu" },
+  side: { left: "side-left-menu", right: "side-right-menu" },
+} as const satisfies Record<WorkbenchPanelRegion, Record<WorkbenchPanelMenuSide, WorkbenchRegion>>;
+
+export type WorkbenchPanelMenuRegion = (typeof workbenchPanelMenuRegions)[WorkbenchPanelRegion][WorkbenchPanelMenuSide];
+
+const workbenchPanelByMenuRegion = {
+  "main-left-menu": "main",
+  "main-right-menu": "main",
+  "secondary-left-menu": "secondary",
+  "secondary-right-menu": "secondary",
+  "side-left-menu": "side",
+  "side-right-menu": "side",
+} as const satisfies Record<WorkbenchPanelMenuRegion, WorkbenchPanelRegion>;
+
+export const getWorkbenchPanelForMenuRegion = (region: WorkbenchPanelMenuRegion) => workbenchPanelByMenuRegion[region];
+
 export interface WorkbenchRegionSize {
   defaultPx?: number;
   minPx?: number;
@@ -34,6 +59,21 @@ export interface WorkbenchRegionSize {
 export type WidgetReusePolicy = "resource" | "none";
 
 export type WidgetMountStrategy = "active" | "keep-mounted";
+
+export type WorkbenchFloatingPanelVisibility = "visible" | "hidden";
+
+export type WorkbenchWidgetRole = "content" | "location" | "sub-panel" | "panel-menu";
+
+export interface WorkbenchLocationEligibility {
+  modeIds?: string[];
+  resourceKinds?: string[];
+  resourceIds?: string[];
+  canOpen?(resource: ResourceRef): boolean;
+}
+
+export type WorkbenchPanelMenuOwner =
+  | { level: "panel"; contributionId?: string }
+  | { level: "sub-panel"; contributionId: string };
 
 export interface WorkbenchWidgetTab {
   contentRendererId?: string;
@@ -56,20 +96,47 @@ export interface WidgetContribution {
   regionSize?: WorkbenchRegionSize;
   regionCollapsible?: boolean;
   headerBorderBottom?: boolean;
+  floatingPanels?: WorkbenchFloatingPanelVisibility;
   resourceKinds?: string[];
   priority?: number;
   rendererId: string;
   openCommandId?: string;
-  // Only explicitly addable widgets appear in panel add menus and palette entries.
-  panelAddable?: boolean;
+  role?: WorkbenchWidgetRole;
+  eligibleLocations?: WorkbenchLocationEligibility;
+  panelMenuOwner?: WorkbenchPanelMenuOwner;
   tab?: WorkbenchWidgetTab;
   config?: unknown;
   canOpen?(resource: ResourceRef): boolean;
 }
 
+export type WorkbenchPanelMenuDefinition = Omit<
+  WidgetContribution,
+  "fallbackRegion" | "panelMenuOwner" | "region" | "role"
+> & {
+  side: WorkbenchPanelMenuSide;
+};
+
+interface WorkbenchPanelContribution {
+  panelMenus?: readonly WorkbenchPanelMenuDefinition[];
+}
+
+export type WorkbenchLocationContribution = Omit<WidgetContribution, "role"> & WorkbenchPanelContribution;
+
+export type WorkbenchSubPanelContribution = Omit<WidgetContribution, "region" | "fallbackRegion" | "role"> & {
+  region: WorkbenchPanelRegion;
+  fallbackRegion?: WorkbenchPanelRegion;
+} & WorkbenchPanelContribution;
+
+export type WorkbenchPanelMenuContribution = Omit<WidgetContribution, "region" | "fallbackRegion" | "role"> & {
+  region: WorkbenchPanelMenuRegion;
+  fallbackRegion?: WorkbenchPanelMenuRegion;
+};
+
 export type RegisteredWidgetContribution = Omit<WidgetContribution, "priority" | "singleton" | "reuse"> & {
+  ownedPanelMenuIds?: readonly string[];
   singleton: boolean;
   reuse: WidgetReusePolicy;
+  role: WorkbenchWidgetRole;
 } & RegisteredContributionMetadata;
 
 export interface PlaceholderContribution {
@@ -93,12 +160,14 @@ export interface WorkbenchWidgetPlacement {
   source?: ContributionSource;
   resource?: ResourceRef;
   resourceUri?: string;
+  ownerResourceUri?: string;
   title?: string;
   pinned?: boolean;
   closable?: boolean;
   mountStrategy?: WidgetMountStrategy;
   hiddenByDefault?: boolean;
   tab?: WorkbenchWidgetTab;
+  role?: WorkbenchWidgetRole;
 }
 
 export interface WorkbenchRegionState {
@@ -111,7 +180,9 @@ export interface WorkbenchRegionState {
 
 export interface WorkbenchLayout {
   regions: Record<WorkbenchRegion, WorkbenchRegionState>;
+  locationSubPanelSelections?: Record<string, Partial<Record<WorkbenchPanelRegion, string>>>;
   activeWidgetId?: string;
+  activeLocationWidgetId?: string;
   activeResourceUri?: string;
 }
 
@@ -133,6 +204,7 @@ export interface OpenWidgetInput {
   hiddenByDefault?: boolean;
   tab?: WorkbenchWidgetTab;
   replaceActive?: boolean;
+  replaceWidgetId?: string;
 }
 
 const createRegionState = (id: WorkbenchRegion): WorkbenchRegionState => ({
@@ -152,9 +224,13 @@ export const createDefaultWorkbenchLayout = (): WorkbenchLayout => ({
     main: createRegionState("main"),
     "main-right-menu": createRegionState("main-right-menu"),
     "secondary-header": createRegionState("secondary-header"),
+    "secondary-left-menu": createRegionState("secondary-left-menu"),
     secondary: createRegionState("secondary"),
+    "secondary-right-menu": createRegionState("secondary-right-menu"),
     "side-header": createRegionState("side-header"),
+    "side-left-menu": createRegionState("side-left-menu"),
     side: createRegionState("side"),
+    "side-right-menu": createRegionState("side-right-menu"),
     status: createRegionState("status"),
     overlay: createRegionState("overlay"),
   },

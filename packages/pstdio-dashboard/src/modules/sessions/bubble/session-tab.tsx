@@ -1,4 +1,4 @@
-import { Box, Button, Icon, Menu, Text } from "@chakra-ui/react";
+import { Box, Icon, Menu, Text } from "@chakra-ui/react";
 import {
   ListRow,
   resolveSessionIndicatorColor,
@@ -9,7 +9,7 @@ import {
 import type { WorkbenchWidgetPlacement } from "@pstdio/workbench/core";
 import type { WorkbenchWidgetRenderInput } from "@pstdio/workbench/react";
 import { useWorkbenchStore } from "@pstdio/workbench/react";
-import { MessageCircle, PenBox } from "lucide-react";
+import { ArrowUpRight, MessageCircle, PenBox } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { dashboardCommandIds } from "@/shared/app/commands";
 import { dashboardSelectedProjectIdContextKey } from "@/shared/app/project-context";
@@ -117,28 +117,40 @@ const SessionMenuRow = (props: { session: DashboardSession; isSelected: boolean;
   );
 };
 
+const SessionActionRow = (props: { id: string; icon: typeof PenBox; label: string; onSelect: () => void }) => {
+  const { icon, id, label, onSelect } = props;
+
+  return (
+    <Menu.Item value={id} asChild>
+      <ListRow
+        asChild
+        variant="full-width"
+        id={id}
+        label={label}
+        icon={<Icon as={icon} boxSize="16px" />}
+        onActivate={onSelect}
+      />
+    </Menu.Item>
+  );
+};
+
 export const SessionTabContextMenu = (props: { input: WorkbenchWidgetRenderInput }) => {
   const { input } = props;
   const state = useSessionTabState(input);
 
   return (
     <>
-      <Box p="sm">
-        <Button
-          variant="outline"
-          size="xs"
-          width="full"
-          justifyContent="flex-start"
-          onClick={() => {
-            void input.workbench.commands.executeCommand(dashboardCommandIds.createSession, {
-              ...(state.workspace ? { workspace: state.workspace } : {}),
-            });
-          }}
-        >
-          <PenBox size={14} />
-          New session
-        </Button>
-      </Box>
+      <SessionActionRow
+        id="new-session"
+        icon={PenBox}
+        label="New session"
+        onSelect={() => {
+          void input.workbench.commands.executeCommand(dashboardCommandIds.createSession, {
+            ...(state.workspace ? { workspace: state.workspace } : {}),
+            replaceWidgetId: input.placement.widgetId,
+          });
+        }}
+      />
       <Menu.Separator />
       {state.sessions.length > 0 ? (
         state.sessions.map((session) => (
@@ -149,6 +161,7 @@ export const SessionTabContextMenu = (props: { input: WorkbenchWidgetRenderInput
             onSelect={() => {
               void input.workbench.commands.executeCommand(dashboardCommandIds.openSessionPanel, {
                 resource: session.resource,
+                replaceWidgetId: input.placement.widgetId,
               });
             }}
           />
@@ -165,6 +178,15 @@ export const SessionTabContextMenu = (props: { input: WorkbenchWidgetRenderInput
           />
         </Menu.Item>
       )}
+      <Menu.Separator />
+      <SessionActionRow
+        id="view-all-sessions"
+        icon={ArrowUpRight}
+        label="View all sessions"
+        onSelect={() => {
+          void input.workbench.commands.executeCommand(dashboardCommandIds.openSessions);
+        }}
+      />
     </>
   );
 };

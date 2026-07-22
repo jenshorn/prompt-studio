@@ -1,5 +1,8 @@
 import type { WorkbenchModuleContribution } from "../../core";
 
+const PANEL_PLACEHOLDER_ID = "file-renderer.story.placeholder";
+const PANEL_PLACEHOLDER_RENDERER_ID = "file-renderer.story.placeholder.renderer";
+
 // In-memory documents the example file renderers read and write. The markdown and
 // code renderers are editable (they declare a `save`); the image is read-only.
 let markdownContent = [
@@ -55,6 +58,17 @@ const renderers = [
 export const createFileRendererStoryModule = (): WorkbenchModuleContribution => ({
   id: "file-renderer.story",
   activate(ctx) {
+    ctx.renderers.registerRenderer({
+      id: PANEL_PLACEHOLDER_RENDERER_ID,
+      render: () => null,
+    });
+    ctx.layout.registerPlaceholder({
+      id: PANEL_PLACEHOLDER_ID,
+      title: "Documents",
+      region: "main",
+      rendererId: PANEL_PLACEHOLDER_RENDERER_ID,
+    });
+
     for (const renderer of renderers) {
       ctx.renderers.registerFileRenderer({
         id: renderer.rendererId,
@@ -62,7 +76,7 @@ export const createFileRendererStoryModule = (): WorkbenchModuleContribution => 
         load: renderer.load,
         save: "save" in renderer ? renderer.save : undefined,
       });
-      ctx.layout.registerWidget({
+      ctx.layout.registerSubPanel({
         id: renderer.widgetId,
         title: renderer.title,
         region: "main",

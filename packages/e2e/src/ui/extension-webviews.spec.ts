@@ -196,7 +196,7 @@ test.describe("Extension webviews", () => {
 
     await labFrame.getByRole("button", { name: "Create inbox item" }).click();
 
-    await page.getByRole("option", { name: /Notifications/ }).click();
+    await page.keyboard.press("Alt+Shift+N");
 
     const notificationsModal = page.getByRole("dialog").filter({ has: page.getByPlaceholder("Search notifications") });
     await expect(notificationsModal).toBeVisible();
@@ -246,10 +246,6 @@ test.describe("Extension webviews", () => {
     const terminalTabs = terminalTabList.getByRole("tab");
     const addTerminal = async () => {
       await secondaryHeader.getByRole("button", { name: "Add panel" }).click();
-      await page
-        .getByRole("menu", { name: "Add panel" })
-        .getByRole("menuitem", { name: "Terminal", exact: true })
-        .click();
     };
 
     await expect(terminalTabs).toHaveCount(1);

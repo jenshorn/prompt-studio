@@ -17,9 +17,11 @@ import {
   createUniqueWidgetId,
   findPlacement,
   findResourcePlacement,
+  getActiveLocationPlacement,
   getActivePlacement,
   removePlacementsForContribution,
   replaceRegionWidgets,
+  setLocationSubPanelSelection,
 } from "./layout-operations";
 import {
   createDefaultWorkbenchLayout,
@@ -31,11 +33,17 @@ import {
   type WidgetContribution,
   type WorkbenchLayout,
   type WorkbenchLayoutStoreState,
+  type WorkbenchLocationContribution,
+  type WorkbenchPanelMenuContribution,
+  type WorkbenchPanelRegion,
   type WorkbenchRegion,
   type WorkbenchRegionSize,
   type WorkbenchRegionState,
+  type WorkbenchSubPanelContribution,
   type WorkbenchWidgetPlacement,
+  workbenchPanelRegions,
 } from "./layout-types";
+import { createPanelRegistrations } from "./panel-registration";
 
 export type {
   OpenWidgetInput,
@@ -45,16 +53,32 @@ export type {
   WidgetContribution,
   WidgetMountStrategy,
   WidgetReusePolicy,
+  WorkbenchFloatingPanelVisibility,
   WorkbenchLayout,
   WorkbenchLayoutStoreState,
+  WorkbenchLocationContribution,
+  WorkbenchLocationEligibility,
+  WorkbenchPanelMenuContribution,
+  WorkbenchPanelMenuDefinition,
+  WorkbenchPanelMenuOwner,
+  WorkbenchPanelMenuRegion,
+  WorkbenchPanelMenuSide,
   WorkbenchPanelRegion,
   WorkbenchRegion,
   WorkbenchRegionSize,
   WorkbenchRegionState,
+  WorkbenchSubPanelContribution,
   WorkbenchWidgetPlacement,
+  WorkbenchWidgetRole,
   WorkbenchWidgetTab,
 } from "./layout-types";
-export { createDefaultWorkbenchLayout, workbenchPanelRegions, workbenchRegions } from "./layout-types";
+export {
+  createDefaultWorkbenchLayout,
+  getWorkbenchPanelForMenuRegion,
+  workbenchPanelMenuRegions,
+  workbenchPanelRegions,
+  workbenchRegions,
+} from "./layout-types";
 
 export type LayoutScope = string;
 
@@ -72,6 +96,9 @@ export interface LayoutModel {
   store: WorkbenchStore<WorkbenchLayoutStoreState>;
   registerPlaceholder(placeholder: PlaceholderContribution, metadata?: ContributionMetadata): { dispose(): void };
   registerWidget(widget: WidgetContribution, metadata?: ContributionMetadata): { dispose(): void };
+  registerLocation(location: WorkbenchLocationContribution, metadata?: ContributionMetadata): { dispose(): void };
+  registerSubPanel(subPanel: WorkbenchSubPanelContribution, metadata?: ContributionMetadata): { dispose(): void };
+  registerPanelMenu(panelMenu: WorkbenchPanelMenuContribution, metadata?: ContributionMetadata): { dispose(): void };
   unregisterWidget(id: string, options?: { removePlacements?: boolean; persist?: boolean }): void;
   getPlaceholder(regionId: WorkbenchRegion): RegisteredPlaceholderContribution | undefined;
   getWidget(id: string): RegisteredWidgetContribution | undefined;
@@ -85,6 +112,7 @@ export interface LayoutModel {
   openWidget(id: string, input?: OpenWidgetInput): WorkbenchWidgetPlacement;
   updateWidgetPlacement(widgetId: string, input: OpenWidgetInput): WorkbenchWidgetPlacement;
   activateWidget(widgetId: string): WorkbenchWidgetPlacement;
+  setRegionActiveWidget(regionId: WorkbenchRegion, widgetId: string | undefined): void;
   closeWidget(widgetId: string): WorkbenchWidgetPlacement | undefined;
   removeWidgetPlacement(widgetId: string): WorkbenchWidgetPlacement | undefined;
   clearRegion(regionId: WorkbenchRegion): void;
@@ -166,6 +194,28 @@ const createContributionLists = (input: CreateContributionListsInput) => {
   };
 };
 
+const carryPinnedWorkbenchChrome = (current: WorkbenchLayout, incoming: WorkbenchLayout): WorkbenchLayout => {
+  const regions = { ...incoming.regions };
+
+  for (const region of Object.values(current.regions)) {
+    const pinned = region.widgets.filter((placement) => placement.pinned && placement.role === "content");
+    if (pinned.length === 0) continue;
+
+    const contributionIds = new Set(pinned.map((placement) => placement.contributionId));
+    const incomingRegion = incoming.regions[region.id];
+    regions[region.id] = {
+      ...incomingRegion,
+      widgets: [
+        ...pinned,
+        ...incomingRegion.widgets.filter((placement) => !contributionIds.has(placement.contributionId)),
+      ],
+      activeWidgetId: incomingRegion.activeWidgetId ?? pinned[0]?.widgetId,
+    };
+  }
+
+  return { ...incoming, regions };
+};
+
 const createContributionRegistrations = (input: CreateContributionRegistrationsInput) => {
   const { store, getPlaceholders, getWidgets, persistLayout } = input;
 
@@ -205,6 +255,7 @@ const createContributionRegistrations = (input: CreateContributionRegistrationsI
       const { priority, reuse, singleton, ...widgetContribution } = widget;
       const record: RegisteredWidgetContribution = {
         ...widgetContribution,
+        role: widget.role ?? "content",
         reuse: reuse ?? "resource",
         // Panels are singleton by default; widgets opt into tabbed placements
         // by declaring `singleton: false`.
@@ -233,21 +284,63 @@ const findReusablePlacement = (
   layout: WorkbenchLayout,
   openInput: OpenWidgetInput,
 ) => {
+  if (!widget.singleton && widget.reuse === "none") return undefined;
+  if (widget.role === "sub-panel" || widget.role === "panel-menu") {
+    const ownerResourceUri = getActiveLocationPlacement(layout)?.resourceUri;
+    for (const region of Object.values(layout.regions)) {
+      const index = region.widgets.findIndex(
+        (candidate) =>
+          candidate.contributionId === widget.id &&
+          candidate.ownerResourceUri === ownerResourceUri &&
+          (!openInput.resource || candidate.resourceUri === openInput.resource.uri),
+      );
+      if (index >= 0) return { regionId: region.id, index, placement: region.widgets[index] };
+    }
+    return undefined;
+  }
   if (widget.singleton) return findPlacement(layout, widget.id);
-  if (widget.reuse === "none") return undefined;
   if (openInput.resource) return findResourcePlacement(layout, widget.id, openInput.resource.uri);
   return findPlacement(layout, widget.id);
 };
 
+const findReplacementIndex = (
+  layout: WorkbenchLayout,
+  regionId: WorkbenchRegion,
+  widget: RegisteredWidgetContribution,
+  openInput: OpenWidgetInput,
+) => {
+  const region = layout.regions[regionId];
+  const activeWidgetId = widget.role === "location" ? layout.activeLocationWidgetId : region.activeWidgetId;
+
+  if (openInput.replaceWidgetId) {
+    return region.widgets.findIndex((placement) => placement.widgetId === openInput.replaceWidgetId);
+  }
+  if (!openInput.replaceActive) return -1;
+  return region.widgets.findIndex((placement) => placement.widgetId === activeWidgetId && !placement.pinned);
+};
+
 const createWidgetOpeners = (input: CreateWidgetOpenersInput) => {
   const { getLayout, requireWidget, applyAndActivate } = input;
+
+  const bindToActiveLocation = (
+    placement: WorkbenchWidgetPlacement,
+    widget: RegisteredWidgetContribution,
+    layout: WorkbenchLayout,
+  ) => {
+    if (widget.role !== "sub-panel" && widget.role !== "panel-menu") return placement;
+    return { ...placement, ownerResourceUri: getActiveLocationPlacement(layout)?.resourceUri };
+  };
 
   const updateSingleton = (
     widget: RegisteredWidgetContribution,
     existing: NonNullable<ReturnType<typeof findPlacement>>,
     openInput: OpenWidgetInput,
   ): WorkbenchWidgetPlacement => {
-    const nextPlacement = buildUpdatedPlacement(existing.placement, widget, openInput);
+    const nextPlacement = bindToActiveLocation(
+      buildUpdatedPlacement(existing.placement, widget, openInput),
+      widget,
+      getLayout(),
+    );
     const layout = replaceRegionWidgets(getLayout(), existing.regionId, (widgets) =>
       widgets.map((current, index) => (index === existing.index ? nextPlacement : current)),
     );
@@ -261,7 +354,11 @@ const createWidgetOpeners = (input: CreateWidgetOpenersInput) => {
     replacement: WorkbenchWidgetPlacement,
     openInput: OpenWidgetInput,
   ): WorkbenchWidgetPlacement => {
-    const nextPlacement = buildUpdatedPlacement(replacement, widget, openInput);
+    const nextPlacement = bindToActiveLocation(
+      buildUpdatedPlacement(replacement, widget, openInput),
+      widget,
+      getLayout(),
+    );
     const layout = replaceRegionWidgets(getLayout(), regionId, (widgets) =>
       widgets.map((current, index) => (index === replacementIndex ? nextPlacement : current)),
     );
@@ -276,7 +373,11 @@ const createWidgetOpeners = (input: CreateWidgetOpenersInput) => {
     openInput: OpenWidgetInput,
   ) => {
     if (existing.regionId !== regionId) {
-      const nextPlacement = buildUpdatedPlacement(existing.placement, widget, openInput);
+      const nextPlacement = bindToActiveLocation(
+        buildUpdatedPlacement(existing.placement, widget, openInput),
+        widget,
+        getLayout(),
+      );
       const withoutExisting = replaceRegionWidgets(
         getLayout(),
         existing.regionId,
@@ -296,7 +397,11 @@ const createWidgetOpeners = (input: CreateWidgetOpenersInput) => {
       return updateSingleton(widget, existing, openInput);
     }
 
-    const nextPlacement = buildUpdatedPlacement(existing.placement, widget, openInput);
+    const nextPlacement = bindToActiveLocation(
+      buildUpdatedPlacement(existing.placement, widget, openInput),
+      widget,
+      getLayout(),
+    );
     const layout = replaceRegionWidgets(getLayout(), regionId, (widgets) =>
       widgets
         .map((current, index) => (index === existing.index ? nextPlacement : current))
@@ -312,7 +417,7 @@ const createWidgetOpeners = (input: CreateWidgetOpenersInput) => {
     openInput: OpenWidgetInput,
   ): WorkbenchWidgetPlacement => {
     const widgetId = createUniqueWidgetId(getLayout(), widget.id);
-    const placement = createPlacement(widgetId, widget, openInput);
+    const placement = bindToActiveLocation(createPlacement(widgetId, widget, openInput), widget, getLayout());
 
     const layout = replaceRegionWidgets(getLayout(), regionId, (widgets) => {
       if (replacementIndex >= 0) {
@@ -330,19 +435,24 @@ const createWidgetOpeners = (input: CreateWidgetOpenersInput) => {
     const layout = getLayout();
     const regionId = openInput.region ?? widget.region ?? widget.fallbackRegion ?? "main";
     const region = layout.regions[regionId];
-    const replacementIndex = openInput.replaceActive
-      ? region.widgets.findIndex((placement) => placement.widgetId === region.activeWidgetId && !placement.pinned)
-      : -1;
+    const replacementIndex = findReplacementIndex(layout, regionId, widget, openInput);
     const replacement = replacementIndex >= 0 ? region.widgets[replacementIndex] : undefined;
 
-    const existing = findReusablePlacement(widget, layout, openInput);
-    if (existing) return reuseExistingPlacement(widget, existing, regionId, replacementIndex, openInput);
-
-    if (replacement?.contributionId === widget.id) {
-      return replaceActive(widget, regionId, replacementIndex, replacement, openInput);
+    const existing =
+      openInput.replaceWidgetId && replacement ? undefined : findReusablePlacement(widget, layout, openInput);
+    let placement: WorkbenchWidgetPlacement;
+    if (existing) placement = reuseExistingPlacement(widget, existing, regionId, replacementIndex, openInput);
+    else if (replacement?.contributionId === widget.id) {
+      placement = replaceActive(widget, regionId, replacementIndex, replacement, openInput);
+    } else {
+      placement = insertWidget(widget, regionId, replacementIndex, openInput);
     }
 
-    return insertWidget(widget, regionId, replacementIndex, openInput);
+    for (const panelMenuId of widget.ownedPanelMenuIds ?? []) {
+      openWidget(panelMenuId, { pinned: true });
+    }
+
+    return applyAndActivate(getLayout(), regionId, placement);
   };
 
   return { openWidget };
@@ -366,9 +476,7 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
   const regionQueries = createRegionQueries({ getLayout, getWidgets, getPlaceholder });
   const contributionLists = createContributionLists({ getPlaceholders, getWidgets });
 
-  const persistLayout = () => {
-    input.persistence?.setLayout(getLayout(), currentScope);
-  };
+  const persistLayout = () => input.persistence?.setLayout(getLayout(), currentScope);
 
   const requireWidget = (id: string) => {
     const widget = getWidgets()[id];
@@ -407,6 +515,9 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
     getWidgets,
     persistLayout,
   });
+  const panelRegistrations = createPanelRegistrations({
+    registerWidget: contributionRegistrations.registerWidget,
+  });
   const widgetOpeners = createWidgetOpeners({ getLayout, requireWidget, applyAndActivate });
 
   return {
@@ -415,6 +526,8 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
     registerPlaceholder: contributionRegistrations.registerPlaceholder,
 
     registerWidget: contributionRegistrations.registerWidget,
+
+    ...panelRegistrations,
 
     unregisterWidget(id, options = {}) {
       const current = store.getState();
@@ -476,6 +589,35 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
       throw new Error(`Widget placement not found: ${widgetId}`);
     },
 
+    setRegionActiveWidget(regionId, widgetId) {
+      const layout = getLayout();
+      const region = layout.regions[regionId];
+      const placement = widgetId ? region.widgets.find((candidate) => candidate.widgetId === widgetId) : undefined;
+      if (widgetId && !placement) throw new Error(`Widget placement not found in ${regionId}: ${widgetId}`);
+      if (region.activeWidgetId === widgetId) return;
+
+      const nextLayout = {
+        ...layout,
+        activeWidgetId: layout.activeWidgetId === region.activeWidgetId ? placement?.widgetId : layout.activeWidgetId,
+        activeResourceUri:
+          layout.activeWidgetId === region.activeWidgetId ? placement?.resourceUri : layout.activeResourceUri,
+        regions: {
+          ...layout.regions,
+          [regionId]: { ...region, activeWidgetId: placement?.widgetId },
+        },
+      };
+      const withSelection = workbenchPanelRegions.includes(regionId as WorkbenchPanelRegion)
+        ? setLocationSubPanelSelection(
+            nextLayout,
+            getActiveLocationPlacement(nextLayout),
+            regionId as WorkbenchPanelRegion,
+            placement?.role === "sub-panel" ? placement.widgetId : undefined,
+          )
+        : nextLayout;
+      setLayout(withSelection);
+      persistLayout();
+    },
+
     closeWidget(widgetId) {
       const result = closeWidgetInLayout(getLayout(), widgetId);
       if (!result) throw new Error(`Widget placement not found: ${widgetId}`);
@@ -503,10 +645,19 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
         ...layout,
         regions: { ...layout.regions, [regionId]: { ...region, widgets: [], activeWidgetId: undefined } },
       };
-      const next =
+      let next =
         activeWidgetId && layout.activeWidgetId === activeWidgetId
           ? { ...cleared, activeWidgetId: undefined, activeResourceUri: undefined }
           : cleared;
+
+      if (workbenchPanelRegions.includes(regionId as WorkbenchPanelRegion)) {
+        next = setLocationSubPanelSelection(
+          next,
+          getActiveLocationPlacement(next),
+          regionId as WorkbenchPanelRegion,
+          undefined,
+        );
+      }
 
       setLayout(next);
       persistLayout();
@@ -518,7 +669,13 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
       for (const [id, region] of Object.entries(layout.regions) as [WorkbenchRegion, WorkbenchRegionState][]) {
         nextRegions[id] = { ...region, widgets: [], activeWidgetId: undefined };
       }
-      setLayout({ regions: nextRegions, activeWidgetId: undefined, activeResourceUri: undefined });
+      setLayout({
+        regions: nextRegions,
+        locationSubPanelSelections: {},
+        activeWidgetId: undefined,
+        activeLocationWidgetId: undefined,
+        activeResourceUri: undefined,
+      });
       persistLayout();
     },
 
@@ -533,11 +690,14 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LayoutMod
       if (currentScope === nextScope) return;
       input.persistence?.setLayout(getLayout(), currentScope);
       currentScope = nextScope;
+      for (const listener of scopeListeners) listener(currentScope);
       const incoming = input.persistence?.getLayout(currentScope);
-      const nextLayout = incoming ? mergeWithDefaultRegions(incoming) : createDefaultWorkbenchLayout();
+      const scopedLayout = incoming ? mergeWithDefaultRegions(incoming) : createDefaultWorkbenchLayout();
+      // Module-owned chrome is global workbench structure. Project scopes replace
+      // Location workspaces, but must not unmount pinned navigation and headers.
+      const nextLayout = carryPinnedWorkbenchChrome(getLayout(), scopedLayout);
       const snapshot = store.getState();
       store.setState({ ...snapshot, layout: nextLayout }, false, "setPersistenceScope");
-      for (const listener of scopeListeners) listener(currentScope);
     },
 
     getPersistenceScope: () => currentScope,

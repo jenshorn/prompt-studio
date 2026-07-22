@@ -1,5 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { expect, test } from "@playwright/test";
+import { createPlannerTicket } from "../helpers/planner-api";
 import { startStorybook, storyUrl } from "./mermaid-renderer-storybook";
 
 const sidePanelsStoryId = "pstdio-workbench-onboarding--side-panels";
@@ -30,7 +31,7 @@ const createProject = async (request: import("@playwright/test").APIRequestConte
   return (await response.json()) as { id: string };
 };
 
-test("PS-169 gives the Session tab its own right-click menu", async ({ page, request }) => {
+test("PS-169 opens the selected Session tab's own menu", async ({ page, request }) => {
   await deleteAllProjects(request);
   const project = await createProject(request);
   await page.addInitScript((selectedProjectId: string) => {
@@ -39,17 +40,22 @@ test("PS-169 gives the Session tab its own right-click menu", async ({ page, req
     localStorage.setItem("dashboard-wb:selected-project:global", selectedProjectId);
   }, project.id);
   await page.setViewportSize({ width: 1280, height: 720 });
+  const ticket = await createPlannerTicket(request, apiBase, project.id, { content: "Inspect Session tab menu" });
   await page.goto(`/projects/${project.id}/tickets`);
+  await page.getByRole("option", { name: "Tickets", exact: true }).click();
+  await page.getByText(ticket.content, { exact: true }).click();
 
   const nav = page.locator('[data-workbench-region="nav"]');
   await nav.getByRole("button", { name: "Show Side Panel" }).click();
+  await page.locator('[data-workbench-panel-header="side"]').getByRole("button", { name: "Add panel" }).click();
   const sessionTab = page.locator('[data-workbench-panel-header="side"]').getByRole("tab", { name: /New session/ });
   await expect(sessionTab).toBeVisible();
-  await sessionTab.click({ button: "right" });
+  await sessionTab.click();
 
-  const sessionMenu = page.getByRole("menu", { name: "Session bubble actions" });
+  const sessionMenu = page.getByRole("menu", { name: "New session actions" });
   await expect(sessionMenu).toBeVisible();
-  await expect(sessionMenu.getByRole("button", { name: "New session" })).toBeVisible();
+  await expect(sessionMenu.getByRole("menuitem", { name: "New session" })).toBeVisible();
+  await expect(sessionMenu.getByRole("menuitem", { name: "View all sessions" })).toBeVisible();
   await expect(sessionMenu.getByRole("menuitem", { name: "No sessions yet" })).toBeVisible();
 
   await expect.poll(() => getVerticalMenuGap(sessionTab, sessionMenu)).toBeLessThanOrEqual(1);
@@ -80,7 +86,7 @@ test.describe("PS-169 Panel tabs", () => {
     }
 
     const activityTab = page.getByRole("tab", { name: /Activity Live/ });
-    await activityTab.click({ button: "right" });
+    await activityTab.click();
     await expect(
       page.getByRole("menu", { name: "Activity actions" }).getByRole("menuitem", { name: "Live context" }),
     ).toBeVisible();
@@ -93,18 +99,12 @@ test.describe("PS-169 Panel tabs", () => {
       .locator('[data-workbench-panel-header="side"]')
       .getByRole("button", { name: "Add panel" });
     await addSidePanel.click();
-    const addMenu = page.getByRole("menu", { name: "Add panel" });
-    await expect(addMenu).toBeVisible();
-    await expect(addMenu.getByRole("menuitem", { name: "Inspector" })).toHaveCount(0);
-    await addMenu.getByRole("menuitem", { name: "Files" }).click();
+    await expect(page.getByRole("menu", { name: "Add panel" })).toHaveCount(0);
 
     const sideHeader = page.locator('[data-workbench-panel-header="side"]');
     await expect(sideHeader.getByRole("tab", { name: "Files" })).toBeVisible();
     await expect(sideHeader.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
 
-    await addSidePanel.click();
-    await expect(
-      page.getByRole("menu", { name: "Add panel" }).getByRole("menuitem", { name: "No panels available" }),
-    ).toBeVisible();
+    await expect(addSidePanel).toHaveCount(0);
   });
 });
