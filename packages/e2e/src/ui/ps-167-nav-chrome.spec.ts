@@ -156,7 +156,7 @@ test("PS-167 opens the Secondary Panel from Workspaces before the first terminal
   await expect(nav.getByRole("button", { name: "Hide Secondary Panel" })).toHaveAttribute("aria-pressed", "true");
   const secondaryPanel = page.locator('[data-workbench-region="secondary"]');
   await expect(secondaryPanel).toBeVisible();
-  await expect(secondaryPanel.getByRole("button", { name: "New terminal" })).toBeVisible();
+  await expect(secondaryPanel.getByRole("button", { name: "Add panel" })).toBeVisible();
 });
 
 test.describe("PS-167 breadcrumb Storybook contract", () => {
@@ -234,14 +234,15 @@ test.describe("PS-167 breadcrumb Storybook contract", () => {
       await page.getByText(result, { exact: true }).click();
     }
 
-    await expect(page.getByRole("tab")).toHaveCount(4);
+    const mainTabList = page.getByRole("tablist").filter({ has: page.getByRole("tab", { name: "Palette resources" }) });
+    await expect(mainTabList.getByRole("tab")).toHaveCount(4);
     for (let remaining = 3; remaining > 0; remaining -= 1) {
       const closeButtons = page.getByRole("button", { name: /^Close PS-/ });
       await expect(closeButtons).toHaveCount(remaining);
       await closeButtons.last().click();
     }
 
-    await expect(page.getByRole("tab")).toHaveCount(0);
+    await expect(mainTabList.getByRole("tab")).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Search PS" })).toBeVisible();
     const nav = page.locator('[data-workbench-region="nav"]');
     await expect(nav.getByRole("button", { name: "Navigate back" })).toBeDisabled();

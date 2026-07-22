@@ -3,6 +3,7 @@ import type {
   WorkbenchModuleContribution,
   WorkbenchModuleContributionContext,
 } from "@pstdio/workbench/core";
+import { workbenchRegionTabAddMenuPath } from "@pstdio/workbench/core";
 import { SessionWidget } from "@/modules/sessions/components/session-widget";
 import {
   forgetDashboardSession,
@@ -16,7 +17,10 @@ import { dashboardWidgetIds } from "@/shared/app/widget-ids";
 import { registerModeChromeContribution } from "@/shared/workbench/contributions/mode-chrome-contributions";
 import { createDashboardWorkspaceOptions } from "@/shared/workspaces/workspace-options";
 import { openSessionBubbleWidgets } from "./session-bubble";
-import { SessionBubbleHeader } from "./session-bubble-header";
+import { SessionTabContent, SessionTabContextMenu } from "./session-tab";
+
+const sessionTabRendererId = "dashboard-workbench.session-tab";
+const sessionTabContextMenuRendererId = "dashboard-workbench.session-tab-context-menu";
 
 const metadataString = (resource: ResourceRef | undefined, key: string) => {
   const value = resource?.metadata?.[key];
@@ -49,7 +53,7 @@ const createNewSessionDraftResource = (workspace: ResourceRef | undefined): Reso
   const workspaceShorthand = metadataString(workspace, "workspaceShorthand");
   const workspaceBranch = metadataString(workspace, "workspaceBranch");
   const workspaceTitle = workspace?.label ?? workspaceShorthand;
-  const id = workspaceId ? `new-${workspaceId}` : "new";
+  const id = `${workspaceId ? `new-${workspaceId}` : "new"}-${globalThis.crypto.randomUUID()}`;
 
   return {
     kind: "session-draft",
@@ -77,28 +81,17 @@ const selectSidebarSessionNode = (ctx: WorkbenchModuleContributionContext, resou
 const registerSessionBubbleWidgets = (ctx: WorkbenchModuleContributionContext) => {
   ctx.layout.registerWidget(
     {
-      id: dashboardWidgetIds.sessionBubbleHeader,
-      title: "Session bubble header",
-      region: "side-header",
-      singleton: true,
-      rendererId: dashboardWidgetIds.sessionBubbleHeader,
-      priority: 30,
-    },
-    { priority: 30 },
-  );
-
-  ctx.renderers.registerRenderer({
-    id: dashboardWidgetIds.sessionBubbleHeader,
-    render: (input) => <SessionBubbleHeader input={input} />,
-  });
-
-  ctx.layout.registerWidget(
-    {
       id: dashboardWidgetIds.sessionBubble,
       title: "Session bubble",
       region: "side",
-      singleton: true,
+      singleton: false,
+      closable: true,
       rendererId: dashboardWidgetIds.sessionBubble,
+      icon: "MessageCircle",
+      tab: {
+        contentRendererId: sessionTabRendererId,
+        contextMenuRendererId: sessionTabContextMenuRendererId,
+      },
       priority: 30,
     },
     { priority: 30 },
@@ -107,6 +100,14 @@ const registerSessionBubbleWidgets = (ctx: WorkbenchModuleContributionContext) =
   ctx.renderers.registerRenderer({
     id: dashboardWidgetIds.sessionBubble,
     render: (input) => <SessionWidget input={input} />,
+  });
+  ctx.renderers.registerRenderer({
+    id: sessionTabRendererId,
+    render: (input) => <SessionTabContent input={input} />,
+  });
+  ctx.renderers.registerRenderer({
+    id: sessionTabContextMenuRendererId,
+    render: (input) => <SessionTabContextMenu input={input} />,
   });
 
   openSessionBubbleWidgets(ctx);
@@ -178,6 +179,11 @@ const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) 
       },
     },
   );
+  ctx.layout.registerMenuItem(workbenchRegionTabAddMenuPath("side"), {
+    commandId: dashboardCommandIds.createSession,
+    label: "New session",
+    icon: "PenBox",
+  });
 };
 
 export const createSessionBubbleModule = () =>

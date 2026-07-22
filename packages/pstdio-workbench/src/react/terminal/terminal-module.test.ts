@@ -1,10 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  createWorkbenchCore,
-  type ResourceRef,
-  workbenchRegionTabLeadingMenuPath,
-  workbenchTopHeaderTrailingMenuPath,
-} from "../../core";
+import { createWorkbenchCore, type ResourceRef, workbenchTopHeaderTrailingMenuPath } from "../../core";
 import {
   createWorkbenchTerminalModule,
   openWorkbenchTerminal,
@@ -66,12 +61,13 @@ describe("createWorkbenchTerminalModule", () => {
     ).toBe(false);
   });
 
-  test("the secondary tab strip keeps the terminal opener", () => {
+  test("exposes the terminal opener to the secondary add menu", () => {
     const workbench = setup();
 
-    expect(workbench.layout.listMenuItems(workbenchRegionTabLeadingMenuPath("secondary"))).toContainEqual(
-      expect.objectContaining({ commandId: WORKBENCH_TERMINAL_OPEN_COMMAND_ID, label: "New terminal" }),
-    );
+    expect(workbench.layout.getWidget(WORKBENCH_TERMINAL_WIDGET_ID)).toMatchObject({
+      openCommandId: WORKBENCH_TERMINAL_OPEN_COMMAND_ID,
+      region: "secondary",
+    });
   });
 
   test("the open command reveals the terminal panel in the secondary region", async () => {

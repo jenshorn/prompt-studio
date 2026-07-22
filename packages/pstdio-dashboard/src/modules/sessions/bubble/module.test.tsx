@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { createWorkbenchCore } from "@pstdio/workbench/core";
+import {
+  createWorkbenchCore,
+  workbenchRegionTabAddMenuPath,
+  workbenchRegionTabLeadingMenuPath,
+} from "@pstdio/workbench/core";
 import { getWriter } from "@/lib/sync/collections";
 import { dashboardCommandIds } from "@/shared/app/commands";
 import { selectDashboardProject } from "@/shared/app/project-context";
@@ -20,11 +24,12 @@ describe("createSessionBubbleModule", () => {
     expect(layout.regions.side.widgets.map((widget) => widget.contributionId)).toEqual([
       dashboardWidgetIds.sessionBubble,
     ]);
-    expect(layout.regions["side-header"].widgets.map((widget) => widget.contributionId)).toEqual([
-      dashboardWidgetIds.sessionBubbleHeader,
-    ]);
+    expect(layout.regions["side-header"].widgets).toEqual([]);
     expect(layout.regions.side.widgets[0]?.resource).toBeUndefined();
-    expect(layout.regions["side-header"].widgets[0]?.resource).toBeUndefined();
+    expect(layout.regions.side.widgets[0]?.tab).toEqual({
+      contentRendererId: "dashboard-workbench.session-tab",
+      contextMenuRendererId: "dashboard-workbench.session-tab-context-menu",
+    });
   });
 
   test("restores empty session chrome when mode chrome reactivates after Side regions are cleared", () => {
@@ -42,9 +47,7 @@ describe("createSessionBubbleModule", () => {
     expect(layout.regions.side.widgets.map((widget) => widget.contributionId)).toEqual([
       dashboardWidgetIds.sessionBubble,
     ]);
-    expect(layout.regions["side-header"].widgets.map((widget) => widget.contributionId)).toEqual([
-      dashboardWidgetIds.sessionBubbleHeader,
-    ]);
+    expect(layout.regions["side-header"].widgets).toEqual([]);
   });
 
   test("opens a workspace-linked session draft from the create session command", async () => {
@@ -60,14 +63,14 @@ describe("createSessionBubbleModule", () => {
 
     const placement = workbench.layout
       .getLayout()
-      .regions.side.widgets.find((widget) => widget.contributionId === dashboardWidgetIds.sessionBubble);
+      .regions.side.widgets.find((widget) => widget.resource?.kind === "session-draft");
 
     expect(placement?.resource?.kind).toBe("session-draft");
     expect(placement?.resource?.metadata?.workspaceId).toBe("workspace-1");
     expect(placement?.resource?.metadata?.workspaceShorthand).toBe("PS-307_A1");
   });
 
-  test("opens the session bubble header with the same draft resource", async () => {
+  test("creates a new closable tab for every session draft", async () => {
     const workbench = createWorkbenchCore();
     const workspace = createDashboardResource("workspace", "workspace-1", "PS-307_A1", "GitBranch", "project-1", {
       workspaceId: "workspace-1",
@@ -77,15 +80,27 @@ describe("createSessionBubbleModule", () => {
     workbench.registerModule(createSessionBubbleModule());
 
     await workbench.commands.executeCommand(dashboardCommandIds.createSession, { workspace });
+    await workbench.commands.executeCommand(dashboardCommandIds.createSession, { workspace });
 
-    const headerPlacement = workbench.layout
+    const placements = workbench.layout
       .getLayout()
-      .regions["side-header"].widgets.find(
-        (widget) => widget.contributionId === dashboardWidgetIds.sessionBubbleHeader,
-      );
+      .regions.side.widgets.filter((widget) => widget.contributionId === dashboardWidgetIds.sessionBubble);
 
-    expect(headerPlacement?.resource?.kind).toBe("session-draft");
-    expect(headerPlacement?.resource?.metadata?.workspaceId).toBe("workspace-1");
+    expect(placements).toHaveLength(3);
+    expect(placements.slice(1).map((placement) => placement.resource?.uri)).toHaveLength(2);
+    expect(new Set(placements.slice(1).map((placement) => placement.resource?.uri)).size).toBe(2);
+    expect(placements.slice(1).every((placement) => placement.closable)).toBe(true);
+  });
+
+  test("contributes New session to Add panel without adding a header button", () => {
+    const workbench = createWorkbenchCore();
+
+    workbench.registerModule(createSessionBubbleModule());
+
+    expect(workbench.layout.listMenuItems(workbenchRegionTabAddMenuPath("side"))).toContainEqual(
+      expect.objectContaining({ commandId: dashboardCommandIds.createSession }),
+    );
+    expect(workbench.layout.listMenuItems(workbenchRegionTabLeadingMenuPath("side"))).toEqual([]);
   });
 
   test("opens an unscoped session draft on the project default workspace", async () => {
@@ -125,7 +140,7 @@ describe("createSessionBubbleModule", () => {
 
       const placement = workbench.layout
         .getLayout()
-        .regions.side.widgets.find((widget) => widget.contributionId === dashboardWidgetIds.sessionBubble);
+        .regions.side.widgets.find((widget) => widget.resource?.kind === "session-draft");
 
       expect(placement?.resource?.kind).toBe("session-draft");
       expect(placement?.resource?.metadata).toMatchObject({
@@ -183,7 +198,7 @@ describe("createSessionBubbleModule", () => {
 
       const placement = workbench.layout
         .getLayout()
-        .regions.side.widgets.find((widget) => widget.contributionId === dashboardWidgetIds.sessionBubble);
+        .regions.side.widgets.find((widget) => widget.resource?.kind === "session-draft");
 
       expect(workbench.modes.getActiveModeId()).toBe("workspace");
       expect(workbench.getPrimaryResource()?.id).toBe("workspace-active");
