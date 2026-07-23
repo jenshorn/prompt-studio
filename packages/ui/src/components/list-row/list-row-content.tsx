@@ -1,8 +1,43 @@
 import { Box, HStack, Icon, Stack, Text } from "@chakra-ui/react";
-import { ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Tooltip } from "@/components/primitives/tooltip";
 import type { ListRowItem, ListRowProps, RowContentProps } from "./list-row.types";
 import { RowActions } from "./list-row-actions";
+
+export const createResourceRowActions = (item: ListRowItem) => {
+  const contextMenuItems = item.contextMenuItems ?? [];
+  if (contextMenuItems.length === 0) return item.actions ?? [];
+
+  const inlineMenuItems =
+    item.actions?.flatMap((action) =>
+      action.menuItems?.length
+        ? action.menuItems
+        : [
+            {
+              id: action.id,
+              label: action.label,
+              icon: action.icon,
+              onAction: () => action.onAction?.({ nodeId: item.id }),
+            },
+          ],
+    ) ?? [];
+  const inlineIds = new Set(inlineMenuItems.map((menuItem) => menuItem.id));
+  const resourceMenuItems = contextMenuItems
+    .filter((menuItem) => !inlineIds.has(menuItem.id))
+    .map((menuItem, index) => ({
+      ...menuItem,
+      separatorBefore: menuItem.separatorBefore || (index === 0 && inlineMenuItems.length > 0),
+    }));
+
+  return [
+    {
+      id: "resource-actions",
+      label: "Resource actions",
+      icon: <Icon as={ChevronDown} boxSize="14px" />,
+      menuItems: [...inlineMenuItems, ...resourceMenuItems],
+    },
+  ];
+};
 
 const resolveLabelColor = (input: {
   isEmptyStateVariant: boolean;
@@ -129,6 +164,7 @@ export const ListRowContent = (props: {
   variant: ListRowProps["variant"];
 }) => {
   const { item, isDisabled, isExpanded, showChevron, tone = "default", variant = "default" } = props;
+  const actions = createResourceRowActions(item);
 
   return (
     <>
@@ -145,8 +181,12 @@ export const ListRowContent = (props: {
           {item.endContent}
         </Box>
       ) : null}
-      {item.actions && item.actions.length > 0 ? (
-        <RowActions actions={item.actions} context={{ nodeId: item.id }} />
+      {actions.length > 0 ? (
+        <RowActions
+          actions={actions}
+          context={{ nodeId: item.id }}
+          alwaysVisible={(item.contextMenuItems?.length ?? 0) > 0}
+        />
       ) : null}
     </>
   );
