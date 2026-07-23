@@ -19,6 +19,7 @@ import { createHeadersModule } from "../headers/module";
 import { createHelpModule } from "../help/module";
 import { createNotificationsModule } from "../notifications/module";
 import { createProjectsModule } from "../projects/module";
+import { createSessionBubbleModule } from "../sessions/bubble/module";
 import { createSessionsModule } from "../sessions/module";
 import { createSettingsModule } from "../settings/module";
 import { createStartModule } from "../start/module";
@@ -185,6 +186,7 @@ const bootstrapWorkbench = () => {
     createHeadersModule(),
     createHelpModule(),
     createNotificationsModule(),
+    createSessionBubbleModule(),
     createSessionsModule(),
     createSettingsModule(),
     createStartModule(),
@@ -265,12 +267,12 @@ export const TicketMode: Story = {
   ),
 };
 
-// Session mode: project · search · new-session stay fixed above one collapsible "Sessions" group.
+// Session mode: global collections stay fixed above an expanded Sessions group with inline creation.
 export const SessionMode: Story = {
   render: () => <SidenavStory open={(workbench) => openInMode(workbench, dashboardResources.sessions)} />,
 };
 
-// Workspace mode: fixed project/search/new-session header above the workspace-scoped Sessions group.
+// Workspace mode: global collections stay fixed above the expanded, workspace-scoped Sessions group.
 export const WorkspaceMode: Story = {
   render: () => (
     <SidenavStory
