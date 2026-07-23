@@ -3,11 +3,15 @@ import { createWorkbenchCore } from "@pstdio/workbench/core";
 import { describeResourceRouteContract } from "@pstdio/workbench/testing";
 import { getWriter } from "@/lib/sync/collections";
 import { dashboardCommandIds } from "@/shared/app/commands";
+import { getDashboardActiveCollection, getDashboardSelectedResource } from "@/shared/app/navigation-state";
 import { dashboardSelectedProjectIdContextKey, selectDashboardProject } from "@/shared/app/project-context";
 import { createDashboardResource, dashboardResources } from "@/shared/app/resources";
 import { dashboardWidgetIds } from "@/shared/app/widget-ids";
-import { getSidebarContributionSections } from "@/shared/workbench/contributions/sidebar-tree-contributions";
-import { createSidebarModule } from "../sidebar/module";
+import {
+  getSidenavContributionHeaderNodes,
+  getSidenavContributionSections,
+} from "@/shared/workbench/contributions/sidenav-tree-contributions";
+import { createSidenavModule } from "../sidenav/module";
 import { createWorkspacesModule } from "../workspaces/module";
 import { createSessionBubbleModule } from "./bubble/module";
 import { createSessionsModule } from "./module";
@@ -25,32 +29,38 @@ describe("createSessionsModule", () => {
     expect(workbench.layout.getWidget(dashboardWidgetIds.session)).toMatchObject({ floatingPanels: "hidden" });
   });
 
-  test("renders the Sessions group in session and workspace modes but not the project mode", () => {
+  test("renders the Sessions group in session and workspace modes but not the project mode", async () => {
     const workbench = createWorkbenchCore();
 
     workbench.registerModule(createSessionsModule());
 
-    const nodeIdsForMode = (mode: string) =>
-      getSidebarContributionSections(workbench, mode)
+    const nodeIdsForMode = async (mode: string) =>
+      (await getSidenavContributionSections(workbench, mode))
         .flatMap((section) => section.nodes)
         .map((node) => node.id);
 
-    expect(nodeIdsForMode("project")).not.toContain("sessions");
-    expect(nodeIdsForMode("sessions")).toContain("sessions");
-    expect(nodeIdsForMode("workspace")).toContain("sessions");
+    expect(await nodeIdsForMode("project")).not.toContain("sessions");
+    expect(await nodeIdsForMode("sessions")).toContain("sessions");
+    expect(await nodeIdsForMode("workspace")).toContain("sessions");
   });
 
-  test("adds sessions navigation to the project sidebar", () => {
+  test("adds sessions navigation to the persistent sidenav header", async () => {
     const workbench = createWorkbenchCore();
 
     workbench.registerModule(createSessionsModule());
 
-    const projectNodes = getSidebarContributionSections(workbench, "project").flatMap((section) => section.nodes);
-    const sessionsNode = projectNodes.find((node) => node.id === dashboardResources.sessions.uri);
+    const sessionsNode = getSidenavContributionHeaderNodes(workbench, "project").find(
+      (node) => node.id === dashboardResources.sessions.uri,
+    );
 
     expect(sessionsNode).toMatchObject({
       target: { kind: "command", commandId: dashboardCommandIds.openSessions },
     });
+    expect(
+      (await getSidenavContributionSections(workbench, "project"))
+        .flatMap((section) => section.nodes)
+        .map((node) => node.id),
+    ).not.toContain(dashboardResources.sessions.uri);
   });
 
   test("keeps the sessions root in the breadcrumb when a session opens", async () => {
@@ -144,7 +154,7 @@ describe("createSessionsModule", () => {
     ]);
   });
 
-  test("opens the latest session when navigating sessions without a remembered session", async () => {
+  test("opens the project-owned sessions aggregate from global navigation", async () => {
     seedContractSessions();
     const workbench = createWorkbenchCore();
 
@@ -154,32 +164,27 @@ describe("createSessionsModule", () => {
 
     await workbench.commands.executeCommand(dashboardCommandIds.openSessions);
 
-    expect(workbench.layout.getLayout().activeResourceUri).toBe("dashboard-workbench://session/session-2");
+    expect(workbench.layout.getLayout().regions.main.widgets[0]?.resource?.uri).toBe(dashboardResources.sessions.uri);
+    expect(getDashboardActiveCollection(workbench)).toBe("sessions");
+    expect(getDashboardSelectedResource(workbench)).toBeUndefined();
   });
 
-  test("opens the current Side Panel session when navigating sessions", async () => {
+  test("returns to the last opened session from global navigation", async () => {
     seedContractSessions();
     const workbench = createWorkbenchCore();
-    const currentSession = createDashboardResource(
-      "session",
-      "session-1",
-      "First session",
-      "MessageCircle",
-      "project-1",
-      {
-        status: "completed",
-      },
-    );
+    const session = createDashboardResource("session", "session-2", "Second session", "MessageCircle", "project-1", {
+      status: "completed",
+    });
 
     selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
     workbench.resources.registerKind({ kind: "dashboard-view", label: "Dashboard view" });
-    workbench.registerModule(createSessionBubbleModule());
     workbench.registerModule(createSessionsModule());
 
-    await workbench.commands.executeCommand(dashboardCommandIds.openSessionPanel, { resource: currentSession });
+    await workbench.resources.openResource(session);
     await workbench.commands.executeCommand(dashboardCommandIds.openSessions);
 
-    expect(workbench.layout.getLayout().activeResourceUri).toBe(currentSession.uri);
+    expect(workbench.layout.getLayout().activeResourceUri).toBe(session.uri);
+    expect(workbench.breadcrumbs.getItems()?.map((item) => item.title)).toEqual(["Sessions", "Second session"]);
   });
 
   test("opens command palette session resources in the floating bubble", async () => {
@@ -260,7 +265,7 @@ describe("createSessionsModule workspace session scoping", () => {
     ]);
 
     const workbench = createWorkbenchCore();
-    workbench.registerModule(createSidebarModule());
+    workbench.registerModule(createSidenavModule());
     workbench.registerModule(createSessionBubbleModule());
     workbench.registerModule(createWorkspacesModule());
     workbench.registerModule(createSessionsModule());
@@ -271,7 +276,7 @@ describe("createSessionsModule workspace session scoping", () => {
       .find((entry) => entry.resource.kind === "workspace")?.resource;
     await workbench.resources.openResource(workspace!, { replaceActive: true });
 
-    const sessionsGroup = (await workbench.renderers.getBody(dashboardWidgetIds.dashboardSidebar, {}))
+    const sessionsGroup = (await workbench.renderers.getBody(dashboardWidgetIds.dashboardSidenav, {}))
       .flatMap((section) => section.nodes)
       .find((node) => node.id === "sessions");
     const sessionRowIds = (sessionsGroup?.children ?? [])
@@ -342,23 +347,23 @@ describe("createSessionsModule workspace session scoping", () => {
     ]);
 
     const workbench = createWorkbenchCore();
-    workbench.registerModule(createSidebarModule());
+    workbench.registerModule(createSidenavModule());
     workbench.registerModule(createSessionBubbleModule());
     workbench.registerModule(createWorkspacesModule());
     workbench.registerModule(createSessionsModule());
     selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
 
-    // Mirror the live sidebar widget: its React effect only recomputes getBody on refresh events
+    // Mirror the live sidenav widget: its React effect only recomputes getBody on refresh events
     // (its deps don't include the primary resource), so scoping is only correct if a refresh fires
     // while the switched-to workspace is the primary resource.
     let displayed: Awaited<ReturnType<typeof workbench.renderers.getBody>> = [];
-    const renderSidebar = async () => {
-      displayed = await workbench.renderers.getBody(dashboardWidgetIds.dashboardSidebar, {});
+    const renderSidenav = async () => {
+      displayed = await workbench.renderers.getBody(dashboardWidgetIds.dashboardSidenav, {});
     };
     const refreshSubscription = workbench.renderers.onDidRefresh((event) => {
-      if (event.treeId === dashboardWidgetIds.dashboardSidebar) void renderSidebar();
+      if (event.treeId === dashboardWidgetIds.dashboardSidenav) void renderSidenav();
     });
-    await renderSidebar();
+    await renderSidenav();
 
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
     const displayedSessionRowIds = () =>
@@ -371,7 +376,7 @@ describe("createSessionsModule workspace session scoping", () => {
     await workbench.resources.openResource(workspaceResource("workspace-1")!, { replaceActive: true });
     // A data-sync refresh accompanies entering a freshly opened/created workspace, so the first
     // workspace scopes correctly; simulate that settled state before the pure switch.
-    workbench.renderers.refresh(dashboardWidgetIds.dashboardSidebar);
+    workbench.renderers.refresh(dashboardWidgetIds.dashboardSidenav);
     await flush();
     expect(displayedSessionRowIds()).toEqual(["dashboard-workbench://session/session-one"]);
 

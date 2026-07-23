@@ -1,23 +1,22 @@
 import type { WorkbenchModuleContribution, WorkbenchModuleContributionContext } from "@pstdio/workbench/core";
 import { dashboardWidgetIds } from "@/shared/app/widget-ids";
-import { ProjectSidebarHeader } from "../projects/components/project-sidebar-header";
+import { ProjectHeader } from "../projects/components/project-header";
 
 const registerHeaders = (ctx: WorkbenchModuleContributionContext) => {
   ctx.layout.registerWidget({
-    id: dashboardWidgetIds.sidebarHeader,
-    title: "Project brand",
-    region: "sidebar-header",
+    id: dashboardWidgetIds.projectHeader,
+    title: "Project selector",
+    region: "nav",
     singleton: true,
-    rendererId: dashboardWidgetIds.sidebarHeader,
-    headerBorderBottom: false,
+    rendererId: dashboardWidgetIds.projectHeader,
   });
 
   ctx.renderers.registerRenderer({
-    id: dashboardWidgetIds.sidebarHeader,
-    render: (input) => <ProjectSidebarHeader input={input} />,
+    id: dashboardWidgetIds.projectHeader,
+    render: (input) => <ProjectHeader input={input} />,
   });
 
-  ctx.layout.openWidget(dashboardWidgetIds.sidebarHeader, { pinned: true });
+  ctx.layout.openWidget(dashboardWidgetIds.projectHeader, { pinned: true });
 };
 
 export const createHeadersModule = () =>

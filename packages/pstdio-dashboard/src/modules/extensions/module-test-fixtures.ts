@@ -84,7 +84,7 @@ export const metadataWithLabMode = {
       layout: {
         reset: true,
         open: [
-          { target: "workbench.left", view: "extension-lab.labSidebar", pinned: true },
+          { target: "workbench.left", view: "extension-lab.labSidenav", pinned: true },
           { target: "workbench.main", view: "extension-lab.labOverview" },
         ],
       },
@@ -92,16 +92,16 @@ export const metadataWithLabMode = {
   ],
   views: [
     {
-      id: "extension-lab.labSidebar",
+      id: "extension-lab.labSidenav",
       extensionId: "pstdio.extension-lab",
       slotId: "workbench.left",
       target: "workbench.main.left",
       title: "Lab",
       role: "location",
       webview: {
-        entry: { kind: "package-asset", path: "./src/lab-sidebar.tsx", baseUrl: "file:///extension/extension.ts" },
+        entry: { kind: "package-asset", path: "./src/lab-sidenav.tsx", baseUrl: "file:///extension/extension.ts" },
         runtimeUrl: "/v1/extensions/runtime",
-        moduleUrl: "/v1/extensions/installed/extension-lab/webviews/extension-lab.labSidebar/module.js",
+        moduleUrl: "/v1/extensions/installed/extension-lab/webviews/extension-lab.labSidenav/module.js",
       },
     },
     {
@@ -149,7 +149,7 @@ export const metadataWithTickets = {
       resourceKind: "ticket",
       layout: {
         reset: true,
-        open: [{ target: "workbench.main.left", view: "pstdio-core-tickets.ticketFiles", pinned: true }],
+        open: [{ target: "workbench.left", view: "pstdio-core-tickets.ticketFiles", pinned: true }],
       },
     },
   ],
@@ -175,8 +175,7 @@ export const metadataWithTickets = {
     {
       id: "pstdio-core-tickets.ticketFiles",
       extensionId: "pstdio.pstdio-core-tickets",
-      slotId: "workbench.main.left",
-      target: "workbench.main.left",
+      slotId: "unknown",
       title: "Files",
       role: "panel-menu",
       resourceKind: "ticket",

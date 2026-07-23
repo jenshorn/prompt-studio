@@ -5,6 +5,7 @@ import type {
   WorkbenchWidgetPlacement,
 } from "@pstdio/workbench/core";
 import { resolveAnchorRegion } from "@pstdio/workbench/core";
+import { selectDashboardNavigationResource } from "@/shared/app/navigation-state";
 import { getDashboardSelectedProjectId } from "@/shared/app/project-context";
 
 export interface RegisterResourceRouteInput {
@@ -19,7 +20,7 @@ export interface RegisterResourceRouteInput {
   // project-less open to project-selection instead of opening into an empty project.
   requiresProject?: boolean;
   title?: (resource: ResourceRef) => string | undefined;
-  // Side effects (breadcrumb, sidebar sync, remember/forget). Runs after mode activation,
+  // Side effects (breadcrumb, sidenav sync, remember/forget). Runs after mode activation,
   // before placement. It receives the domain resource but cannot change navigable identity —
   // the route always places the resource it was handed, so root can never become a detail.
   beforeOpen?: (input: { resource: ResourceRef }) => void;
@@ -46,6 +47,7 @@ export const registerResourceRoute = (ctx: WorkbenchModuleContributionContext, i
       }
 
       ctx.modes.setActiveMode(input.mode);
+      selectDashboardNavigationResource(ctx, resource);
       input.beforeOpen?.({ resource });
 
       const placement = ctx.layout.openWidget(input.widgetId, {

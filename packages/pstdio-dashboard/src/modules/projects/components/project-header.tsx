@@ -1,7 +1,6 @@
-import { Avatar, Button, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
+import { Avatar, Button, HStack, IconButton, Text } from "@chakra-ui/react";
 import { Tooltip } from "@pstdio/ui";
-import type { WorkbenchWidgetRenderInput } from "@pstdio/workbench/react";
-import { useWorkbenchStore } from "@pstdio/workbench/react";
+import { useWorkbenchStore, WorkbenchBreadcrumbView, type WorkbenchWidgetRenderInput } from "@pstdio/workbench/react";
 import { ChevronsUpDown } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { dashboardCommandIds } from "@/shared/app/commands";
@@ -11,7 +10,6 @@ import {
 } from "@/shared/app/project-context";
 import { dashboardResources } from "@/shared/app/resources";
 import { getDashboardDataVersion, subscribeDashboardData } from "@/shared/sync/dashboard-rows";
-import { DashboardSidebarHeaderActions } from "@/shared/workbench/dashboard-sidebar-header-actions";
 import { findDashboardProject } from "../data/project-data";
 
 const projectButtonInteraction = {
@@ -24,7 +22,7 @@ const resolveProjectName = (projectId: unknown, projectName: unknown, _dataVersi
   return project?.name ?? (typeof projectName === "string" ? projectName : "Projects");
 };
 
-export const ProjectSidebarHeader = (props: { input: WorkbenchWidgetRenderInput }) => {
+export const ProjectHeader = (props: { input: WorkbenchWidgetRenderInput }) => {
   const { input } = props;
   const selectedProjectId = useWorkbenchStore(
     input.workbench.context.store,
@@ -39,17 +37,18 @@ export const ProjectSidebarHeader = (props: { input: WorkbenchWidgetRenderInput 
     getDashboardDataVersion,
     getDashboardDataVersion,
   );
+  const breadcrumbItems = useWorkbenchStore(input.workbench.breadcrumbs.store, (state) => state.items) ?? [];
   const projectName = resolveProjectName(selectedProjectId, selectedProjectName, dashboardDataVersion);
 
   return (
-    <Stack gap="0" w="full" minW="0">
-      <HStack gap="2xs" minH="2.5rem" w="full" minW="0" px="2xs" paddingRight="xs" alignItems="center">
+    <HStack gap="xs" h="full" minW="0" w="full">
+      <HStack gap="2xs" flexShrink={0} minW="0">
         <Tooltip content="Go to project home">
           <Button
             px="xs"
             variant="ghost"
             size="xs"
-            flex="1"
+            maxW="2xs"
             minW="0"
             justifyContent="flex-start"
             onClick={() => {
@@ -57,7 +56,7 @@ export const ProjectSidebarHeader = (props: { input: WorkbenchWidgetRenderInput 
             }}
             {...projectButtonInteraction}
           >
-            <HStack gap="xs" minW="0" flex="1">
+            <HStack gap="xs" minW="0">
               <Avatar.Root size="2xs">
                 <Avatar.Fallback name={projectName} background="bg.muted" color="fg.muted" />
               </Avatar.Root>
@@ -82,7 +81,12 @@ export const ProjectSidebarHeader = (props: { input: WorkbenchWidgetRenderInput 
           </IconButton>
         </Tooltip>
       </HStack>
-      <DashboardSidebarHeaderActions input={input} />
-    </Stack>
+      {breadcrumbItems.length > 0 ? (
+        <Text aria-hidden="true" color="fg.subtle" flexShrink={0}>
+          /
+        </Text>
+      ) : null}
+      <WorkbenchBreadcrumbView workbench={input.workbench} />
+    </HStack>
   );
 };

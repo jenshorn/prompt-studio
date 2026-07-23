@@ -128,6 +128,8 @@ describe("buildTreeVisibilityMenuActions", () => {
       "node:help",
       "__reset-visibility",
     ]);
+    expect(actions.find((action) => action.key === "section:alpha")?.separatorBefore).toBe(true);
+    expect(actions.find((action) => action.key === "node:help")?.separatorBefore).toBe(true);
   });
 
   test("omits items that do not opt in — leaf sub-items are never hideable", () => {
@@ -203,17 +205,6 @@ describe("buildTreeVisibilityMenuActions", () => {
 
     // The opted-in "Tickets" row is listed; "Planner" (no opt-in) and the leaf child are not.
     expect(actions.map((action) => action.key)).toEqual(["node:tickets", "__reset-visibility"]);
-  });
-
-  test("includes a 'Reset order' entry when onResetOrder is provided", () => {
-    const actions = buildTreeVisibilityMenuActions(
-      { sections },
-      {},
-      {},
-      { ...noopActions, onResetOrder: () => {} },
-      options,
-    );
-    expect(actions[actions.length - 1].key).toBe("__reset-order");
   });
 
   test("shows the eye on visible entries and eye-off on hidden entries", () => {

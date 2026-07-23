@@ -9,7 +9,10 @@ import {
   emptyDashboardExtensionMetadata,
 } from "@/shared/extensions/workbench-extension-contributions";
 import { registerExtensionContributions } from "./extension-contribution-registration";
-import { buildExtensionDataRendererSidebarSections, registerExtensionDataRenderers } from "./extension-data-renderers";
+import {
+  buildExtensionDataRendererSidenavHeaderNodes,
+  registerExtensionDataRenderers,
+} from "./extension-data-renderers";
 import { createExtensionsModule } from "./module";
 import { emptyAppearance, flushMicrotasks } from "./module-test-fixtures";
 
@@ -232,8 +235,8 @@ describe("registerExtensionDataRenderers", () => {
     try {
       await flushMicrotasks();
 
-      const ticketsResource = buildExtensionDataRendererSidebarSections({ metadata, projectId: "project-1" })[0]
-        ?.nodes[0]?.resource;
+      const ticketsResource = buildExtensionDataRendererSidenavHeaderNodes({ metadata, projectId: "project-1" })[0]
+        ?.resource;
 
       await workbench.resources.openResource(ticketsResource!);
       expect(workbench.layout.getLayout().regions.main.widgets.map((widget) => widget.contributionId)).toEqual([
@@ -290,31 +293,33 @@ describe("registerExtensionDataRenderers adapter hooks", () => {
   });
 });
 
-describe("buildExtensionDataRendererSidebarSections", () => {
+describe("buildExtensionDataRendererSidenavHeaderNodes", () => {
   test("lists a nav node per data renderer", () => {
-    const sections = buildExtensionDataRendererSidebarSections({ metadata, projectId: "proj-1" });
+    const nodes = buildExtensionDataRendererSidenavHeaderNodes({ metadata, projectId: "proj-1" });
 
-    expect(sections).toHaveLength(1);
-    expect(sections[0]?.nodes).toHaveLength(1);
-    expect(sections[0]?.nodes[0]).toMatchObject({ label: "Tickets" });
-    expect(sections[0]?.nodes[0]?.resource).toMatchObject({
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]).toMatchObject({ label: "Tickets" });
+    expect(nodes[0]?.resource).toMatchObject({
       kind: "dashboard-view",
       id: "pstdio-core-tickets.tickets",
+      metadata: { collectionId: "tickets" },
     });
   });
 
   test("uses the ticket board icon for ticket data renderers", () => {
-    const sections = buildExtensionDataRendererSidebarSections({ metadata, projectId: "proj-1" });
-    const node = sections[0]?.nodes[0];
+    const node = buildExtensionDataRendererSidenavHeaderNodes({ metadata, projectId: "proj-1" })[0];
 
     expect(node?.icon).toBe("square-kanban");
     expect(node?.resource?.icon).toBe("square-kanban");
   });
 
   test("returns nothing without a project or data renderers", () => {
-    expect(buildExtensionDataRendererSidebarSections({ metadata, projectId: undefined })).toEqual([]);
+    expect(buildExtensionDataRendererSidenavHeaderNodes({ metadata, projectId: undefined })).toEqual([]);
     expect(
-      buildExtensionDataRendererSidebarSections({ metadata: emptyDashboardExtensionMetadata, projectId: "proj-1" }),
+      buildExtensionDataRendererSidenavHeaderNodes({
+        metadata: emptyDashboardExtensionMetadata,
+        projectId: "proj-1",
+      }),
     ).toEqual([]);
   });
 });
