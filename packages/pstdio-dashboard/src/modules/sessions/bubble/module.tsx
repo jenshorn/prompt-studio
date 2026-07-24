@@ -2,6 +2,8 @@ import type {
   ResourceRef,
   WorkbenchModuleContribution,
   WorkbenchModuleContributionContext,
+  WorkbenchTabPosition,
+  WorkbenchTabRetention,
 } from "@pstdio/workbench/core";
 import { SessionWidget } from "@/modules/sessions/components/session-widget";
 import { forgetDashboardSession, rememberDashboardSessionResource } from "@/modules/sessions/state/session-selection";
@@ -11,10 +13,10 @@ import { createDashboardResource, dashboardResources } from "@/shared/app/resour
 import { dashboardWidgetIds } from "@/shared/app/widget-ids";
 import { createDashboardWorkspaceOptions } from "@/shared/workspaces/workspace-options";
 import { openSessionBubbleWidgets } from "./session-bubble";
-import { SessionTabContent, SessionTabContextMenu } from "./session-tab";
+import { SessionTabContent, SessionTabMenu } from "./session-tab";
 
 const sessionTabRendererId = "dashboard-workbench.session-tab";
-const sessionTabContextMenuRendererId = "dashboard-workbench.session-tab-context-menu";
+const sessionTabMenuRendererId = "dashboard-workbench.session-tab-menu";
 
 const metadataString = (resource: ResourceRef | undefined, key: string) => {
   const value = resource?.metadata?.[key];
@@ -104,7 +106,7 @@ const registerSessionBubbleWidgets = (ctx: WorkbenchModuleContributionContext) =
       icon: "MessageCircle",
       tab: {
         contentRendererId: sessionTabRendererId,
-        contextMenuRendererId: sessionTabContextMenuRendererId,
+        customMenuRendererId: sessionTabMenuRendererId,
       },
       priority: 30,
     },
@@ -120,8 +122,8 @@ const registerSessionBubbleWidgets = (ctx: WorkbenchModuleContributionContext) =
     render: (input) => <SessionTabContent input={input} />,
   });
   ctx.renderers.registerRenderer({
-    id: sessionTabContextMenuRendererId,
-    render: (input) => <SessionTabContextMenu input={input} />,
+    id: sessionTabMenuRendererId,
+    render: (input) => <SessionTabMenu input={input} />,
   });
 };
 
@@ -159,12 +161,18 @@ const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) 
       execute: async (args) => {
         const {
           resource,
+          preservePanelMode = false,
           replaceWidgetId,
           selectWorkspaceSidenav = true,
+          tabPosition,
+          tabRetention,
         } = (args ?? {}) as {
           resource?: ResourceRef;
+          preservePanelMode?: boolean;
           replaceWidgetId?: string;
           selectWorkspaceSidenav?: boolean;
+          tabPosition?: WorkbenchTabPosition;
+          tabRetention?: WorkbenchTabRetention;
         };
         if (resource?.kind !== "session" || !resource.id) return undefined;
 
@@ -172,7 +180,10 @@ const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) 
         const placement = openSessionBubbleWidgets(ctx, {
           resource,
           title: resource.label,
-          replaceWidgetId: replaceWidgetId ?? getReusableSessionPlacementId(ctx),
+          replaceWidgetId:
+            replaceWidgetId ?? (tabRetention === "preview" ? undefined : getReusableSessionPlacementId(ctx)),
+          tabPosition,
+          tabRetention,
         });
         selectSidenavSessionNode(ctx, resource);
         if (
@@ -184,7 +195,7 @@ const registerSessionBubbleCommands = (ctx: WorkbenchModuleContributionContext) 
             resource,
           });
         }
-        if (ctx.sessionPanel.getMode() === "closed") ctx.sessionPanel.setMode("bubble");
+        if (!preservePanelMode && ctx.sessionPanel.getMode() === "closed") ctx.sessionPanel.setMode("bubble");
         return placement.bubble;
       },
     },

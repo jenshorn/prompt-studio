@@ -64,6 +64,10 @@ export type WorkbenchFloatingPanelVisibility = "visible" | "hidden";
 
 export type WorkbenchWidgetRole = "content" | "location" | "sub-panel" | "panel-menu";
 
+export type WorkbenchTabRetention = "preview" | "persistent";
+
+export type WorkbenchTabPosition = "start" | "end" | { beforeWidgetId: string } | { afterWidgetId: string };
+
 export interface WorkbenchLocationEligibility {
   modeIds?: string[];
   resourceKinds?: string[];
@@ -77,7 +81,8 @@ export type WorkbenchPanelMenuOwner =
 
 export interface WorkbenchWidgetTab {
   contentRendererId?: string;
-  contextMenuRendererId?: string;
+  /** Custom actions shown when the user activates an already-active tab. */
+  customMenuRendererId?: string;
 }
 
 export interface WidgetContribution {
@@ -166,6 +171,7 @@ export interface WorkbenchWidgetPlacement {
   closable?: boolean;
   mountStrategy?: WidgetMountStrategy;
   hiddenByDefault?: boolean;
+  tabRetention?: WorkbenchTabRetention;
   tab?: WorkbenchWidgetTab;
   role?: WorkbenchWidgetRole;
 }
@@ -202,6 +208,8 @@ export interface OpenWidgetInput {
   closable?: boolean;
   mountStrategy?: WidgetMountStrategy;
   hiddenByDefault?: boolean;
+  tabRetention?: WorkbenchTabRetention;
+  tabPosition?: WorkbenchTabPosition;
   tab?: WorkbenchWidgetTab;
   replaceActive?: boolean;
   replaceWidgetId?: string;
