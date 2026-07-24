@@ -40,12 +40,15 @@ export {
   WEBVIEW_HOST_CAPABILITY_VERSION,
 } from "./types/webview-capabilities";
 export {
+  getWorkbenchModeLayoutTargetPanel,
   getWorkbenchTargetDefinition,
+  normalizeWorkbenchModePanels,
   type WorkbenchAttachmentTarget,
   type WorkbenchContributionKind,
   type WorkbenchLayoutTarget,
   type WorkbenchMenuTarget,
   type WorkbenchModeLayoutTarget,
+  type WorkbenchModePanel,
   type WorkbenchSettingsScope,
   type WorkbenchSettingsTarget,
   type WorkbenchTargetDefinition,
@@ -54,6 +57,7 @@ export {
   type WorkbenchViewTarget,
   workbenchMenuTargets,
   workbenchModeLayoutTargets,
+  workbenchModePanels,
   workbenchSettingsScopes,
   workbenchSettingsTargets,
   workbenchTargets,
