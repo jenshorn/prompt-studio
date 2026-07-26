@@ -1,7 +1,44 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { resolve } from "node:path";
-import type { Locator } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
+
+const STORYBOOK_BOOT_TIMEOUT_MS = 60_000;
+
+// Storybook compiles the package from source on boot, which on a loaded machine outruns
+// Playwright's default 30s hook timeout. Without this the hook is killed mid-boot and the
+// whole describe block fails on a spec that never ran.
+const STORYBOOK_BOOT_HOOK_TIMEOUT_MS = STORYBOOK_BOOT_TIMEOUT_MS + 30_000;
+
+// A story's first render pays Storybook's on-demand compile on top of the page load: the boot
+// probe only fetches iframe.html, so the whole Vite compile lands on the first render gate.
+// 30s was not enough on CI — ps-178 and ps-193 both burned it with zero elements on the same
+// run, and the same workbench story renders in ~9s locally. Every story spec is test.slow()
+// (90s), which leaves room for the interactions that follow.
+export const STORY_RENDER_TIMEOUT_MS = 60_000;
+
+type StorybookPreview = { storyRenders?: Array<{ phase?: string }> };
+
+// A story's `play` function keeps driving the DOM after the story is on screen, and Storybook
+// only marks the render "finished" once it returns. A spec that starts interacting before then
+// races the play function over the same elements — on a loaded runner the play function's
+// trailing keystrokes land in the middle of the spec's own interaction. Playback covers the
+// same compile the render gate waits for, so it shares that budget; measured at 22.9s for the
+// preview-tabs story under 20x CPU throttling.
+export const waitForStoryPlayback = async (page: Page) => {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (
+              window as unknown as { __STORYBOOK_PREVIEW__?: StorybookPreview }
+            ).__STORYBOOK_PREVIEW__?.storyRenders?.map((render) => render.phase) ?? [],
+        ),
+      { timeout: STORY_RENDER_TIMEOUT_MS },
+    )
+    .toEqual(["finished"]);
+};
 
 const getFreePort = async () =>
   new Promise<number>((resolvePort, reject) => {
@@ -30,7 +67,7 @@ const getFreePort = async () =>
 
 const waitForStorybook = async (baseUrl: string, process: ChildProcessWithoutNullStreams, probeStoryId: string) => {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 60_000) {
+  while (Date.now() - startedAt < STORYBOOK_BOOT_TIMEOUT_MS) {
     if (process.exitCode !== null) {
       throw new Error(`Storybook exited before it became reachable with code ${process.exitCode}`);
     }
@@ -54,6 +91,8 @@ export const startStorybook = async (
   probeStoryId: string,
   packageName: "ui" | "pstdio-dashboard" | "pstdio-workbench" = "ui",
 ) => {
+  test.setTimeout(STORYBOOK_BOOT_HOOK_TIMEOUT_MS);
+
   const port = await getFreePort();
   const repoRoot = resolve(import.meta.dirname, "../../..", "..");
   const packageRoot = resolve(repoRoot, "packages", packageName);
