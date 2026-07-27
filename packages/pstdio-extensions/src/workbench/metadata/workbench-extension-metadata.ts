@@ -4,7 +4,7 @@ import type {
   ExtensionSettingDefinitionRecord,
   ExtensionTreeItemContribution,
   WorkbenchExtensionCommandPaletteResourceRecord,
-  WorkbenchExtensionDataRendererRecord,
+  WorkbenchExtensionKanbanRendererRecord,
   WorkbenchExtensionMetadata,
 } from "@pstdio/sdk/api";
 import type { PackageAssetDescriptor, WebviewContribution } from "@pstdio/sdk/extensions";
@@ -239,10 +239,10 @@ const toRouteRecord = (
   };
 };
 
-const toDataRendererCreateRow = (
+const toKanbanRendererCreateRow = (
   extensionName: string,
-  createRow: ExtensionRuntime["dataRenderers"][number]["contribution"]["createRow"],
-): WorkbenchExtensionDataRendererRecord["createRow"] => {
+  createRow: ExtensionRuntime["kanbanRenderers"][number]["contribution"]["createRow"],
+): WorkbenchExtensionKanbanRendererRecord["createRow"] => {
   const commandId = createRow ? resolveOptionalContributionId(extensionName, refIdOf(createRow.command)) : undefined;
   if (!createRow || !commandId) return undefined;
   const attachmentCommandId = createRow.attachments
@@ -253,7 +253,7 @@ const toDataRendererCreateRow = (
     title: createRow.title,
     submitLabel: createRow.submitLabel,
     columnParam: createRow.columnParam,
-    params: createRow.params as NonNullable<WorkbenchExtensionDataRendererRecord["createRow"]>["params"],
+    params: createRow.params as NonNullable<WorkbenchExtensionKanbanRendererRecord["createRow"]>["params"],
     attributesParam: createRow.attributesParam,
     labels: createRow.labels,
     attachments:
@@ -267,9 +267,9 @@ const toDataRendererCreateRow = (
   };
 };
 
-const toDataRendererRecord = (
-  renderer: ExtensionRuntime["dataRenderers"][number],
-): WorkbenchExtensionDataRendererRecord | null => {
+const toKanbanRendererRecord = (
+  renderer: ExtensionRuntime["kanbanRenderers"][number],
+): WorkbenchExtensionKanbanRendererRecord | null => {
   const queryCommandId = resolveOptionalContributionId(renderer.name, refIdOf(renderer.contribution.queryCommand));
   if (!queryCommandId) return null;
   return {
@@ -288,7 +288,7 @@ const toDataRendererRecord = (
       renderer.name,
       refIdOf(renderer.contribution.columnActionCommand),
     ),
-    createRow: toDataRendererCreateRow(renderer.name, renderer.contribution.createRow),
+    createRow: toKanbanRendererCreateRow(renderer.name, renderer.contribution.createRow),
     rowActions: compact(
       (renderer.contribution.rowActions ?? []).map((action) => {
         const commandId = resolveOptionalContributionId(renderer.name, refIdOf(action.command));
@@ -298,10 +298,11 @@ const toDataRendererRecord = (
     ),
     defaultSettings: renderer.contribution.defaultSettings,
     defaultFilters: renderer.contribution.defaultFilters,
+    defaultViews: renderer.contribution.defaultViews,
+    defaultActiveViewId: renderer.contribution.defaultActiveViewId,
     emptyTitle: renderer.contribution.emptyTitle,
     emptyDescription: renderer.contribution.emptyDescription,
     hideToolbar: renderer.contribution.hideToolbar,
-    savedViews: renderer.contribution.savedViews,
   };
 };
 
@@ -396,8 +397,8 @@ const toTreeItemRecord = (item: ExtensionRuntime["treeItems"][number]): Extensio
             commandId: resolveOptionalContributionId(item.name, refIdOf(action.command)) ?? "unknown",
             args: action.params as Record<string, unknown> | undefined,
           }
-        : action.kind === "dataRenderer"
-          ? { kind: "dataRenderer", dataRendererId: resolveContributionId(item.name, action.dataRenderer) }
+        : action.kind === "kanbanRenderer"
+          ? { kind: "kanbanRenderer", kanbanRendererId: resolveContributionId(item.name, action.kanbanRenderer) }
           : action,
     when: item.contribution.when as ExtensionTreeItemContribution["when"],
   };
@@ -469,7 +470,7 @@ export const createWorkbenchExtensionMetadata = (
     navigation: [],
     treeItems: input.runtime.treeItems.map(toTreeItemRecord),
     settingsPanels: compact(input.runtime.settingsPanels.map((panel) => toSettingsPanelRecord(input, panel))),
-    dataRenderers: compact(input.runtime.dataRenderers.map(toDataRendererRecord)),
+    kanbanRenderers: compact(input.runtime.kanbanRenderers.map(toKanbanRendererRecord)),
     dataTableRenderers: compact(input.runtime.dataTableRenderers.map(toDataTableRendererRecord)),
     commandPaletteResources: compact(input.runtime.commandPaletteResources.map(toCommandPaletteResourceRecord)),
     treeRenderers: compact(input.runtime.treeRenderers.map(toTreeRendererRecord)),

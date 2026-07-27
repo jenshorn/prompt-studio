@@ -4,9 +4,9 @@ import { Tooltip } from "@/components/primitives/tooltip";
 import type { ListRowItem, ListRowProps, RowContentProps } from "./list-row.types";
 import { RowActions } from "./list-row-actions";
 
-export const createResourceRowActions = (item: ListRowItem) => {
+export const createResourceRowActions = (item: ListRowItem, showContextMenuTrigger = true) => {
   const contextMenuItems = item.contextMenuItems ?? [];
-  if (contextMenuItems.length === 0) return item.actions ?? [];
+  if (contextMenuItems.length === 0 || !showContextMenuTrigger) return item.actions ?? [];
 
   const inlineMenuItems =
     item.actions?.flatMap((action) =>
@@ -95,14 +95,23 @@ const RowDescription = (props: {
 const RowContent = (props: RowContentProps) => {
   const { item, isExpanded, showChevron, isDisabled, variant, tone } = props;
   const isEmptyStateVariant = variant === "empty-state";
-  const isDenseVariant = variant === "compact" || variant === "full-width" || variant === "tree" || isEmptyStateVariant;
+  const isDenseVariant =
+    variant === "compact" ||
+    variant === "collection" ||
+    variant === "full-width" ||
+    variant === "tree" ||
+    isEmptyStateVariant;
   const labelTextStyle = isDenseVariant ? "label/S/regular" : "label/M/regular";
   const descriptionTextStyle = isDenseVariant ? "label/XS" : "label/S/regular";
   const descriptionMarginLeft = isDenseVariant ? "0" : "2px";
-  const iconPx = variant === "tree" ? "16px" : "14px";
-  const iconLabelGap = variant === "tree" ? "1" : "2";
+  const iconPx = variant === "tree" || variant === "collection" ? "16px" : "14px";
+  const iconLabelGap = variant === "collection" ? "compact" : variant === "tree" ? "1" : "2";
 
-  const labelColor = resolveLabelColor({ isEmptyStateVariant, isDisabled, tone });
+  const labelColor = resolveLabelColor({
+    isEmptyStateVariant,
+    isDisabled,
+    tone,
+  });
   const iconColor = item.iconColor ?? (tone === "danger" ? "red.500" : "fg.muted");
   const descriptionColor = tone === "danger" ? "red.400" : "fg.menu-item.secondary";
 
@@ -162,9 +171,18 @@ export const ListRowContent = (props: {
   isDisabled: boolean;
   tone: ListRowProps["tone"];
   variant: ListRowProps["variant"];
+  showContextMenuTrigger: boolean;
 }) => {
-  const { item, isDisabled, isExpanded, showChevron, tone = "default", variant = "default" } = props;
-  const actions = createResourceRowActions(item);
+  const {
+    item,
+    isDisabled,
+    isExpanded,
+    showChevron,
+    tone = "default",
+    variant = "default",
+    showContextMenuTrigger,
+  } = props;
+  const actions = createResourceRowActions(item, showContextMenuTrigger);
 
   return (
     <>
@@ -185,7 +203,7 @@ export const ListRowContent = (props: {
         <RowActions
           actions={actions}
           context={{ nodeId: item.id }}
-          alwaysVisible={(item.contextMenuItems?.length ?? 0) > 0}
+          alwaysVisible={showContextMenuTrigger && (item.contextMenuItems?.length ?? 0) > 0}
         />
       ) : null}
     </>

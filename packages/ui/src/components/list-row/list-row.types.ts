@@ -48,7 +48,7 @@ export interface ListRowAction {
   onAction?: (context: ListRowActionContext) => void;
 }
 
-export type ListRowVariant = "default" | "compact" | "full-width" | "tree" | "empty-state";
+export type ListRowVariant = "default" | "compact" | "collection" | "full-width" | "tree" | "empty-state";
 export type ListRowTone = "default" | "danger";
 export type ListRowMenuPlacement =
   | "top"
@@ -121,6 +121,8 @@ export interface ListRowProps
   isExpanded?: boolean;
   /** Forces the expand affordance when children are lazy-loaded or externally controlled. */
   showExpandToggle?: boolean;
+  /** Shows context-menu actions from an inline trigger in addition to right-click access. */
+  showContextMenuTrigger?: boolean;
   variant?: ListRowVariant;
   tone?: ListRowTone;
   selectedBg?: ListRowRootProps["bg"];

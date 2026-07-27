@@ -87,17 +87,17 @@ describe("pstdio planner extension contributions", () => {
       "zh-Hans": expect.objectContaining({ kind: "package-asset" }),
       "zh-Hant": expect.objectContaining({ kind: "package-asset" }),
     });
-    expect(extension.dataRenderers?.tickets?.title).toEqual({
-      $l10n: "dataRenderers.tickets.title",
+    expect(extension.kanbanRenderers?.tickets?.title).toEqual({
+      $l10n: "kanbanRenderers.tickets.title",
       default: "Tickets",
     });
-    expect(extension.dataRenderers?.tickets?.createRow).toMatchObject({
+    expect(extension.kanbanRenderers?.tickets?.createRow).toMatchObject({
       columnParam: "statusId",
       attributesParam: "attributes",
       params: {
         content: {
           type: "markdown",
-          label: { $l10n: "dataRenderers.tickets.createRow.content.label", default: "Description" },
+          label: { $l10n: "kanbanRenderers.tickets.createRow.content.label", default: "Description" },
           required: true,
         },
         files: { type: "files", multiple: true },
@@ -107,7 +107,7 @@ describe("pstdio planner extension contributions", () => {
         fileParam: "ref",
       },
       labels: {
-        cancel: { $l10n: "dataRenderers.tickets.createRow.cancel", default: "Cancel" },
+        cancel: { $l10n: "kanbanRenderers.tickets.createRow.cancel", default: "Cancel" },
       },
     });
     expect(extension.settingsPanels?.ticketStatuses?.title).toEqual({
@@ -201,21 +201,21 @@ describe("pstdio planner extension contributions", () => {
   });
 
   test("opens the tickets datatable as a board with core properties displayed", () => {
-    expect(extension.dataRenderers?.tickets?.defaultSettings).toMatchObject({
+    expect(extension.kanbanRenderers?.tickets?.defaultSettings).toMatchObject({
       viewMode: "board",
       columnGrouping: "status",
       ordering: { attributeId: "created", direction: "desc" },
       displayProperties: ["id", "workspace", "type", "priority"],
     });
-    expect(extension.dataRenderers?.tickets?.columnActionCommand).toEqual({
+    expect(extension.kanbanRenderers?.tickets?.columnActionCommand).toEqual({
       id: "pstdio-planner.ticket-column-action",
     });
   });
 
   test("exposes ticket workspace creation as an extension-owned row action", () => {
-    expect(extension.dataRenderers?.tickets?.rowActions).toContainEqual({
+    expect(extension.kanbanRenderers?.tickets?.rowActions).toContainEqual({
       id: "create-workspace",
-      label: { $l10n: "dataRenderers.tickets.rowActions.createWorkspace", default: "Create workspace" },
+      label: { $l10n: "kanbanRenderers.tickets.rowActions.createWorkspace", default: "Create workspace" },
       icon: "git-branch",
       command: { id: "pstdio-planner.create-workspace" },
     });

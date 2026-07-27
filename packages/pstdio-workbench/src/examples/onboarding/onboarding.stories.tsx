@@ -1,10 +1,11 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "storybook/test";
 import { useWorkbenchThemePreferences, Workbench, WorkbenchThemeProvider } from "../../react";
-import { createDataRendererStoryModule } from "../data-renderer/module";
 import { createDataTableRendererStoryModule } from "../data-table-renderer/module";
 import { createExtensionThemesWorkbench } from "../extension-themes/module";
 import { createFileRendererStoryModule } from "../file-renderer/module";
+import { createKanbanRendererStoryModule } from "../kanban-renderer/module";
 import { createSettingsModule } from "../settings/module";
 import type { WorkbenchStoryProps } from "../workbench-story";
 import { createBreadcrumbModule } from "./breadcrumb-module";
@@ -86,7 +87,7 @@ const modesWorkbench = createWorkbench(createModesModule());
 const commandKeybindingThemeWorkbench = createWorkbench(createCommandKeybindingThemeModule());
 const focusContextWorkbench = createWorkbench(createFocusContextModule());
 const navigationWorkbench = createWorkbench(createNavigationModule());
-const dataRendererWorkbench = createWorkbench(createDataRendererStoryModule());
+const kanbanRendererWorkbench = createWorkbench(createKanbanRendererStoryModule());
 const extensionsWorkbench = createExtensionThemesWorkbench();
 const widgetVariantsWorkbench = createWorkbench(createWidgetVariantsModule());
 const breadcrumbWorkbench = createWorkbench(createBreadcrumbModule());
@@ -181,10 +182,10 @@ export const Navigation: Story = {
   render: () => <WorkbenchFrame workbench={navigationWorkbench} />,
 };
 
-export const DataRenderer: Story = {
-  name: "10. Data renderer",
-  parameters: sourceParameters(onboardingSources.dataRenderer),
-  render: () => <WorkbenchFrame workbench={dataRendererWorkbench} />,
+export const KanbanRenderer: Story = {
+  name: "10. Kanban renderer",
+  parameters: sourceParameters(onboardingSources.kanbanRenderer),
+  render: () => <WorkbenchFrame workbench={kanbanRendererWorkbench} />,
 };
 
 export const Extensions: Story = {
@@ -209,6 +210,11 @@ export const SidePanels: Story = {
   name: "14. Side panels",
   parameters: sourceParameters(sidePanelsSource),
   render: () => <WorkbenchFrame workbench={sidePanelsWorkbench} />,
+  play: async ({ canvasElement }) => {
+    const sidePanelControl = within(canvasElement).getByRole("button", { name: "Hide Side Panel" });
+    await expect(sidePanelControl.getBoundingClientRect().width).toBe(24);
+    await expect(sidePanelControl.getBoundingClientRect().height).toBe(24);
+  },
 };
 
 export const FloatingSidePanel: Story = {
@@ -239,11 +245,20 @@ export const OpenSubPanels: Story = {
 export const PanelMenuOnly: Story = {
   name: "14.4 Panel Menu only",
   render: () => <WorkbenchFrame workbench={panelCompositionWorkbenches.menuOnly} />,
+  play: async ({ canvasElement }) => {
+    const panelMenu = canvasElement.querySelector<HTMLElement>('[data-workbench-panel-menu="main-left"]');
+    if (!panelMenu) throw new Error("Expected the main left panel menu");
+    await expect(panelMenu.getBoundingClientRect().width).toBe(280);
+  },
 };
 
 export const CollapsedPanelMenu: Story = {
   name: "14.5 Collapsed Panel Menu",
   render: () => <WorkbenchFrame workbench={panelCompositionWorkbenches.collapsedMenu} />,
+  play: async ({ canvasElement }) => {
+    const opener = within(canvasElement).getByRole("button", { name: "Open Main left menu" });
+    await expect(opener.querySelector(".lucide-panel-left-open")).toBeInTheDocument();
+  },
 };
 
 export const SubPanelsWithPanelMenus: Story = {

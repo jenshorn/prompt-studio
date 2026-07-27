@@ -32,7 +32,7 @@ describe("createWorkbenchExtensionMetadata", () => {
             queryRows: { title: "Query rows", run: async () => ({ rows: [] }) },
             treeBody: { title: "Tree body", run: async () => [] },
           },
-          dataRenderers: {
+          kanbanRenderers: {
             rows: { title: "Rows", queryCommand: "queryRows" },
           },
           modes: {
@@ -64,7 +64,7 @@ describe("createWorkbenchExtensionMetadata", () => {
             rows: {
               target: "workbench.left.tree",
               label: "Rows",
-              action: { kind: "dataRenderer", dataRenderer: "rows" },
+              action: { kind: "kanbanRenderer", kanbanRenderer: "rows" },
             },
           },
           treeRenderers: {
@@ -136,10 +136,10 @@ describe("createWorkbenchExtensionMetadata", () => {
       icon: "flask-conical",
       webview: { runtimeUrl: "/runtime/lab.project.html" },
     });
-    expect(metadata.dataRenderers?.[0]).toMatchObject({ id: "lab.rows", queryCommandId: "lab.queryRows" });
+    expect(metadata.kanbanRenderers?.[0]).toMatchObject({ id: "lab.rows", queryCommandId: "lab.queryRows" });
     expect(metadata.treeItems?.[0]).toMatchObject({
       id: "lab.rows",
-      action: { kind: "dataRenderer", dataRendererId: "lab.rows" },
+      action: { kind: "kanbanRenderer", kanbanRendererId: "lab.rows" },
     });
     expect(metadata.settingsDefinitions?.[0]).toMatchObject({ key: "enabled", default: true });
     expect(metadata.modes[0]).toMatchObject({
@@ -233,6 +233,74 @@ describe("createWorkbenchExtensionMetadata", () => {
         when: { resourceType: ["marp.presentation"] },
       }),
     ]);
+  });
+});
+
+describe("createWorkbenchExtensionMetadata kanban renderers", () => {
+  test("preserves extension-declared default saved views", () => {
+    const runtime = normalizeExtensionSources([
+      {
+        sourcePath,
+        sourceKind: "local_path",
+        packagePath: "/extensions/lab",
+        manifest: {
+          id: "pstdio.lab",
+          name: "lab",
+          displayName: "Lab",
+          version: "1.0.0",
+          publisher: "pstdio",
+          main: "./extension.ts",
+          enginesPstdio: "^1.0.0",
+        },
+        definition: {
+          commands: { queryRows: { title: "Query rows", run: async () => ({ rows: [] }) } },
+          kanbanRenderers: {
+            rows: {
+              title: "Rows",
+              queryCommand: "queryRows",
+              defaultViews: [
+                {
+                  id: "all",
+                  title: "All rows",
+                  settings: {
+                    viewMode: "board",
+                    columnGrouping: "status",
+                    rowGrouping: "none",
+                    ordering: { attributeId: "manual", direction: "asc" },
+                    displayProperties: [],
+                  },
+                  filters: {},
+                  isDefault: true,
+                },
+              ],
+              defaultActiveViewId: "all",
+            },
+          },
+        },
+      },
+    ]);
+
+    const metadata = createWorkbenchExtensionMetadata({ runtime });
+
+    expect(metadata.kanbanRenderers?.[0]).toMatchObject({
+      id: "lab.rows",
+      defaultViews: [
+        {
+          id: "all",
+          title: "All rows",
+          settings: {
+            viewMode: "board",
+            columnGrouping: "status",
+            rowGrouping: "none",
+            ordering: { attributeId: "manual", direction: "asc" },
+            displayProperties: [],
+          },
+          filters: {},
+          isDefault: true,
+        },
+      ],
+      defaultActiveViewId: "all",
+    });
   });
 });
 
