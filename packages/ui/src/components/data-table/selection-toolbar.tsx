@@ -17,8 +17,17 @@ export function SelectionToolbar(props: SelectionToolbarProps) {
   const actionLabel = actions.length === 1 ? actions[0]?.label : "Actions";
 
   return (
-    <Flex alignItems="center" paddingY="2xs" paddingX="sm">
-      <Stack direction="row" alignItems="center">
+    <Flex position="absolute" insetX="sm" bottom="sm" zIndex="popover" justifyContent="center" pointerEvents="none">
+      <Stack
+        role="toolbar"
+        aria-label="Selection actions"
+        direction="row"
+        alignItems="center"
+        layerStyle="floatingBar"
+        pointerEvents="auto"
+        maxWidth="100%"
+        overflowX="auto"
+      >
         <IconButton aria-label="clear-selection" onClick={onClearSelection} size="xs">
           <ChakraIcon as={X} boxSize="16px" />
         </IconButton>
