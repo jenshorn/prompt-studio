@@ -32,6 +32,7 @@ import {
 import { createFilesStorageService, ensureStorageRoot, resolveStorageRoot } from "pstdio-storage";
 import { registerApi } from "./app-routing";
 import type { RouteDeps } from "./features/deps";
+import type { LoadedExtension } from "./features/extensions/extension-runtime";
 import { createExtensionScheduler } from "./features/extensions/extension-scheduler";
 import { createExtensionSettingsService } from "./features/extensions/extension-settings-service";
 import { createTerminalSupervisor } from "./features/extensions/extension-terminal-runtime";
@@ -280,17 +281,18 @@ export const createApp = async (options: AppOptions) => {
     workspaceSessionService,
     workspaceService,
   } = createCoreDomainServices({ db, dbs, eventBus, storageRoot });
-  let refreshInstalledExtensionProcesses: () => Promise<void> = async () => {};
+  let refreshInstalledExtensionProcesses: (sourcePath?: string, validatedSource?: LoadedExtension) => Promise<void> =
+    async () => {};
   const extensionService = createExtensionService({
     extensionInstancesService,
     installedExtensionSourcesService,
     extensionUserDataService: createExtensionUserDataDBService(db),
     eventBus,
-    onInstalledSourcesChanged: async () => {
+    onInstalledSourcesChanged: async (sourcePath, validatedSource) => {
       // An in-place source reload keeps the same paths, so the registry's path-set
       // signature won't change on its own — drop its cache explicitly.
       harnessRegistry.invalidate();
-      await refreshInstalledExtensionProcesses();
+      await refreshInstalledExtensionProcesses(sourcePath, validatedSource);
     },
     projectService,
   });
