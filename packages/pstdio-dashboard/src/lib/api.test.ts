@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { buildAbsoluteApiUrl, buildApiUrl } from "./api";
+import { buildAbsoluteApiUrl, buildApiUrl, readRuntimeConfig } from "./api";
 
 const RUNTIME_CONFIG_KEY = "__PSTDIO_CONFIG__";
 
@@ -25,6 +25,22 @@ describe("buildApiUrl", () => {
     delete (globalThis as RuntimeConfigWindow)[RUNTIME_CONFIG_KEY];
 
     expect(buildApiUrl("/v1/health")).toBe("/v1/health");
+  });
+});
+
+describe("readRuntimeConfig", () => {
+  afterEach(() => {
+    delete (globalThis as RuntimeConfigWindow)[RUNTIME_CONFIG_KEY];
+    delete (globalThis as { document?: Document }).document;
+  });
+
+  it("reads CSP-compatible runtime metadata from the document", () => {
+    const config = { apiBaseUrl: "http://localhost:3000", version: "0.25.2" };
+    (globalThis as { document?: Pick<Document, "querySelector"> }).document = {
+      querySelector: () => ({ content: encodeURIComponent(JSON.stringify(config)) }) as HTMLMetaElement,
+    };
+
+    expect(readRuntimeConfig()).toEqual(config);
   });
 });
 

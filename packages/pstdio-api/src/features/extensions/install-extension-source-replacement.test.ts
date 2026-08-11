@@ -125,6 +125,7 @@ describe("installExtensionSource replacement", () => {
     expect(existsSync(join(target, "extension.ts"))).toBe(false);
     expect(runCommand).toHaveBeenCalledWith("bun", ["install"], {
       cwd: expect.stringContaining(join(pstdioHome, ".extension-install-")),
+      env: {},
     });
   });
 });

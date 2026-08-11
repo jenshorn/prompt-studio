@@ -77,6 +77,7 @@ interface AppOptions {
   /** Test seam: overrides the extension-backed harness registry. */
   harnessRegistry?: HarnessRegistryService;
   runtimeHost?: RuntimeHost;
+  onDatabaseLockAcquired?: () => void;
 }
 
 const resolveEventBusBufferSize = (value: string | undefined) => {
@@ -150,9 +151,9 @@ const pgliteRecoveryHint = (error: unknown, dbPath: string | undefined) => {
   return `PGlite failed to open ${resolved}. ${pgliteRecoverySteps(resolved)}.`;
 };
 
-const openDb = async (dbPath: string | undefined) => {
+const openDb = async (dbPath: string | undefined, onLockAcquired?: () => void) => {
   try {
-    return await createDb({ path: dbPath });
+    return await createDb({ path: dbPath, onLockAcquired });
   } catch (err) {
     const hint = pgliteRecoveryHint(err, dbPath);
     apiLogger.error({ dataDir: dbPath, err, event: "db.open.failed", hint }, hint ?? "PGlite database failed to open");
@@ -236,8 +237,9 @@ const startNotificationWakeTimer = (notificationService: ReturnType<typeof creat
 
 export const createApp = async (options: AppOptions) => {
   const dbPath = options?.dbPath ?? process.env.PSTDIO_DB_PATH;
-  const { db, close: closeDb } = await openDb(dbPath);
+  const { db, close: closeDb } = await openDb(dbPath, options.onDatabaseLockAcquired);
   const apiToken = options?.apiToken ?? process.env.PSTDIO_API_TOKEN;
+  const securityToken = apiToken ?? options.runtimeHost?.token;
   const app = new OpenAPIHono<AppBindings>();
 
   const storageRoot = options?.storagePath ?? resolveStorageRoot(process.env.PSTDIO_STORAGE_PATH);
@@ -428,7 +430,14 @@ export const createApp = async (options: AppOptions) => {
     await createSessionScheduler(deps).drainQueue(input);
   };
 
-  registerApi(app, deps, { apiToken });
+  registerApi(app, deps, {
+    security: securityToken
+      ? {
+          token: securityToken,
+          ...(options.runtimeHost ? { origin: options.runtimeHost.origin } : {}),
+        }
+      : undefined,
+  });
 
   const startupAbort = new AbortController();
   const startupDone = runStartupTasks(deps, startupAbort.signal, {
