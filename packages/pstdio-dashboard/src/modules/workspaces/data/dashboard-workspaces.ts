@@ -2,6 +2,7 @@ import type { KanbanRendererRow } from "@pstdio/ui/kanban-renderer";
 import type { ResourceRef } from "@pstdio/workbench";
 import type { SyncedRow } from "@/lib/sync/collections";
 import { createDashboardResource } from "@/shared/app/resources";
+import { indexFirstProjectRepoPaths } from "@/shared/projects/project-repo-path";
 import {
   type DashboardRows,
   isDashboardProjectRow,
@@ -70,14 +71,17 @@ const ticketMetadataFromWorkspace = (workspace: SyncedRow) => {
   };
 };
 
-const createWorkspaceResourceMetadata = (input: { workspace: SyncedRow; summary?: DashboardWorkspaceDiffSummary }) => {
+const createWorkspaceResourceMetadata = (input: {
+  workspace: SyncedRow;
+  workspacePath: string | null;
+  summary?: DashboardWorkspaceDiffSummary;
+}) => {
   const branch = input.workspace.branch as string | null;
-  const workspacePath = input.workspace.worktree_path as string | null;
   const metadata: Record<string, unknown> = {
     workspaceId: input.workspace.id,
-    ...(workspacePath ? { workspacePath } : {}),
+    ...(input.workspacePath ? { workspacePath: input.workspacePath } : {}),
     workspaceShorthand: input.workspace.workspace_shorthand as string,
-    workspaceType: workspacePath ? "worktree" : "current_branch",
+    workspaceType: input.workspace.worktree_path ? "worktree" : "current_branch",
     // Resource-scoped action menus (header overflow, tree context menu) gate the
     // rename/archive/delete actions on this flag so the default workspace stays permanent.
     workspaceIsDefault: Boolean(input.workspace.is_default),
@@ -96,14 +100,18 @@ const createWorkspaceResourceMetadata = (input: { workspace: SyncedRow; summary?
   return metadata;
 };
 
-export const buildDashboardWorkspacesFromRows = (rows: DashboardRows, options: DashboardWorkspaceOptions = {}) =>
-  rows.workspaces
+export const buildDashboardWorkspacesFromRows = (rows: DashboardRows, options: DashboardWorkspaceOptions = {}) => {
+  const repoPathByProjectId = indexFirstProjectRepoPaths(rows.projectRepos, rows.repos);
+
+  return rows.workspaces
     .filter((workspace) => isVisibleDashboardRow(workspace) && isDashboardProjectRow(workspace, options.projectId))
     .map((workspace) => {
       const title = (workspace.name as string | null) ?? (workspace.workspace_shorthand as string);
       const type: DashboardWorkspace["type"] = workspace.worktree_path ? "worktree" : "current_branch";
       const summary = options.diffSummariesByWorkspaceId?.get(workspace.id);
       const diffOverview = summary ? formatDashboardWorkspaceDiffOverview(summary) : undefined;
+      const workspacePath =
+        (workspace.worktree_path as string | null) ?? repoPathByProjectId.get(workspace.project_id as string) ?? null;
 
       return {
         id: workspace.id,
@@ -126,11 +134,12 @@ export const buildDashboardWorkspacesFromRows = (rows: DashboardRows, options: D
           title,
           "GitBranch",
           workspace.project_id as string,
-          createWorkspaceResourceMetadata({ workspace, summary }),
+          createWorkspaceResourceMetadata({ workspace, workspacePath, summary }),
         ),
       } satisfies DashboardWorkspace;
     })
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+};
 
 export const createDashboardWorkspaces = (projectId?: string) => {
   const rows = readDashboardRows();
