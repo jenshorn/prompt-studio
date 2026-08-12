@@ -100,7 +100,11 @@ Location, breadcrumbs, history, or resource persistence scope.
 
 ### Supporting Panels
 
-`eligibleLocations` explicitly makes a Panel subordinate:
+Panels without `eligibleLocations` are full content Panels. They can present a
+Resource and become a Location when opened through `resources.openResource`.
+
+`eligibleLocations` explicitly makes a Panel subordinate. A subordinate Panel is
+shown as supporting UI, usually a closable tab, for matching Locations:
 
 ```ts
 ctx.layout.registerPanel({
@@ -119,6 +123,23 @@ ctx.layout.registerPanel({
 Eligibility can use `resourceKinds`, `resourceIds`, `modeIds`, or `canOpen`.
 The field controls availability and ownership only. `resourceKinds`,
 `closable`, and `region` never imply Location.
+
+An empty object is valid, but it has two effects: it makes the Panel subordinate
+and adds no eligibility constraints. That means the Panel is eligible in every
+matching location:
+
+```ts
+ctx.layout.registerPanel({
+  id: "tickets.notes",
+  title: "Notes",
+  region: "secondary",
+  rendererId: "notes.renderer",
+  closable: true,
+  eligibleLocations: {},
+});
+```
+
+Use `eligibleLocations` only when the Panel is intended to be supporting UI.
 
 ### Panel Menus
 
@@ -184,9 +205,9 @@ ctx.layout.openPanel("tickets");
 ```ts
 const ticket: ResourceRef = {
   kind: "ticket",
-  uri: "pstdio://ticket/PS-199",
-  id: "PS-199",
-  label: "Clean Workbench API",
+  uri: "pstdio://ticket/example-ticket",
+  id: "example-ticket",
+  label: "Example ticket",
 };
 
 ctx.resources.registerKind({
