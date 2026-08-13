@@ -17,6 +17,7 @@ import {
 import { listWorkbenchMenuItemsFromState } from "../menus/menu-items";
 import { useWorkbenchActiveModeId, useWorkbenchLocationResource } from "../shared/use-workbench-location-resource";
 import { useWorkbenchStore } from "../shared/use-workbench-store";
+import { suppressesSidenavTabStrip } from "./region-tabs-visibility";
 
 const isPlacementCloseable = (placement: WorkbenchWidgetPlacement) => placement.closable === true;
 
@@ -83,7 +84,9 @@ export const useWorkbenchPanelHeaderVisible = (workbench: WorkbenchCore, region:
   const hasMultipleLocations =
     region === "main" &&
     layoutState.layout.regions.main.widgets.filter(
-      (placement) => (placement.role ?? workbench.layout.getWidget(placement.contributionId)?.role) === "location",
+      (placement) =>
+        (placement.role ?? workbench.layout.getWidget(placement.contributionId)?.role) === "location" &&
+        !workbench.layout.getWidget(placement.contributionId)?.subPanelsOnly,
     ).length > 1;
   const eligibleSubPanels = listEligibleSubPanels({
     widgets: Object.values(layoutState.widgets),
@@ -135,7 +138,9 @@ export const useWorkbenchRegionTabsVisible = (workbench: WorkbenchCore, region: 
   const locationTabs =
     region === "main"
       ? layoutState.layout.regions.main.widgets.filter(
-          (placement) => (placement.role ?? workbench.layout.getWidget(placement.contributionId)?.role) === "location",
+          (placement) =>
+            (placement.role ?? workbench.layout.getWidget(placement.contributionId)?.role) === "location" &&
+            !workbench.layout.getWidget(placement.contributionId)?.subPanelsOnly,
         )
       : [];
   const leadingItems = listWorkbenchMenuItemsFromState(
@@ -143,7 +148,13 @@ export const useWorkbenchRegionTabsVisible = (workbench: WorkbenchCore, region: 
     workbenchRegionTabLeadingMenuPath(region),
   );
 
-  return shouldShowRegionTabs(locationTabs.length > 1 ? [...locationTabs, ...placements] : placements, {
+  const tabPlacements = suppressesSidenavTabStrip(region, placements)
+    ? []
+    : locationTabs.length > 1
+      ? [...locationTabs, ...placements]
+      : placements;
+
+  return shouldShowRegionTabs(tabPlacements, {
     hasLeadingActions: leadingItems.length > 0,
     hasAddAction:
       isWorkbenchPanelRegion(region) &&

@@ -105,7 +105,11 @@ const createLocationEstablisher = (input: CreateLocationEstablisherInput) => (in
   const layout = input.getLayout();
   const found = findPlacementByWidgetId(layout, instanceId);
   if (!found) throw new Error(`Panel instance not found: ${instanceId}`);
-  if (found.regionId !== "main") return input.panelMethods.activatePanel(instanceId);
+  // Sub Panels and Panel Menus stay tabs beside their Location: promoting one would
+  // create a second Location and clone every Sub Panel per Location.
+  if (found.regionId !== "main" || found.placement.role === "sub-panel" || found.placement.role === "panel-menu") {
+    return input.panelMethods.activatePanel(instanceId);
+  }
 
   const placement = { ...found.placement, role: "location" as const };
   const ownedPanelMenuIds = new Set(input.getWidget(placement.contributionId)?.ownedPanelMenuIds ?? []);
@@ -131,6 +135,18 @@ const createLocationEstablisher = (input: CreateLocationEstablisherInput) => (in
     "main",
     placement,
   );
+  // A sub-panels-only Location presents no content of its own: hand the active
+  // slot to its first Sub Panel as soon as one exists.
+  if (input.getWidget(placement.contributionId)?.subPanelsOnly) {
+    const subPanel = input
+      .getLayout()
+      .regions.main.widgets.find(
+        (candidate) =>
+          candidate.role === "sub-panel" &&
+          (!candidate.ownerResourceUri || candidate.ownerResourceUri === placement.resourceUri),
+      );
+    if (subPanel) return input.panelMethods.activatePanel(subPanel.widgetId);
+  }
   return input.panelMethods.getActivePanel("main")!;
 };
 

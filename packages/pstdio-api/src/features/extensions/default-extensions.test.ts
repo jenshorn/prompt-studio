@@ -251,6 +251,7 @@ describe("installDefaultExtensions", () => {
       force: true,
       installName: extensionName,
     });
+    expect(calls[0]?.skipInstall).toBeUndefined();
     expect(String(calls[0]?.source)).toContain(join("pstdio-default-extensions", extensionName));
     expect(existsSync(join(String(calls[0]?.source), "package.json"))).toBe(true);
   });

@@ -6,7 +6,11 @@ import {
   setCachedDashboardExtensionMetadata,
 } from "@/shared/extensions/workbench-extension-contributions";
 import { resolveExtensionView } from "./components/extension-view-widget";
-import { extensionViewRegion, registerExtensionModeContributions } from "./extension-mode-layout";
+import {
+  activateExtensionModeLayout,
+  extensionViewRegion,
+  registerExtensionModeContributions,
+} from "./extension-mode-layout";
 import { extensionViewWidgetId } from "./extension-view-placement";
 
 describe("extension-mode-layout exports", () => {
@@ -166,7 +170,9 @@ describe("extension-mode-layout exports", () => {
       extensionViewWidgetId("pstdio-lab.b.menu"),
     ]);
   });
+});
 
+describe("extension-mode-layout registration", () => {
   test("registers explicit Sub Panel views as project-scoped Add panel widgets", () => {
     const workbench = createWorkbenchCore();
     const metadata = {
@@ -207,5 +213,133 @@ describe("extension-mode-layout exports", () => {
     } finally {
       clearCachedDashboardExtensionMetadata("project-1");
     }
+  });
+
+  test("registers extension resource kinds declared by resource-bound modes", () => {
+    const workbench = createWorkbenchCore();
+    const metadata = {
+      ...emptyDashboardExtensionMetadata,
+      modes: [
+        {
+          id: "pstdio-lab.artifact",
+          extensionId: "pstdio.pstdio-lab",
+          modeId: "pstdio-lab.artifact",
+          label: "Glass Lab artifact",
+          icon: "FlaskConical",
+          resourceKind: "glass-lab-artifact",
+          layout: { panels: ["main" as const] },
+        },
+      ],
+    };
+
+    registerExtensionModeContributions(workbench, metadata, "project-1");
+
+    expect(workbench.resources.getKind("glass-lab-artifact")).toMatchObject({
+      kind: "glass-lab-artifact",
+      label: "Glass Lab artifact",
+      icon: "FlaskConical",
+    });
+  });
+
+  test("opens Panel regions declared by a mode's initial layout", () => {
+    const workbench = createWorkbenchCore();
+    const metadata = {
+      ...emptyDashboardExtensionMetadata,
+      modes: [
+        {
+          id: "pstdio-lab.review",
+          extensionId: "pstdio.pstdio-lab",
+          modeId: "pstdio-lab.review",
+          label: "Review lab",
+          icon: "ScanSearch",
+          layout: {
+            panels: ["main", "secondary", "side"] as ("main" | "secondary" | "side")[],
+            open: [{ region: "secondary" as const, panel: "pstdio-lab.checklist" }],
+          },
+        },
+      ],
+      panels: [
+        {
+          id: "pstdio-lab.checklist",
+          extensionId: "pstdio.pstdio-lab",
+          title: "Review checklist",
+          region: "secondary" as const,
+          closable: true,
+          webview: {
+            entry: {
+              kind: "package-asset" as const,
+              path: "./checklist.tsx",
+              baseUrl: "file:///extension/extension.ts",
+            },
+            runtimeUrl: "/runtime.html",
+            moduleUrl: "/checklist.js",
+          },
+        },
+      ],
+    };
+
+    registerExtensionModeContributions(workbench, metadata, "project-1");
+    workbench.panels.setOpen("secondary", false);
+    workbench.layout.setRegionVisible("secondary", false);
+
+    activateExtensionModeLayout({
+      ctx: workbench,
+      metadata,
+      mode: metadata.modes[0],
+      projectId: "project-1",
+    });
+
+    expect(workbench.panels.isOpen("secondary")).toBe(true);
+    expect(workbench.layout.getLayout().regions.secondary.visible).toBe(true);
+  });
+
+  test("attaches the Side Panel when a mode's initial layout opens a side view", () => {
+    const workbench = createWorkbenchCore();
+    const metadata = {
+      ...emptyDashboardExtensionMetadata,
+      modes: [
+        {
+          id: "pstdio-lab.design",
+          extensionId: "pstdio.pstdio-lab",
+          modeId: "pstdio-lab.design",
+          label: "Parameter lab",
+          icon: "SlidersHorizontal",
+          layout: {
+            panels: ["main", "secondary", "side"] as ("main" | "secondary" | "side")[],
+            open: [{ region: "side" as const, panel: "pstdio-lab.parameters" }],
+          },
+        },
+      ],
+      panels: [
+        {
+          id: "pstdio-lab.parameters",
+          extensionId: "pstdio.pstdio-lab",
+          title: "Parameters",
+          region: "side" as const,
+          closable: false,
+          webview: {
+            entry: {
+              kind: "package-asset" as const,
+              path: "./parameters.tsx",
+              baseUrl: "file:///extension/extension.ts",
+            },
+            runtimeUrl: "/runtime.html",
+            moduleUrl: "/parameters.js",
+          },
+        },
+      ],
+    };
+
+    registerExtensionModeContributions(workbench, metadata, "project-1");
+    workbench.sidePanel.setMode("closed");
+
+    activateExtensionModeLayout({
+      ctx: workbench,
+      metadata,
+      mode: metadata.modes[0],
+      projectId: "project-1",
+    });
+
+    expect(workbench.sidePanel.getMode()).toBe("attached");
   });
 });
