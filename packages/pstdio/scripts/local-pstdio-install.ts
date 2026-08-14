@@ -12,7 +12,8 @@ import {
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-const BIN_NAME = "pstdio";
+const BIN_NAMES = ["pstdio", "pst"] as const;
+const PRIMARY_BIN_NAME = BIN_NAMES[0];
 const CLI_ENTRY = "packages/pstdio/src/index.ts";
 const MANAGED_MARKER = "# managed-by=pstdio-local-checkout";
 const LEGACY_MANAGED_MARKER = "// managed-by=pstdio-local-checkout";
@@ -50,25 +51,30 @@ const canWrite = (path: string) => {
   }
 };
 
-const commandNameFor = (platform: NodeJS.Platform) => (platform === "win32" ? `${BIN_NAME}.cmd` : BIN_NAME);
+const commandNameFor = (binName: (typeof BIN_NAMES)[number], platform: NodeJS.Platform) =>
+  platform === "win32" ? `${binName}.cmd` : binName;
 
 const pathDelimiterFor = (platform: NodeJS.Platform) => (platform === "win32" ? ";" : ":");
 
-const commandNamesFor = (platform: NodeJS.Platform) =>
-  platform === "win32" ? [commandNameFor(platform), BIN_NAME] : [BIN_NAME];
+const primaryCommandNamesFor = (platform: NodeJS.Platform) =>
+  platform === "win32" ? [commandNameFor(PRIMARY_BIN_NAME, platform), PRIMARY_BIN_NAME] : [PRIMARY_BIN_NAME];
 
 const isPathEntry = (pathEnv: string | undefined, installDir: string, platform = process.platform) => {
   if (!pathEnv) return false;
   return pathEnv.split(pathDelimiterFor(platform)).includes(installDir);
 };
 
-const resolveExistingCommandPath = (pathEnv: string | undefined, platform = process.platform) => {
+const resolveExistingCommandPath = (
+  pathEnv: string | undefined,
+  commandNames: readonly string[],
+  platform = process.platform,
+) => {
   if (!pathEnv) return null;
 
   for (const installDir of pathEnv.split(pathDelimiterFor(platform))) {
     if (!installDir) continue;
 
-    for (const commandName of commandNamesFor(platform)) {
+    for (const commandName of commandNames) {
       const destination = join(installDir, commandName);
       if (existsSync(destination)) return destination;
     }
@@ -151,10 +157,15 @@ const readManagedRepoRoot = (path: string) => {
 };
 
 export const resolveLocalPstdioInstallDir = (pathEnv?: string, platform = process.platform) => {
-  const existingCommandPath = resolveExistingCommandPath(pathEnv, platform);
+  const existingCommandPath = resolveExistingCommandPath(pathEnv, primaryCommandNamesFor(platform), platform);
 
   if (existingCommandPath && canWrite(dirname(existingCommandPath))) {
     return dirname(existingCommandPath);
+  }
+
+  if (platform === "win32") {
+    const bunPath = resolveExistingCommandPath(pathEnv, ["bun.exe", "bun"], platform);
+    if (bunPath && canWrite(dirname(bunPath))) return dirname(bunPath);
   }
 
   if (canWrite("/usr/local/bin")) return "/usr/local/bin";
@@ -170,23 +181,33 @@ export const installLocalPstdio = ({
 }: InstallLocalPstdioInput) => {
   mkdirSync(installDir, { recursive: true });
 
-  const destination = join(installDir, commandNameFor(platform));
-  const legacyDestination = platform === "win32" ? join(installDir, BIN_NAME) : null;
-  const backupPath = getBackupPath(destination);
-  const previousRepoRoot = existsSync(destination) ? readManagedRepoRoot(destination) : null;
+  const destinations = BIN_NAMES.map((binName) => join(installDir, commandNameFor(binName, platform)));
+  const destination = destinations[0];
+  const legacyDestination = platform === "win32" ? join(installDir, PRIMARY_BIN_NAME) : null;
+  const previousRepoRoots = destinations.map((commandPath) =>
+    existsSync(commandPath) ? readManagedRepoRoot(commandPath) : null,
+  );
   const previousLegacyRepoRoot =
     legacyDestination && existsSync(legacyDestination) ? readManagedRepoRoot(legacyDestination) : null;
 
-  if (existsSync(destination) && !previousRepoRoot) {
-    if (existsSync(backupPath)) {
-      throw new Error(`Refusing to overwrite unmanaged pstdio install at ${destination}`);
-    }
+  for (const [index, commandPath] of destinations.entries()) {
+    if (!existsSync(commandPath) || previousRepoRoots[index]) continue;
 
-    renameSync(destination, backupPath);
+    const backupPath = getBackupPath(commandPath);
+    if (existsSync(backupPath)) {
+      throw new Error(`Refusing to overwrite unmanaged pstdio install at ${commandPath}`);
+    }
   }
 
-  writeFileSync(destination, createWrapper(repoRoot, mode, platform));
-  chmodSync(destination, 0o755);
+  for (const [index, commandPath] of destinations.entries()) {
+    if (!existsSync(commandPath) || previousRepoRoots[index]) continue;
+    renameSync(commandPath, getBackupPath(commandPath));
+  }
+
+  for (const commandPath of destinations) {
+    writeFileSync(commandPath, createWrapper(repoRoot, mode, platform));
+    chmodSync(commandPath, 0o755);
+  }
 
   if (legacyDestination && previousLegacyRepoRoot) {
     rmSync(legacyDestination);
@@ -195,43 +216,47 @@ export const installLocalPstdio = ({
   return {
     destination,
     needsPathUpdate: !isPathEntry(pathEnv, installDir, platform),
-    previousRepoRoot: previousRepoRoot ?? previousLegacyRepoRoot,
+    previousRepoRoot: previousRepoRoots.find((previousRoot) => previousRoot !== null) ?? previousLegacyRepoRoot,
   };
 };
 
 export const removeLocalPstdio = ({ installDir, platform = process.platform, repoRoot }: LocalPstdioInput) => {
-  const destination = join(installDir, commandNameFor(platform));
-  const backupPath = getBackupPath(destination);
-  const legacyDestination = platform === "win32" ? join(installDir, BIN_NAME) : null;
+  const destinations = BIN_NAMES.map((binName) => join(installDir, commandNameFor(binName, platform)));
+  const destination = destinations[0];
+  const legacyDestination = platform === "win32" ? join(installDir, PRIMARY_BIN_NAME) : null;
+  const targets = destinations.filter((commandPath) => existsSync(commandPath));
+  if (legacyDestination && existsSync(legacyDestination)) targets.push(legacyDestination);
 
-  if (!existsSync(destination) && !(legacyDestination && existsSync(legacyDestination))) {
+  if (targets.length === 0) {
     return { destination, reason: "missing" as const, removed: false };
   }
 
-  const target = existsSync(destination) ? destination : legacyDestination;
-  if (!target) return { destination, reason: "missing" as const, removed: false };
+  for (const target of targets) {
+    const installedRepoRoot = readManagedRepoRoot(target);
 
-  const installedRepoRoot = readManagedRepoRoot(target);
+    if (!installedRepoRoot) {
+      throw new Error(`Refusing to remove unmanaged pstdio install at ${target}`);
+    }
 
-  if (!installedRepoRoot) {
-    throw new Error(`Refusing to remove unmanaged pstdio install at ${target}`);
+    if (installedRepoRoot !== repoRoot) {
+      return {
+        destination,
+        installedRepoRoot,
+        reason: "different-checkout" as const,
+        removed: false,
+      };
+    }
   }
 
-  if (installedRepoRoot !== repoRoot) {
-    return {
-      destination,
-      installedRepoRoot,
-      reason: "different-checkout" as const,
-      removed: false,
-    };
-  }
-
-  if (existsSync(backupPath)) {
+  let restoredBackup = false;
+  for (const target of targets) {
+    const backupPath = getBackupPath(target);
     rmSync(target);
-    renameSync(backupPath, destination);
-    return { destination, removed: true, restoredBackup: true };
+    if (existsSync(backupPath)) {
+      renameSync(backupPath, target);
+      restoredBackup = true;
+    }
   }
 
-  rmSync(target);
-  return { destination, removed: true };
+  return { destination, removed: true, restoredBackup };
 };

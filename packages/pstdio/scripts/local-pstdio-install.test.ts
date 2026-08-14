@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installLocalPstdio } from "./local-pstdio-install";
+import { installLocalPstdio, removeLocalPstdio, resolveLocalPstdioInstallDir } from "./local-pstdio-install";
 
 const posixOnlyTest = process.platform === "win32" ? test.skip : test;
 
@@ -75,6 +75,7 @@ describe("installLocalPstdio", () => {
 
       const wrapper = readFileSync(result.destination, "utf8");
       expect(result.destination).toBe(join(installDir, "pstdio.cmd"));
+      expect(existsSync(join(installDir, "pst.cmd"))).toBe(true);
       expect(wrapper).toContain("@echo off");
       expect(wrapper).toContain("REM managed-by=pstdio-local-checkout");
       expect(wrapper).toContain('bun --conditions=source "');
@@ -117,6 +118,34 @@ describe("installLocalPstdio", () => {
       });
 
       expect(result.needsPathUpdate).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("installs beside Bun when its Windows bin directory is on PATH", () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-local-install-"));
+    try {
+      const bunBinDir = join(root, "bun-bin");
+      mkdirSync(bunBinDir);
+      writeFileSync(join(bunBinDir, "bun.exe"), "");
+
+      expect(resolveLocalPstdioInstallDir(bunBinDir, "win32")).toBe(bunBinDir);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("removes both Windows command wrappers", () => {
+    const root = mkdtempSync(join(tmpdir(), "pstdio-local-install-"));
+    try {
+      const installDir = join(root, "bin");
+      installLocalPstdio({ installDir, platform: "win32", repoRoot: "C:\\repo" });
+
+      removeLocalPstdio({ installDir, platform: "win32", repoRoot: "C:\\repo" });
+
+      expect(existsSync(join(installDir, "pstdio.cmd"))).toBe(false);
+      expect(existsSync(join(installDir, "pst.cmd"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
