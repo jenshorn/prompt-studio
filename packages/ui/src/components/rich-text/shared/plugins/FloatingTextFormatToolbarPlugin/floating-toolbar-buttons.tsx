@@ -1,6 +1,7 @@
 import { IconButton, Stack, Text } from "@chakra-ui/react";
+import type { HeadingTagType } from "@lexical/rich-text";
 import { FORMAT_TEXT_COMMAND, type LexicalEditor } from "lexical";
-import { Code2, Link as LinkIcon, List, ListOrdered, ListTodo } from "lucide-react";
+import { Code, Link as LinkIcon, List, ListOrdered, ListTodo, TextQuote } from "lucide-react";
 import { Tooltip } from "@/components/primitives/tooltip";
 import type { BlockType } from "./resolve-block-type";
 
@@ -10,10 +11,11 @@ interface FloatingToolbarButtonsProps {
   isBold: boolean;
   isItalic: boolean;
   isUnderline: boolean;
+  isCode: boolean;
   isLink: boolean;
-  formatHeading: (headingSize: "h1" | "h2" | "h3") => void;
+  formatHeading: (headingSize: HeadingTagType) => void;
   formatList: (type: "bullet" | "number" | "check") => void;
-  formatCodeBlock: () => void;
+  formatQuote: () => void;
   insertLink: () => void;
 }
 
@@ -37,10 +39,11 @@ export function FloatingToolbarButtons(props: FloatingToolbarButtonsProps) {
     isBold,
     isItalic,
     isUnderline,
+    isCode,
     isLink,
     formatHeading,
     formatList,
-    formatCodeBlock,
+    formatQuote,
     insertLink,
   } = props;
 
@@ -85,18 +88,6 @@ export function FloatingToolbarButtons(props: FloatingToolbarButtonsProps) {
           </Text>
         </IconButton>
       </Tooltip>
-      <Tooltip content={isLink ? "Remove Link" : "Insert Link"}>
-        <IconButton
-          data-active={isLink || undefined}
-          variant="ghost"
-          aria-label={isLink ? "Remove Link" : "Insert Link"}
-          size="xs"
-          onClick={insertLink}
-        >
-          <LinkIcon size={14} />
-        </IconButton>
-      </Tooltip>
-
       <ToolbarSeparator />
 
       <Tooltip content="Heading 1">
@@ -138,18 +129,39 @@ export function FloatingToolbarButtons(props: FloatingToolbarButtonsProps) {
           </Text>
         </IconButton>
       </Tooltip>
-
       <ToolbarSeparator />
 
-      <Tooltip content="Code Block">
+      <Tooltip content="Inline Code">
         <IconButton
-          data-active={blockType === "code" || undefined}
+          data-active={isCode || undefined}
+          onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "code")}
           variant="ghost"
-          aria-label="Code Block"
+          aria-label="Inline Code"
           size="xs"
-          onClick={formatCodeBlock}
         >
-          <Code2 size={14} />
+          <Code size={14} />
+        </IconButton>
+      </Tooltip>
+      <Tooltip content={isLink ? "Remove Link" : "Insert Link"}>
+        <IconButton
+          data-active={isLink || undefined}
+          variant="ghost"
+          aria-label={isLink ? "Remove Link" : "Insert Link"}
+          size="xs"
+          onClick={insertLink}
+        >
+          <LinkIcon size={14} />
+        </IconButton>
+      </Tooltip>
+      <Tooltip content="Quote">
+        <IconButton
+          data-active={blockType === "quote" || undefined}
+          variant="ghost"
+          aria-label="Quote"
+          size="xs"
+          onClick={formatQuote}
+        >
+          <TextQuote size={14} />
         </IconButton>
       </Tooltip>
 

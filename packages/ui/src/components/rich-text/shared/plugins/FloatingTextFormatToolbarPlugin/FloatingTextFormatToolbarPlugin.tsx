@@ -1,5 +1,6 @@
 import "./FloatingTextFormatToolbarPlugin.css";
 
+import { Box } from "@chakra-ui/react";
 import { $isAutoLinkNode, $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import {
   INSERT_CHECK_LIST_COMMAND,
@@ -8,7 +9,7 @@ import {
   REMOVE_LIST_COMMAND,
 } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $createHeadingNode, type HeadingTagType } from "@lexical/rich-text";
+import { $createHeadingNode, $createQuoteNode, type HeadingTagType } from "@lexical/rich-text";
 import { $setBlocksType } from "@lexical/selection";
 import { $findMatchingParent, mergeRegister } from "@lexical/utils";
 import {
@@ -24,7 +25,6 @@ import {
 import type React from "react";
 import { type Dispatch, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { $createCodeNode } from "../../lexical-code";
 import { TOGGLE_LINK_EDIT_MODE_COMMAND } from "../LinkEditorPlugin/commands";
 import { getSelectedNode } from "../LinkEditorPlugin/utils/getSelectedNode";
 import { setFloatingElemPos } from "../LinkEditorPlugin/utils/setFloatingElemPos";
@@ -51,6 +51,7 @@ function FloatingTextToolbar({
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [isUnderline, setIsUnderline] = useState(false);
+  const [isCode, setIsCode] = useState(false);
   const [isLink, setIsLink] = useState(false);
   const updateFloatingToolbarRef = useRef<() => boolean | undefined>(() => undefined);
 
@@ -81,17 +82,17 @@ function FloatingTextToolbar({
     editor.dispatchCommand(command, undefined);
   };
 
-  const formatCodeBlock = () => {
+  const formatQuote = () => {
     editor.update(() => {
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;
 
-      if (blockType === "code") {
+      if (blockType === "quote") {
         $setBlocksType(selection, $createParagraphNode);
         return;
       }
 
-      $setBlocksType(selection, () => $createCodeNode());
+      $setBlocksType(selection, $createQuoteNode);
     });
   };
 
@@ -110,6 +111,7 @@ function FloatingTextToolbar({
     setIsBold(selection.hasFormat("bold"));
     setIsItalic(selection.hasFormat("italic"));
     setIsUnderline(selection.hasFormat("underline"));
+    setIsCode(selection.hasFormat("code"));
 
     const node = getSelectedNode(selection);
     const linkParent = $findMatchingParent(node, $isLinkNode);
@@ -153,13 +155,13 @@ function FloatingTextToolbar({
       if (domRect) {
         // Anchor to the bottom of the selection to avoid overlap with tall selections
         const bottomRect = new DOMRect(domRect.left, domRect.bottom, 0, 0);
-        setFloatingElemPos(bottomRect, editorElem, anchorElem, GAP);
+        setFloatingElemPos(bottomRect, editorElem, anchorElem, GAP, undefined, "legacy", "viewport");
       }
 
       setIsToolbarActive(true);
     } else {
       if (rootElement !== null) {
-        setFloatingElemPos(null, editorElem, anchorElem);
+        setFloatingElemPos(null, editorElem, anchorElem, undefined, undefined, "legacy", "viewport");
       }
       setIsToolbarActive(false);
     }
@@ -222,20 +224,21 @@ function FloatingTextToolbar({
   }, [editor]);
 
   return (
-    <div ref={editorRef} className={`floating-text-format-toolbar ${isToolbarActive ? "active" : ""}`}>
+    <Box ref={editorRef} zIndex="tooltip" className={`floating-text-format-toolbar ${isToolbarActive ? "active" : ""}`}>
       <FloatingToolbarButtons
         editor={editor}
         blockType={blockType}
         isBold={isBold}
         isItalic={isItalic}
         isUnderline={isUnderline}
+        isCode={isCode}
         isLink={isLink}
         formatHeading={formatHeading}
         formatList={formatList}
-        formatCodeBlock={formatCodeBlock}
+        formatQuote={formatQuote}
         insertLink={insertLink}
       />
-    </div>
+    </Box>
   );
 }
 
@@ -254,6 +257,6 @@ export function FloatingTextFormatToolbarPlugin({
       isToolbarActive={isToolbarActive}
       setIsToolbarActive={setIsToolbarActive}
     />,
-    anchorElem,
+    document.body,
   );
 }
