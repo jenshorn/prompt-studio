@@ -70,7 +70,8 @@ export interface ActivityItemContribution<TParams extends Struct = Struct> {
 export interface TreeItemContribution<TParams extends Struct = Struct> {
   target: WorkbenchTreeTarget;
   label: Localizable<string>;
-  group?: string;
+  /** `null` places the item at the tree root without a section heading. */
+  group?: string | null;
   placement?: "first" | "default" | "last";
   icon?: string;
   when?: WhenExpression;
@@ -80,7 +81,7 @@ export interface TreeItemContribution<TParams extends Struct = Struct> {
         command: CommandRef<TParams, unknown> | string;
         params?: Partial<TParams>;
       }
-    | { kind: "kanbanRenderer"; kanbanRenderer: string }
+    | { kind: "panel"; panel: string }
     | { kind: "route"; route: string }
     | { kind: "href"; href: string };
 }
@@ -154,41 +155,21 @@ interface PanelMenuContributionBase {
   hostTreeFooter?: HostTreeDefault;
 }
 
+export type NativeRendererKind = "tree" | "file" | "controls" | "dataTable" | "kanban";
+
+export interface RendererRef {
+  kind: NativeRendererKind;
+  id: string;
+}
+
 type PanelBody =
   | {
       webview: WebviewContribution;
-      treeRenderer?: never;
-      fileRenderer?: never;
-      controlsRenderer?: never;
-      dataTableRenderer?: never;
+      renderer?: never;
     }
   | {
-      treeRenderer: string;
       webview?: never;
-      fileRenderer?: never;
-      controlsRenderer?: never;
-      dataTableRenderer?: never;
-    }
-  | {
-      fileRenderer: string;
-      webview?: never;
-      treeRenderer?: never;
-      controlsRenderer?: never;
-      dataTableRenderer?: never;
-    }
-  | {
-      controlsRenderer: string;
-      webview?: never;
-      treeRenderer?: never;
-      fileRenderer?: never;
-      dataTableRenderer?: never;
-    }
-  | {
-      dataTableRenderer: string;
-      webview?: never;
-      treeRenderer?: never;
-      fileRenderer?: never;
-      controlsRenderer?: never;
+      renderer: RendererRef;
     };
 
 export type PanelMenuContribution = PanelMenuContributionBase & PanelBody;

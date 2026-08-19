@@ -19,6 +19,7 @@ import {
 } from "@pstdio/workbench/extensions";
 import type { ResolvedWorkbenchExtensionMetadata } from "./extension-localization";
 import { resolveLocalizableString } from "./extension-localization";
+import { createDashboardExtensionPanelResource } from "./extension-panel-resource";
 
 export const dashboardExtensionRouteKind = "extension-route";
 export const projectHeaderPrimarySlotId = "project.headerPrimary";
@@ -268,9 +269,27 @@ const createTreeNode = (input: {
     };
   }
 
-  if (action.kind === "kanbanRenderer") return null;
-
   if (action.kind === "href") return null;
+
+  if (action.kind === "panel") {
+    const panel = metadata.panels.find((candidate) => candidate.id === action.panelId);
+    if (!panel) return null;
+    const label = resolveLocalizableString(item.label, item.extensionId);
+    const resource = createDashboardExtensionPanelResource({
+      extensionId: panel.extensionId,
+      icon: item.icon ?? panel.icon,
+      label,
+      panelId: panel.id,
+      projectId,
+    });
+    return {
+      id: resource.uri,
+      label,
+      icon: item.icon,
+      canHide: true,
+      resource,
+    };
+  }
 
   const route = metadata.routes.find((candidate) => candidate.path === action.route);
   if (!route) return null;
@@ -305,15 +324,18 @@ export const buildDashboardExtensionTreeSections = (input: {
       const node = createTreeNode({ item, metadata, projectId });
       if (!node) return;
 
-      const group = item.group ?? "Extensions";
-      const section = sectionsByGroup.get(group) ?? {
-        id: `extension-tree-group:${target}:${placement}:${group}`,
-        label: group,
+      // `group: null` places the item at the root without a heading;
+      // an undefined group keeps the default "Extensions" section.
+      const group = item.group === null ? null : (item.group ?? "Extensions");
+      const sectionKey = group ?? "__root__";
+      const section = sectionsByGroup.get(sectionKey) ?? {
+        id: `extension-tree-group:${target}:${placement}:${sectionKey}`,
+        ...(group === null ? {} : { label: group }),
         collapsible: false,
         nodes: [],
       };
       section.nodes.push(node);
-      sectionsByGroup.set(group, section);
+      sectionsByGroup.set(sectionKey, section);
     });
 
   return [...sectionsByGroup.values()];

@@ -87,6 +87,12 @@ describe("runAttemptCommand", () => {
             role: "primary",
             metadata: {
               shorthand: "T-1",
+              resourceParent: {
+                type: "extension-view",
+                id: "pstdio-planner.tickets",
+                label: "Tickets",
+                icon: "square-kanban",
+              },
             },
           },
         ],
@@ -108,6 +114,12 @@ describe("runAttemptCommand", () => {
             role: "primary",
             metadata: {
               shorthand: "T-1",
+              resourceParent: {
+                type: "extension-view",
+                id: "pstdio-planner.tickets",
+                label: "Tickets",
+                icon: "square-kanban",
+              },
             },
           },
           expect.objectContaining({ type: "planner-attempt", id: "workspace-1" }),
@@ -230,6 +242,12 @@ describe("runAttemptCommand guarded launches", () => {
             role: "primary",
             metadata: {
               shorthand: "T-1",
+              resourceParent: {
+                type: "extension-view",
+                id: "pstdio-planner.tickets",
+                label: "Tickets",
+                icon: "square-kanban",
+              },
             },
           },
         ],
@@ -330,6 +348,12 @@ describe("createWorkspaceCommand", () => {
             role: "primary",
             metadata: {
               shorthand: "T-1",
+              resourceParent: {
+                type: "extension-view",
+                id: "pstdio-planner.tickets",
+                label: "Tickets",
+                icon: "square-kanban",
+              },
             },
           },
         ],
@@ -375,7 +399,15 @@ describe("createWorkspaceCommand", () => {
                 type: "ticket",
                 id: parent.id,
                 label: `${parent.shorthand} Parent`,
-                metadata: { shorthand: parent.shorthand },
+                metadata: {
+                  shorthand: parent.shorthand,
+                  resourceParent: {
+                    type: "extension-view",
+                    id: "pstdio-planner.tickets",
+                    label: "Tickets",
+                    icon: "square-kanban",
+                  },
+                },
               },
             },
           }),

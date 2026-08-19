@@ -92,6 +92,12 @@ describe("refineTicketCommand", () => {
             role: "primary",
             metadata: {
               shorthand: "T-1",
+              resourceParent: {
+                type: "extension-view",
+                id: "pstdio-planner.tickets",
+                label: "Tickets",
+                icon: "square-kanban",
+              },
             },
           },
         ],
