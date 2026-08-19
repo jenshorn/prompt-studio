@@ -14,6 +14,13 @@ import {
   shouldClearFileSectionSelection,
 } from "../../../core/registries/renderers/file-section-navigation";
 import { codeLanguageFor, pickFileKind } from "./file-kind";
+import {
+  createFileEditController,
+  type FileEditController,
+  nextLoadedRevision,
+  readCachedFileContent,
+  storeCachedFileContent,
+} from "./file-renderer-edit-state";
 import { createFileRendererLoadKey, isCurrentLoadedFile } from "./file-renderer-load-key";
 
 interface WorkbenchFileRendererViewProps {
@@ -74,9 +81,14 @@ export const WorkbenchFileRendererView = (props: WorkbenchFileRendererViewProps)
   const resource = props.placement?.resource;
   const sectionNavigation = getFileSectionNavigation(resource);
   const editorSectionNavigation = getEditorSectionNavigation(workbench, sectionNavigation);
-  const loadKey = createFileRendererLoadKey({ fileRendererId: contribution.id, resourceUri: resource?.uri });
+  const loadKey = createFileRendererLoadKey({
+    fileRendererId: contribution.id,
+    resourceUri: resource?.uri,
+    resourceMetadata: resource?.metadata,
+  });
   const [loaded, setLoaded] = useState<LoadedFile | null>(null);
   const [error, setError] = useState<{ loadKey: string; message: string } | null>(null);
+  const controllerRef = useRef<FileEditController | null>(null);
   const rendererRef = useRef<HTMLDivElement>(null);
   const previousSectionNavigationRef = useRef<{
     resourceUri?: string;
@@ -112,53 +124,83 @@ export const WorkbenchFileRendererView = (props: WorkbenchFileRendererViewProps)
       : null;
   }, [resource?.uri, sectionNavigation, workbench]);
 
+  // Contribution refresh re-registers an identical contribution as a new
+  // object, and a save that changes the document title produces a new resource
+  // object with a fresh label. Identity is the contribution id plus the
+  // resource URI (both inside loadKey); callbacks read the latest objects
+  // through refs so neither replacement resets an open editor.
+  const contributionRef = useRef(contribution);
+  const resourceRef = useRef(resource);
+  useEffect(() => {
+    contributionRef.current = contribution;
+    resourceRef.current = resource;
+  });
+
+  const contributionId = contribution.id;
+  const hasSave = Boolean(contribution.save);
+
   // Re-binding a singleton widget to another resource changes `resource` and reloads.
   useEffect(() => {
     let cancelled = false;
-    let revision = 0;
     setError(null);
-    setLoaded(null);
+    // A recently viewed document mounts immediately from the cache; the load
+    // below reconciles it (unchanged content keeps the editor mounted).
+    const cached = readCachedFileContent(loadKey);
+    setLoaded(cached ? { ...cached, revision: 1, loadKey } : null);
     const load = () => {
-      Promise.resolve(contribution.load(resource))
+      Promise.resolve(contributionRef.current.load(resourceRef.current))
         .then((next) => {
           if (cancelled) return;
-          revision += 1;
           setError(null);
-          setLoaded({ ...next, revision, loadKey });
+          storeCachedFileContent(loadKey, next);
+          // Compare against the editor's current value so a reload that returns
+          // what is already shown (e.g. after a save) keeps the editor mounted.
+          const editorValue = controllerRef.current?.getBaseline();
+          setLoaded((previous) => ({
+            ...next,
+            revision: nextLoadedRevision(previous, next, loadKey, editorValue),
+            loadKey,
+          }));
+          controllerRef.current?.setBaseline(next.content);
         })
         .catch((loadError) => {
           if (cancelled) return;
           setError({ loadKey, message: describeError(loadError) });
         });
     };
+    controllerRef.current = hasSave
+      ? createFileEditController({
+          debounceMs: SAVE_DEBOUNCE_MS,
+          load,
+          save: (value) =>
+            Promise.resolve(contributionRef.current.save?.(resourceRef.current, value)).then((result) => {
+              const current = readCachedFileContent(loadKey);
+              if (current) storeCachedFileContent(loadKey, { ...current, content: value });
+              return result;
+            }),
+        })
+      : null;
+    if (cached) controllerRef.current?.setBaseline(cached.content);
     load();
     const refreshSubscription = workbench.renderers.onDidRefreshFileRenderer((event) => {
-      if (event.fileRendererId === contribution.id) load();
+      if (event.fileRendererId !== contributionId) return;
+      const controller = controllerRef.current;
+      if (controller) controller.handleRefreshEvent();
+      else load();
     });
     return () => {
       cancelled = true;
       refreshSubscription.dispose();
+      // Flush the last keystrokes on unbind; the load callback above is
+      // cancelled, so a deferred refresh cannot resurrect the old binding.
+      controllerRef.current?.flush();
+      controllerRef.current = null;
     };
-  }, [contribution, workbench, resource, loadKey]);
+  }, [contributionId, hasSave, workbench, loadKey]);
 
-  // Debounced autosave shared by the markdown + code editors. Flushed on unmount
-  // and when the tab is hidden so the last keystrokes are never dropped.
-  const save = contribution.save;
-  const pending = useRef<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // The last keystrokes are also flushed when the tab is hidden or closed.
   useEffect(() => {
-    if (!save) return;
-    const flush = () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
-      }
-      if (pending.current === null) return;
-      const value = pending.current;
-      pending.current = null;
-      void save(resource, value);
-    };
+    const flush = () => controllerRef.current?.flush();
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
     };
@@ -167,21 +209,11 @@ export const WorkbenchFileRendererView = (props: WorkbenchFileRendererViewProps)
     return () => {
       window.removeEventListener("beforeunload", flush);
       document.removeEventListener("visibilitychange", onVisibility);
-      flush();
     };
-  }, [save, resource]);
+  }, []);
 
   const handleChange = (value: string) => {
-    if (!save) return;
-    pending.current = value;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      if (pending.current === null) return;
-      const next = pending.current;
-      pending.current = null;
-      void save(resource, next);
-    }, SAVE_DEBOUNCE_MS);
+    controllerRef.current?.handleChange(value);
   };
 
   const currentLoaded = isCurrentLoadedFile(loaded, loadKey) ? loaded : null;
@@ -221,8 +253,11 @@ export const WorkbenchFileRendererView = (props: WorkbenchFileRendererViewProps)
   }
 
   const kind = pickFileKind(currentLoaded.fileName, currentLoaded.mimeType);
-  const isEditable = Boolean(save) && kind !== "image";
-  const editorKey = `${contribution.id}:${currentLoaded.revision}`;
+  const isEditable = Boolean(contribution.save) && kind !== "image";
+  // The key must carry the document identity, not just the contribution: two
+  // documents from the same renderer both start at revision 1, so keying on the
+  // contribution alone reuses the editor and keeps showing the previous file.
+  const editorKey = `${currentLoaded.loadKey}:${currentLoaded.revision}`;
 
   const handleActiveSectionChange = (sectionId: string | null) => {
     syncActiveFileSection({ workbench, navigation: sectionNavigation, sectionId });
