@@ -1,6 +1,7 @@
 import type { WorkbenchLayout, WorkbenchRegion, WorkbenchWidgetPlacement } from "@pstdio/workbench";
 import type { DashboardExtensionMetadata } from "@/shared/extensions/workbench-extension-contributions";
-import { extensionModeLayoutRegion, extensionViewWidgetId, extensionViewWidgetIdFor } from "./extension-view-placement";
+import { modeIdsByPanelId } from "./extension-composition";
+import { extensionViewWidgetId, extensionViewWidgetIdFor } from "./extension-view-placement";
 
 interface ExtensionLayoutCompatibilityRecord {
   bodyKind: "native" | "webview";
@@ -31,19 +32,6 @@ type LayoutRegionEntry = [WorkbenchRegion, WorkbenchLayout["regions"][WorkbenchR
 const compareRecord = (left: ExtensionLayoutCompatibilityRecord, right: ExtensionLayoutCompatibilityRecord) =>
   left.extensionId.localeCompare(right.extensionId) || left.panelId.localeCompare(right.panelId);
 
-const modeIdsByPanelId = (metadata: DashboardExtensionMetadata) => {
-  const modeIds = new Map<string, string[]>();
-  for (const mode of metadata.modes) {
-    for (const entry of mode.layout?.open ?? []) {
-      if (!entry.panel) continue;
-      const current = modeIds.get(entry.panel) ?? [];
-      current.push(mode.modeId);
-      modeIds.set(entry.panel, current);
-    }
-  }
-  return modeIds;
-};
-
 export const createExtensionLayoutCompatibility = (metadata: DashboardExtensionMetadata) => {
   const panelModeIds = modeIdsByPanelId(metadata);
   const records = metadata.panels
@@ -53,7 +41,9 @@ export const createExtensionLayoutCompatibility = (metadata: DashboardExtensionM
         extensionId: panel.extensionId,
         modeIds: [...(panelModeIds.get(panel.id) ?? [])].sort(),
         panelId: panel.id,
-        region: extensionModeLayoutRegion(panel.region),
+        // A panel's own capability, not a mode recipe: the fingerprint must change
+        // when the regions a panel can dock into change.
+        region: (panel.supportedRegions[0] ?? "main") as WorkbenchRegion,
         widgetId: extensionViewWidgetIdFor(panel),
       }),
     )
@@ -141,7 +131,17 @@ const createPlacementCandidates = (input: {
       const replacementWidgetId = input.migration.get(placement.widgetId);
       const widgetId = replacementWidgetId ?? placement.widgetId;
       const reset = input.resetExtensionId && extensionId === input.resetExtensionId;
-      const obsolete = Boolean(extensionId) && !currentWidgetIds.has(widgetId);
+      // These records describe extension panels, so only a placement that is one may be
+      // judged obsolete by them. A dashboard-owned panel that merely presents an
+      // extension resource — a route panel, for instance — keeps its placement as long
+      // as the extension is installed; comparing it against panel ids it never had would
+      // drop the open view on every metadata refresh.
+      const panelPlacement =
+        input.extensionIdByPlacementId.has(placement.widgetId) ||
+        input.extensionIdByPlacementId.has(placement.contributionId);
+      const obsolete = panelPlacement
+        ? !currentWidgetIds.has(widgetId)
+        : Boolean(extensionId) && !input.knownExtensionIds.has(extensionId!);
       if (reset || obsolete) continue;
 
       candidates.push({

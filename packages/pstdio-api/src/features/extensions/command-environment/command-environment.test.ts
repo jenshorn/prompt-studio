@@ -2,7 +2,7 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createCommandEnvironment, loadProjectExtensionRuntime } from "./extension-command-runtime";
+import { createCommandEnvironment } from "./index";
 
 const tempRoots: string[] = [];
 
@@ -97,29 +97,6 @@ const makeSettingsService = () => {
       values.delete(keyOf(context, key));
     },
   };
-};
-
-const writeRuntimeExtension = (root: string, commandName: string) => {
-  mkdirSync(root, { recursive: true });
-  writeFileSync(
-    join(root, "package.json"),
-    JSON.stringify({
-      name: "hello",
-      version: "1.0.0",
-      displayName: "Hello",
-      publisher: "pstdio",
-      main: "./extension.ts",
-      engines: { pstdio: "^1.0.0" },
-    }),
-  );
-  writeFileSync(
-    join(root, "extension.ts"),
-    `export default {
-  commands: {
-    ${JSON.stringify(commandName)}: { title: ${JSON.stringify(commandName)}, run: async () => undefined },
-  },
-};`,
-  );
 };
 
 describe("createCommandEnvironment host primitives", () => {
@@ -790,54 +767,6 @@ describe("createCommandEnvironment storage files", () => {
     expect(removed).toEqual([
       expect.objectContaining({ project_id: "project-1", extension_instance_id: "instance-1", file_id: ticketFile.id }),
     ]);
-  });
-});
-
-describe("loadProjectExtensionRuntime", () => {
-  test("passes installed source kind and repo roots into normalization", async () => {
-    const root = mkdtempSync(join(tmpdir(), "pstdio-extension-runtime-"));
-    tempRoots.push(root);
-    const globalPath = join(root, "global-hello");
-    const repoPath = join(root, "repo");
-    const localPath = join(repoPath, ".pstdio", "extensions", "hello");
-    writeRuntimeExtension(globalPath, "global");
-    writeRuntimeExtension(localPath, "local");
-
-    const { project, runtime } = await loadProjectExtensionRuntime(
-      {
-        extensionService: {
-          listEnabledSourcesForProject: async () => [
-            {
-              instance: { id: "global-instance", namespace: "hello", enabled: true },
-              installedSource: {
-                id: "global-source",
-                extension_id: "pstdio.hello",
-                source_kind: "git",
-                source_path: globalPath,
-              },
-            },
-            {
-              instance: { id: "local-instance", namespace: "hello", enabled: true },
-              installedSource: {
-                id: "local-source",
-                extension_id: "pstdio.hello",
-                source_kind: "local_path",
-                source_path: localPath,
-              },
-            },
-          ],
-        },
-        repoService: {
-          listByProject: async () => [{ id: "repo-1", path: repoPath }],
-        },
-        projectService: { get: async () => projectContext },
-      } as never,
-      "project-1",
-    );
-
-    expect(project).toEqual(projectContext);
-    expect(runtime.commands.map((command) => command.id)).toEqual(["hello.local"]);
-    expect(runtime.diagnostics.map((diagnostic) => diagnostic.code)).toContain("extension_overridden_by_local");
   });
 });
 

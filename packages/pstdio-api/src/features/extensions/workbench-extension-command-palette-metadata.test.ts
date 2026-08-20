@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { commandRef } from "pstdio-api-contracts/extension-kernel";
 import { normalizeExtensionSources } from "pstdio-extensions";
 import { createExtensionWebviewAccess } from "./extension-webview-access";
 import {
@@ -34,7 +35,7 @@ describe("buildWorkbenchExtensionMetadata command palette resources", () => {
             workspaces: {
               title: "Workspaces",
               resourceKind: "workspace",
-              queryCommand: "queryWorkspaces",
+              queryCommand: commandRef("queryWorkspaces"),
             },
           },
         },

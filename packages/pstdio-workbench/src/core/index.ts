@@ -47,6 +47,15 @@ export type {
   WorkbenchLastResourceController,
 } from "./controllers/last-resource/last-resource-controller";
 export { createWorkbenchLastResourceController } from "./controllers/last-resource/last-resource-controller";
+export {
+  createWorkbenchNavigator,
+  type WorkbenchNavigationCommit,
+  type WorkbenchNavigationDiagnosticCode,
+  type WorkbenchNavigationResult,
+  type WorkbenchNavigationTarget,
+  type WorkbenchNavigator,
+  type WorkbenchNavigatorHostHooks,
+} from "./controllers/navigator/workbench-navigator";
 export type {
   CreateWorkbenchPanelsControllerInput,
   PersistedWorkbenchPanels,
@@ -112,6 +121,25 @@ export type {
   RegisteredKeybinding,
 } from "./registries/keybindings/keybinding-registry";
 export { createKeybindingRegistry, getKeybindingSteps } from "./registries/keybindings/keybinding-registry";
+export { resolveComposition } from "./registries/layout/composition-resolver";
+export type {
+  CompositionDiagnostic,
+  CompositionModeDefinition,
+  CompositionModeRecipe,
+  CompositionPanelDefinition,
+  CompositionPlacementPolicy,
+  CompositionResolutionContext,
+  CompositionResourceKindDefinition,
+  CompositionResourcePanelEdge,
+  CompositionSlotDefinition,
+  DockedCompositionRegion,
+  PersistedCompositionLayout,
+  ResolveCompositionInput,
+  ResolvedComposition,
+  ResolvedCompositionPlacement,
+  WorkbenchComposition,
+} from "./registries/layout/composition-resolver-types";
+export { dockedCompositionRegions } from "./registries/layout/composition-resolver-types";
 export type {
   CreateLayoutModelInput,
   LayoutModel,
@@ -278,7 +306,11 @@ export type {
   FileRendererContent,
   FileRendererContribution,
   FileRendererImplementation,
+  FileRendererRefreshEnvelope,
+  FileRendererRefreshEvent,
+  FileRendererRefreshOrigin,
   FileRendererRegistry,
+  FileRendererSaveResult,
   FileRendererStoreState,
   RegisteredFileRendererContribution,
 } from "./registries/renderers/file-renderer-registry";
@@ -351,6 +383,7 @@ export type {
   RegisteredResourceKind,
   ResolvedResourceHierarchyProvider,
   ResourceBrowseEntry,
+  ResourceHierarchyCycle,
   ResourceHierarchyProvider,
   ResourceKindContribution,
   ResourceListContext,
@@ -365,6 +398,7 @@ export {
   createWorkbenchResourceContextValues,
   createWorkbenchSelectionResourceMetadata,
   getWorkbenchSelectionResourceUris,
+  resourceHierarchyCycleCode,
   workbenchResourceIdContextKey,
   workbenchResourceKindContextKey,
   workbenchResourceMetadataContextKey,

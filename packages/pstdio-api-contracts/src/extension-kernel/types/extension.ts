@@ -1,5 +1,6 @@
 import type { Localizable } from "../l10n";
 import type { CommandRef } from "./commands";
+import type { ResourceHierarchyProvider, ResourceKindContribution, ResourcePanelContribution } from "./composition";
 import type {
   CommandMiddlewareHandler,
   CommandRunHandler,
@@ -25,6 +26,7 @@ import type {
   SettingsPanelContribution,
   SettingsSectionContribution,
   SkillContribution,
+  StatusItemContribution,
   TemplateContribution,
   TemplateTypeContribution,
   ThemeContribution,
@@ -148,6 +150,9 @@ export interface UiContributions {
   modes?: Record<string, ModeContribution>;
   routes?: Record<string, RouteContribution>;
   panels?: Record<string, PanelContribution>;
+  resourceKinds?: Record<string, ResourceKindContribution>;
+  resourcePanels?: Record<string, ResourcePanelContribution>;
+  statusItems?: Record<string, StatusItemContribution>;
   treeItems?: Record<string, TreeItemContribution>;
   activityItems?: Record<string, ActivityItemContribution>;
   treeRenderers?: Record<string, TreeRendererContribution>;
@@ -190,6 +195,7 @@ export interface AssetContributions {
 export interface ProviderContributions {
   workspaceTypes?: Record<string, WorkspaceTypeProvider>;
   harnesses?: Record<string, HarnessProvider>;
+  resourceHierarchyProviders?: Record<string, ResourceHierarchyProvider>;
 }
 
 /** Lifecycle hooks invoked by the runtime when an extension is installed or upgraded. */

@@ -1,9 +1,7 @@
 import { expect, test } from "bun:test";
 import type { DashboardExtensionMetadata } from "./workbench-extension-contributions";
-import {
-  buildDashboardExtensionTreeSections,
-  emptyDashboardExtensionMetadata,
-} from "./workbench-extension-contributions";
+import { emptyDashboardExtensionMetadata } from "./workbench-extension-contributions";
+import { buildDashboardExtensionTreeSections } from "./workbench-extension-tree-sections";
 
 test("maps panel tree items to project navigation resources", () => {
   const metadata = {
@@ -22,8 +20,7 @@ test("maps panel tree items to project navigation resources", () => {
         id: "extension-lab.board",
         extensionId: "pstdio.extension-lab",
         title: "Board",
-        region: "main",
-        closable: false,
+        supportedRegions: ["main"],
       },
     ],
   } satisfies DashboardExtensionMetadata;

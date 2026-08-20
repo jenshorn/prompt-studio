@@ -8,7 +8,9 @@ import {
   localizableStringSchema,
   workbenchExtensionWebviewSchema,
 } from "./common";
-import { workbenchRegionSchema, workbenchTreeTargetSchema } from "./targets";
+import { dockedWorkbenchRegionSchema, extensionModeCompositionRecordSchema } from "./composition";
+import { extensionResourceRefSchema } from "./execute";
+import { workbenchTreeTargetSchema } from "./targets";
 
 const hasSinglePanelBody = (value: { webview?: unknown; renderer?: unknown }) =>
   [value.webview, value.renderer].filter(Boolean).length === 1;
@@ -48,12 +50,7 @@ const extensionPanelRecordBaseSchema = z.object({
   extensionId: z.string(),
   title: localizableStringSchema,
   icon: z.string().optional(),
-  region: workbenchRegionSchema,
-  closable: z.boolean(),
-  group: z.string().optional(),
-  placement: extensionPlacementSchema.optional(),
-  resourceKind: z.string().optional(),
-  eligibleLocations: z.object({ resourceKinds: z.array(z.string()).optional() }).optional(),
+  supportedRegions: z.array(dockedWorkbenchRegionSchema).min(1),
   panelMenus: z.array(extensionPanelMenuRecordSchema).optional(),
   ...panelBodySchema,
 });
@@ -79,6 +76,7 @@ const extensionTreeItemActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("panel"), panelId: z.string() }),
   z.object({ kind: z.literal("route"), route: z.string() }),
   z.object({ kind: z.literal("href"), href: z.string() }),
+  z.object({ kind: z.literal("resource"), resource: extensionResourceRefSchema }),
 ]);
 
 export const extensionActivityItemRecordSchema = z.object({
@@ -104,31 +102,23 @@ export const extensionTreeItemContributionSchema = z.object({
   when: extensionWhenExpressionSchema.optional(),
 });
 
-const modeTargetContributionRecordSchema = z
+export const extensionModeRecordSchema = z
   .object({
-    panel: z.string().optional(),
-    resource: z.string().optional(),
-    region: workbenchRegionSchema.optional(),
-    title: localizableStringSchema.optional(),
-    pinned: z.boolean().optional(),
+    id: z.string(),
+    extensionId: z.string(),
+    modeId: z.string(),
+    label: localizableStringSchema,
+    icon: z.string().optional(),
+    panelRegions: z.array(z.enum(workbenchModePanels)).optional(),
   })
-  .refine((value) => value.panel || value.resource, {
-    message: "Mode layout entries must declare a panel or resource",
-  });
+  .extend(extensionModeCompositionRecordSchema.partial().shape);
 
-export const modeLayoutContributionRecordSchema = z.object({
-  panels: z.array(z.enum(workbenchModePanels)).optional(),
-  open: z.array(modeTargetContributionRecordSchema).optional(),
-});
-
-export const extensionModeRecordSchema = z.object({
+export const extensionStatusItemRecordSchema = z.object({
   id: z.string(),
   extensionId: z.string(),
-  modeId: z.string(),
-  label: localizableStringSchema,
-  icon: z.string().optional(),
-  resourceKind: z.string().optional(),
-  layout: modeLayoutContributionRecordSchema.optional(),
+  title: localizableStringSchema,
+  when: extensionWhenExpressionSchema.optional(),
+  webview: workbenchExtensionWebviewSchema.optional(),
 });
 
 export const workbenchExtensionPanelRecordSchema = extensionPanelRecordBaseSchema
@@ -159,7 +149,6 @@ export type ExtensionPanelRecord = z.infer<typeof extensionPanelRecordSchema>;
 export type ExtensionRouteRecord = z.infer<typeof extensionRouteRecordSchema>;
 export type ExtensionTreeItemContribution = z.infer<typeof extensionTreeItemContributionSchema>;
 export type ExtensionActivityItemRecord = z.infer<typeof extensionActivityItemRecordSchema>;
-export type ModeLayoutContributionRecord = z.infer<typeof modeLayoutContributionRecordSchema>;
 export type ExtensionModeRecord = z.infer<typeof extensionModeRecordSchema>;
 export type WorkbenchExtensionPanelRecord = z.infer<typeof workbenchExtensionPanelRecordSchema>;
 export type WorkbenchExtensionRouteRecord = z.infer<typeof workbenchExtensionRouteRecordSchema>;

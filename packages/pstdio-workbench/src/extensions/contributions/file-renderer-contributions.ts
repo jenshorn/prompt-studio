@@ -1,14 +1,19 @@
-import type { CommandExecuteRequest, WorkbenchExtensionMetadata } from "@pstdio/sdk/api";
+import type { CommandExecuteRequest, CommandExecuteResponse, WorkbenchExtensionMetadata } from "@pstdio/sdk/api";
 import { text } from "pstdio-extensions/workbench";
-import type { Disposable, FileRendererContent, ResourceRef, WorkbenchModuleContext } from "../../core";
+import type {
+  Disposable,
+  FileRendererContent,
+  FileRendererRefreshEnvelope,
+  FileRendererRefreshOrigin,
+  ResourceRef,
+  WorkbenchModuleContext,
+} from "../../core";
 import { unwrapCommandValue } from "../host/command-response";
 import {
   panelMenuDeclarationOffsets,
   panelRendererId,
   registerWorkbenchExtensionPanel,
-  toWorkbenchExtensionPlacementMetadata,
-  toWorkbenchPanelEligibility,
-  toWorkbenchPanelMenus,
+  toWorkbenchCompositionPanelContribution,
 } from "./panel-contributions";
 
 type FileRendererRecord = NonNullable<WorkbenchExtensionMetadata["fileRenderers"]>[number];
@@ -53,6 +58,7 @@ const executeFileCommand = async (
   commandId: string,
   resource: ResourceRef | undefined,
   extra: Record<string, unknown> = {},
+  metadata?: CommandExecuteRequest["metadata"],
 ) => {
   const ext = toExtensionResource(resource);
   const result = await input.executeCommand(commandId, {
@@ -69,8 +75,43 @@ const executeFileCommand = async (
     resource: ext,
     slot: slotContext({ projectId: input.projectId, rendererId, resource: ext }),
     source: "dashboard",
+    ...(metadata ? { metadata } : {}),
   });
   return unwrapCommandValue(result);
+};
+
+const revisionFromValue = (value: unknown) => {
+  if (!value || typeof value !== "object") return undefined;
+  const revision = (value as { revision?: unknown }).revision;
+  return typeof revision === "string" ? revision : undefined;
+};
+
+export const fileRendererRefreshEnvelopeFromCommand = (
+  body: CommandExecuteRequest,
+  response: CommandExecuteResponse,
+): FileRendererRefreshEnvelope | undefined => {
+  const metadata = body.metadata;
+  const origin = metadata?.fileRendererOrigin;
+  if (!origin || typeof origin !== "object") return undefined;
+  const candidate = origin as Partial<FileRendererRefreshOrigin>;
+  if (
+    typeof candidate.rendererId !== "string" ||
+    typeof candidate.instanceId !== "string" ||
+    typeof candidate.operationId !== "string"
+  ) {
+    return undefined;
+  }
+  const resourceUri = metadata?.fileRendererResourceUri;
+  const revision = revisionFromValue(response.outcome.value);
+  return {
+    origin: {
+      rendererId: candidate.rendererId,
+      instanceId: candidate.instanceId,
+      operationId: candidate.operationId,
+    },
+    ...(typeof resourceUri === "string" ? { resourceUri } : {}),
+    ...(revision ? { revision } : {}),
+  };
 };
 
 const registerFileRenderer = (input: RegisterWorkbenchExtensionFileRenderersInput, record: FileRendererRecord) =>
@@ -83,8 +124,20 @@ const registerFileRenderer = (input: RegisterWorkbenchExtensionFileRenderersInpu
       return (result ?? {}) as FileRendererContent;
     },
     save: record.saveHandlerId
-      ? async (resource, content) => {
-          await executeFileCommand(input, record.id, record.saveHandlerId as string, resource, { content });
+      ? async (resource, content, origin) => {
+          const result = await executeFileCommand(
+            input,
+            record.id,
+            record.saveHandlerId as string,
+            resource,
+            { content },
+            {
+              ...(origin ? { fileRendererOrigin: origin } : {}),
+              ...(resource?.uri ? { fileRendererResourceUri: resource.uri } : {}),
+            },
+          );
+          const revision = revisionFromValue(result);
+          return revision ? { revision } : undefined;
         }
       : undefined,
   });
@@ -99,19 +152,13 @@ const registerFileViewWidget = (
   if (!rendererId) return undefined;
   return registerWorkbenchExtensionPanel({
     workbench: input.workbench,
-    contribution: {
-      id: panel.id,
-      title: text(panel.title, panel.id),
-      icon: panel.icon,
-      region: panel.region,
-      closable: panel.closable,
+    contribution: toWorkbenchCompositionPanelContribution({
+      panel,
       rendererId,
-      singleton: true,
-      resourceKinds: panel.resourceKind ? [panel.resourceKind] : undefined,
-      eligibleLocations: toWorkbenchPanelEligibility(panel.eligibleLocations),
-      panelMenus: toWorkbenchPanelMenus(panel.panelMenus, menuDeclarationOffset),
-      ...toWorkbenchExtensionPlacementMetadata({ placement: panel.placement, declarationIndex: index }),
-    },
+      declarationIndex: index,
+      menuDeclarationOffset: menuDeclarationOffset,
+      resourcePanels: input.metadata.resourcePanels,
+    }),
   });
 };
 

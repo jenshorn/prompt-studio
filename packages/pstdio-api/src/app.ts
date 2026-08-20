@@ -32,12 +32,14 @@ import {
 import { createFilesStorageService, ensureStorageRoot, resolveStorageRoot } from "pstdio-storage";
 import { registerApi } from "./app-routing";
 import type { RouteDeps } from "./features/deps";
+import { subscribeExtensionEnablementInvalidation } from "./features/extensions/extension-enablement-invalidation";
 import type { LoadedExtension } from "./features/extensions/extension-runtime";
 import { createExtensionScheduler } from "./features/extensions/extension-scheduler";
 import { createExtensionSettingsService } from "./features/extensions/extension-settings-service";
 import { createTerminalSupervisor } from "./features/extensions/extension-terminal-runtime";
 import { createExtensionWebviewAccess } from "./features/extensions/extension-webview-access";
 import { createInstalledExtensionRuntime } from "./features/extensions/installed-extension-runtime";
+import { createProjectExtensionRuntimeCatalog } from "./features/extensions/project-extension-runtime-catalog";
 import { subscribeRepoLinkExtensionRefresh } from "./features/extensions/repo-link-extension-refresh";
 import {
   createHarnessRegistryService,
@@ -243,11 +245,86 @@ const startNotificationWakeTimer = (notificationService: ReturnType<typeof creat
   return timer;
 };
 
+const openAppDb = (options: AppOptions) =>
+  openDb(options.dbPath ?? process.env.PSTDIO_DB_PATH, options.onDatabaseLockAcquired);
+
+// Wires the extension service, the process-owned runtime snapshot catalog, the
+// harness registry, the installed-source runtime processes, and the event-bus
+// subscriptions that keep catalog snapshots invalidated.
+const wireExtensionRuntimeServices = async (input: {
+  db: DbClient;
+  eventBus: EventBus;
+  extensionInstancesService: ReturnType<typeof createExtensionInstancesDBService>;
+  installedExtensionSourcesService: ReturnType<typeof createInstalledExtensionSourcesDBService>;
+  options: AppOptions;
+  projectService: ReturnType<typeof createProjectService>;
+  repoService: ReturnType<typeof createRepoService>;
+}) => {
+  const { db, eventBus, extensionInstancesService, installedExtensionSourcesService, options } = input;
+  const { projectService, repoService } = input;
+  let refreshInstalledExtensionProcesses: (sourcePath?: string, validatedSource?: LoadedExtension) => Promise<void> =
+    async () => {};
+  const extensionService = createExtensionService({
+    extensionInstancesService,
+    installedExtensionSourcesService,
+    extensionUserDataService: createExtensionUserDataDBService(db),
+    eventBus,
+    onInstalledSourcesChanged: async (sourcePath, validatedSource) => {
+      // An in-place source reload keeps the same paths, so the registry's path-set
+      // signature won't change on its own — drop its cache explicitly.
+      harnessRegistry.invalidate();
+      await refreshInstalledExtensionProcesses(sourcePath, validatedSource);
+    },
+    projectService,
+  });
+  const extensionRuntimeCatalog = createProjectExtensionRuntimeCatalog({
+    extensionService,
+    projectService,
+    repoService,
+  });
+  const harnessRegistry =
+    options.harnessRegistry ??
+    createHarnessRegistryService({ installedExtensionSourcesService, extensionRuntimeCatalog });
+  const extensionRuntime = await createInstalledExtensionRuntime({
+    extensionService,
+    harnessRegistry,
+    installedExtensionSourcesService,
+    projectRuntimeCatalog: extensionRuntimeCatalog,
+    projectService,
+    repoService,
+    webviewBuilds: resolveExtensionWebviewBuilds(options.extensionWebviewBuilds),
+  });
+  refreshInstalledExtensionProcesses = extensionRuntime.refresh;
+  const unsubscribeRepoLinkRefresh = subscribeRepoLinkExtensionRefresh({
+    eventBus,
+    invalidate: extensionRuntimeCatalog.invalidate,
+    refreshWatchers: () => extensionRuntime.refreshWatchers(),
+    onError: (err) =>
+      apiLogger.error(
+        { err, event: "extensions.repo_link_refresh.error" },
+        "Failed to refresh extensions after repo link change",
+      ),
+  });
+  const unsubscribeEnablementInvalidation = subscribeExtensionEnablementInvalidation({
+    eventBus,
+    invalidate: extensionRuntimeCatalog.invalidate,
+  });
+
+  return {
+    extensionRuntime,
+    extensionRuntimeCatalog,
+    extensionService,
+    harnessRegistry,
+    unsubscribeExtensionEvents: () => {
+      unsubscribeRepoLinkRefresh();
+      unsubscribeEnablementInvalidation();
+    },
+  };
+};
+
 export const createApp = async (options: AppOptions) => {
-  const dbPath = options?.dbPath ?? process.env.PSTDIO_DB_PATH;
-  const { db, close: closeDb } = await openDb(dbPath, options.onDatabaseLockAcquired);
-  const apiToken = options?.apiToken ?? process.env.PSTDIO_API_TOKEN;
-  const securityToken = apiToken ?? options.runtimeHost?.token;
+  const { db, close: closeDb } = await openAppDb(options);
+  const securityToken = options?.apiToken ?? process.env.PSTDIO_API_TOKEN ?? options.runtimeHost?.token;
   const app = new OpenAPIHono<AppBindings>();
 
   const storageRoot = options?.storagePath ?? resolveStorageRoot(process.env.PSTDIO_STORAGE_PATH);
@@ -288,50 +365,25 @@ export const createApp = async (options: AppOptions) => {
     workspaceSessionService,
     workspaceService,
   } = createCoreDomainServices({ db, dbs, eventBus, storageRoot });
-  let refreshInstalledExtensionProcesses: (sourcePath?: string, validatedSource?: LoadedExtension) => Promise<void> =
-    async () => {};
-  const extensionService = createExtensionService({
-    extensionInstancesService,
-    installedExtensionSourcesService,
-    extensionUserDataService: createExtensionUserDataDBService(db),
-    eventBus,
-    onInstalledSourcesChanged: async (sourcePath, validatedSource) => {
-      // An in-place source reload keeps the same paths, so the registry's path-set
-      // signature won't change on its own — drop its cache explicitly.
-      harnessRegistry.invalidate();
-      await refreshInstalledExtensionProcesses(sourcePath, validatedSource);
-    },
-    projectService,
-  });
-  const harnessRegistry =
-    options.harnessRegistry ?? createHarnessRegistryService({ installedExtensionSourcesService, extensionService });
-  const extensionRuntime = await createInstalledExtensionRuntime({
-    extensionService,
-    harnessRegistry,
-    installedExtensionSourcesService,
-    projectService,
-    repoService,
-    webviewBuilds: resolveExtensionWebviewBuilds(options.extensionWebviewBuilds),
-  });
-  refreshInstalledExtensionProcesses = extensionRuntime.refresh;
-  const unsubscribeRepoLinkRefresh = subscribeRepoLinkExtensionRefresh({
-    eventBus,
-    refresh: () => extensionRuntime.refresh(),
-    onError: (err) =>
-      apiLogger.error(
-        { err, event: "extensions.repo_link_refresh.error" },
-        "Failed to refresh extensions after repo link change",
-      ),
-  });
+  const { extensionRuntime, extensionRuntimeCatalog, extensionService, harnessRegistry, unsubscribeExtensionEvents } =
+    await wireExtensionRuntimeServices({
+      db,
+      eventBus,
+      extensionInstancesService,
+      installedExtensionSourcesService,
+      options,
+      projectService,
+      repoService,
+    });
   const templateService = createTemplateService({
-    extensionRuntimeCatalog: extensionRuntime.projectRuntimeCatalog,
+    extensionRuntimeCatalog,
     extensionTemplatePreferencesDBService,
     fileService,
     projectTemplateDefaultsDBService: createProjectTemplateDefaultsDBService(db),
     templatesDBService,
   });
   const skillService = createSkillService({
-    extensionRuntimeCatalog: extensionRuntime.projectRuntimeCatalog,
+    extensionRuntimeCatalog,
     extensionSkillPreferencesDBService,
     fileService,
     skillsDBService,
@@ -343,6 +395,7 @@ export const createApp = async (options: AppOptions) => {
     extensionAutomationPreferencesService,
     extensionFileService,
     extensionInstancesService,
+    extensionRuntimeCatalog,
     extensionService,
     extensionSettingsDBService,
     extensionSettingsService,
@@ -412,6 +465,7 @@ export const createApp = async (options: AppOptions) => {
     extensionInstancesService,
     extensionAutomationPreferencesService,
     extensionFileService,
+    extensionRuntimeCatalog,
     extensionSettingsDBService,
     extensionService,
     extensionSettingsService,
@@ -461,7 +515,7 @@ export const createApp = async (options: AppOptions) => {
       startupAbort.abort();
       await startupDone;
       clearInterval(notificationWakeTimer);
-      unsubscribeRepoLinkRefresh();
+      unsubscribeExtensionEvents();
       extensionRuntime.dispose();
       await extensionScheduler.dispose();
       await terminalSupervisor.dispose();

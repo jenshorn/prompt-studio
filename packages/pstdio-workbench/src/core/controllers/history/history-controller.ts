@@ -7,7 +7,7 @@ import {
   workbenchPanelRegions,
 } from "../../registries/layout/layout-types";
 import type { WorkbenchModeRegistry } from "../../registries/modes/mode-registry";
-import type { ResourceRegistry } from "../../registries/resources/resource-registry";
+import type { ResourceRef, ResourceRegistry } from "../../registries/resources/resource-registry";
 import { createWorkbenchStore, type WorkbenchStore } from "../../shared/store/workbench-store";
 import {
   emptyHistoryState,
@@ -72,6 +72,13 @@ export interface CreateHistoryControllerInput {
   resources: ResourceRegistry;
   persistence?: WorkbenchHistoryPersistence;
   maxEntries?: number;
+  // Replays mode and resource through the atomic navigator so no observer sees an
+  // intermediate pair. Entries replay through the legacy mode restore without it.
+  commitNavigation?(commit: {
+    modeId?: string | null;
+    resource?: ResourceRef | null;
+    replaceActive?: boolean;
+  }): unknown;
 }
 
 const DEFAULT_MAX_ENTRIES = 50;
@@ -369,6 +376,20 @@ const trackLayoutScopeRotation = (layout: CreateHistoryControllerInput["layout"]
   return () => rotating;
 };
 
+// Restores the entry's context. An entry records the whole committed pair, including
+// "no mode" and "no resource", so replay commits it verbatim through the atomic
+// navigator and no observer sees an intermediate pair. Presentation of the resource
+// still happens through the replay path.
+const restoreEntryContext = (input: CreateHistoryControllerInput, entry: WorkbenchNavigationEntry) => {
+  if (input.commitNavigation) {
+    input.commitNavigation({ modeId: entry.modeId ?? null, resource: entry.resource ?? null, replaceActive: true });
+    return;
+  }
+  if (!entry.modeId) return;
+  if (!input.modes?.getMode(entry.modeId)) return;
+  if (input.modes.getActiveModeId() !== entry.modeId) input.modes.setActiveMode(entry.modeId);
+};
+
 export const createHistoryController = (input: CreateHistoryControllerInput): HistoryController => {
   const store = createWorkbenchStore<HistoryStoreState>({
     name: "workbench.history",
@@ -514,10 +535,7 @@ export const createHistoryController = (input: CreateHistoryControllerInput): Hi
     }
   };
 
-  const restoreMode = (entry: WorkbenchNavigationEntry) => {
-    if (!input.modes || !entry.modeId || !input.modes.getMode(entry.modeId)) return;
-    if (input.modes.getActiveModeId() !== entry.modeId) input.modes.setActiveMode(entry.modeId);
-  };
+  const restoreMode = (entry: WorkbenchNavigationEntry) => restoreEntryContext(input, entry);
 
   const replayResource = (entry: WorkbenchNavigationEntry, scope: string | undefined, replaceActive: boolean) => {
     const resource = entry.resource!;

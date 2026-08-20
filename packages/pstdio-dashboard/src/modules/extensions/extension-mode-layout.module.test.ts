@@ -15,13 +15,7 @@ import { createProjectsModule } from "../projects/module";
 import { createSidenavModule } from "../sidenav/module";
 import { createWorkspacesModule } from "../workspaces/module";
 import { createExtensionsModule } from "./module";
-import {
-  emptyAppearance,
-  flushMicrotasks,
-  metadata,
-  metadataWithLabMode,
-  metadataWithTickets,
-} from "./module-test-fixtures";
+import { flushMicrotasks, metadata, metadataWithLabMode, metadataWithTickets } from "./module-test-fixtures";
 
 describe("createExtensionsModule activity rail", () => {
   test("opens the native activity rail for modes with activity items and removes it elsewhere", async () => {
@@ -146,12 +140,6 @@ describe("createExtensionsModule mode layout", () => {
       expect(workbench.layout.getLayout().activeLocationWidgetId).toBe(
         "dashboard-workbench.extension-view.extension-lab.labOverview",
       );
-      expect(
-        workbench.layout.getPanel("dashboard-workbench.extension-view.extension-lab.labOverview")?.eligibleLocations,
-      ).toBeUndefined();
-      expect(
-        workbench.layout.getPanel("dashboard-workbench.extension-view.extension-lab.labSidenav")?.eligibleLocations,
-      ).toEqual({ modeIds: ["pstdio.extension-lab.lab"] });
     } finally {
       projectsDisposable.dispose();
       disposable.dispose();
@@ -204,47 +192,21 @@ describe("createExtensionsModule mode layout persistence", () => {
     }
   });
 
-  test("reopens a mode-layout extension view in the primary region on history replay", async () => {
-    const loadMetadata = mock(async () => metadataWithLabMode);
-    const loadAppearance = mock(async () => emptyAppearance);
-    const workbench = createWorkbenchCore();
-
-    selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
-    const disposable = workbench.registerModule(createExtensionsModule({ loadMetadata, loadAppearance }));
-
-    try {
-      await flushMicrotasks();
-      workbench.modes.setActiveMode("pstdio.extension-lab.lab");
-
-      const mainResource = workbench.layout.getLayout().regions.main.widgets[0]?.resource;
-      expect(mainResource?.kind).toBe("extension-view");
-
-      // Navigate the primary region away, then replay the extension-view entry the way history
-      // goBack/goForward does (openResource with replaceActive). Before the view presenter existed,
-      // this rejected with "No presenter registered for resource kind: extension-view".
-      workbench.layout.openPanel(dashboardWidgetIds.extensionRoute, { strategy: { kind: "replace-active" } });
-      await workbench.resources.openResource(mainResource!, { replaceActive: true });
-
-      expect(workbench.layout.getLayout().regions.main.widgets.map((widget) => widget.contributionId)).toEqual([
-        "dashboard-workbench.extension-view.extension-lab.labOverview",
-      ]);
-    } finally {
-      disposable.dispose();
-      clearCachedDashboardExtensionMetadata("project-1");
-    }
-  });
-
-  test("does not statically open resource-bound mode layout views", async () => {
+  // A resource-bound panel belongs to an open resource, not to the workbench. Entering a
+  // project must not place the ticket's files tree or properties menu before a ticket is
+  // open.
+  test("does not statically open resource-bound views", async () => {
     const loadMetadata = mock(async () => metadataWithTickets);
     const workbench = createWorkbenchCore();
 
     selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
+    workbench.modes.registerMode({ id: "project", label: "Project", activate: () => undefined });
     const disposable = workbench.registerModule(createExtensionsModule({ loadMetadata }));
 
     try {
       await flushMicrotasks();
 
-      workbench.modes.setActiveMode("pstdio-core-tickets.ticket");
+      workbench.modes.setActiveMode("project");
 
       expect(workbench.layout.getLayout().regions.sidenav.widgets).toEqual([]);
       expect(workbench.layout.getLayout().regions["main-left-menu"].widgets).toEqual([]);

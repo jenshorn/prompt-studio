@@ -1,19 +1,23 @@
 import type { Localizable } from "../l10n";
 import type {
   WorkbenchMenuTarget,
-  WorkbenchModeLayoutTarget,
   WorkbenchModePanel,
-  WorkbenchRegion,
   WorkbenchSettingsScope,
   WorkbenchSettingsTarget,
   WorkbenchTreeTarget,
 } from "../workbench-targets";
 import type { CommandRef, CommandSource } from "./commands";
+import type {
+  DockedWorkbenchRegion,
+  ModeDefaultResource,
+  ModePlacementContribution,
+  ModeResourceRecipeContribution,
+} from "./composition";
 import type { RendererCallback } from "./context";
-import type { EventRef } from "./events";
 import type { JsonObject, JsonValue, Struct } from "./json";
 import type { ExtensionNavigationTarget } from "./navigation-target";
 import type { ParamObjectSchema } from "./params";
+import type { RendererContributionBase, RendererEventReference } from "./renderer-base";
 import type { PackageAssetDescriptor, RendererContext, ResourceRef } from "./resources";
 import type { SlotRef } from "./slots";
 import type { WebviewCapabilityDeclaration } from "./webview-capabilities";
@@ -83,38 +87,21 @@ export interface TreeItemContribution<TParams extends Struct = Struct> {
       }
     | { kind: "panel"; panel: string }
     | { kind: "route"; route: string }
+    | { kind: "resource"; resource: ResourceRef }
     | { kind: "href"; href: string };
-}
-
-export type WorkbenchLayoutTarget = WorkbenchModeLayoutTarget;
-
-export type ModeTargetContribution =
-  | {
-      panel: string;
-      title?: Localizable<string>;
-      resource?: string;
-      region?: WorkbenchRegion;
-      pinned?: boolean;
-    }
-  | {
-      resource: string;
-      panel?: string;
-      title?: Localizable<string>;
-      region?: WorkbenchRegion;
-      pinned?: boolean;
-    };
-
-export interface ModeLayoutContribution {
-  panels?: WorkbenchModePanel[];
-  open?: ModeTargetContribution[];
 }
 
 export interface ModeContribution {
   id?: string;
   label: Localizable<string>;
   icon?: string;
-  resourceKind?: string;
-  layout?: ModeLayoutContribution;
+  /** Host panel regions this mode exposes (chrome availability, not persisted layout). */
+  panelRegions?: readonly WorkbenchModePanel[];
+  /** Contextual placement recipes. Keys are local or namespaced resource-kind ids. */
+  resources?: Record<string, ModeResourceRecipeContribution>;
+  /** Mode-wide panels that do not consume the active resource. */
+  modePanels?: Record<string, ModePlacementContribution>;
+  defaultResource?: ModeDefaultResource;
 }
 
 export interface WebviewContribution {
@@ -124,27 +111,6 @@ export interface WebviewContribution {
 }
 
 export type HostTreeDefault = "default" | "none";
-export interface WorkbenchLocationEligibility {
-  resourceKinds?: readonly string[];
-}
-
-export interface PanelContributionBase {
-  title: Localizable<string>;
-  /** Icon shown on the panel's tab and on resources opened for the panel. */
-  icon?: string;
-  region: WorkbenchRegion;
-  closable: boolean;
-  group?: string;
-  placement?: "first" | "default" | "last";
-  /**
-   * Marks this Panel as the editor for resources of the given kind. The host opens
-   * the Panel (bound to the resource) whenever a resource of
-   * this kind is opened — e.g. a `ticket` kanban-renderer row opening the editor.
-   */
-  resourceKind?: string;
-  eligibleLocations?: WorkbenchLocationEligibility;
-  panelMenus?: Record<string, PanelMenuContribution>;
-}
 
 interface PanelMenuContributionBase {
   title: Localizable<string>;
@@ -172,8 +138,25 @@ type PanelBody =
       renderer: RendererRef;
     };
 
+export interface PanelContributionBase {
+  title: Localizable<string>;
+  /** Icon shown on the panel's tab and on resources opened for the panel. */
+  icon?: string;
+  /** Docked regions this panel can occupy; the active mode recipe places it. */
+  supportedRegions: readonly DockedWorkbenchRegion[];
+  panelMenus?: Record<string, PanelMenuContribution>;
+}
+
 export type PanelMenuContribution = PanelMenuContributionBase & PanelBody;
 export type PanelContribution = PanelContributionBase & PanelBody;
+
+// A status item is a chrome contribution: the host renders it in the status surface
+// and it takes no part in docked layout or persisted placement.
+export interface StatusItemContribution {
+  title: Localizable<string>;
+  when?: WhenExpression;
+  webview: WebviewContribution;
+}
 
 export interface RouteContribution {
   path: string;
@@ -328,12 +311,9 @@ export type KanbanRendererRowActivationHandler = RendererCallback<
   undefined | ExtensionNavigationTarget
 >;
 
-export interface KanbanRendererContribution {
-  title: Localizable<string>;
-  resourceKind?: string;
+export interface KanbanRendererContribution extends RendererContributionBase {
   attributes?: KanbanRendererAttributeDescriptor[];
   query: RendererCallback<KanbanRendererQueryParams, KanbanRendererQueryResult>;
-  refreshEvents?: readonly (EventRef | string)[];
   onAttributeChange?: RendererCallback<{ rowId: string; attributeId: string; value: unknown }, unknown>;
   onReorder?: RendererCallback<{ rowId: string; beforeRowId?: string }, unknown>;
   onColumnAction?: RendererCallback<{ columnId: string; actionId: string }, unknown>;
@@ -344,8 +324,6 @@ export interface KanbanRendererContribution {
   defaultFilters?: KanbanRendererFilterState;
   defaultViews?: KanbanRendererSavedView[];
   defaultActiveViewId?: string;
-  emptyTitle?: Localizable<string>;
-  emptyDescription?: Localizable<string>;
   hideToolbar?: boolean;
 }
 
@@ -382,8 +360,10 @@ export interface CommandPaletteResourceQueryResult {
 export interface CommandPaletteResourceContribution {
   title: Localizable<string>;
   resourceKind?: string;
-  queryCommand: CommandRef<CommandPaletteResourceQueryParams, CommandPaletteResourceQueryResult> | string;
-  refreshEvents?: readonly (EventRef | string)[];
+  queryCommand:
+    | CommandRef<CommandPaletteResourceQueryParams, CommandPaletteResourceQueryResult>
+    | `${string}.${string}`;
+  refreshEvents?: readonly RendererEventReference[];
 }
 
 export type ExtensionSettingScope = "global" | "project";

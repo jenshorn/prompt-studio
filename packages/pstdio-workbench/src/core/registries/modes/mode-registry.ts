@@ -8,6 +8,7 @@ import {
   type WorkbenchWidgetPlacement,
   workbenchPanelRegions,
 } from "../layout/layout-model";
+import type { ResourceRef } from "../resources/resource-registry";
 
 export type WorkbenchModeActivationContext = WorkbenchCoreContributionContext;
 
@@ -17,12 +18,21 @@ export interface WorkbenchModeContribution {
   id: string;
   label?: string;
   panels?: readonly WorkbenchPanelRegion[];
+  // Resource kinds this mode accepts. The atomic navigator validates targets
+  // against this list; a mode without kinds navigates with a cleared resource.
+  resourceKinds?: readonly string[];
+  // Fallback resource when the mode is entered without a compatible resource.
+  defaultResource?: ResourceRef | (() => Promise<ResourceRef | undefined> | ResourceRef | undefined);
   // Registers the mode's contributions once for the lifetime of the mode.
   activate(ctx: WorkbenchModeActivationContext): WorkbenchModeActivationResult;
-  // Seeds defaults once for each layout persistence scope.
+  // Seeds default placements only when the persistence scope has no layout yet.
   seed?(ctx: WorkbenchModeActivationContext): void;
   // Activates non-layout behavior while the mode is current.
   enter?(ctx: WorkbenchModeActivationContext): WorkbenchModeActivationResult;
+  // Repairs required layout structure whenever the mode-scope context activates:
+  // first activation, reselecting the active mode, and persistence-scope changes.
+  // Reconciliation must not reset valid optional user state.
+  reconcile?(ctx: WorkbenchModeActivationContext): void;
 }
 
 export type WorkbenchModeChangeListener = () => void;
@@ -210,14 +220,7 @@ export const createWorkbenchModeRegistry = (input: CreateWorkbenchModeRegistryIn
     initializedModes.set(mode.id, disposables);
   };
 
-  const seedScope = (mode: WorkbenchModeContribution) => {
-    const context = input.resolveContext();
-    const scopeKey = `${mode.id}\0${context.layout.getPersistenceScope() ?? "unscoped"}`;
-    const currentLayout = context.layout.getLayout();
-    const availableLayout = applyModePanelAvailability(currentLayout, panelsForMode(mode));
-    restoreModeLayout(context, availableLayout);
-    if (seededScopes.has(scopeKey)) return;
-
+  const seedScope = (mode: WorkbenchModeContribution, context: WorkbenchModeActivationContext) => {
     let locationEstablished = false;
     let unsubscribeMainPanel: () => void = () => undefined;
     const establishSeededLocation = () => {
@@ -242,10 +245,59 @@ export const createWorkbenchModeRegistry = (input: CreateWorkbenchModeRegistryIn
     try {
       mode.seed?.(context);
       establishSeededLocation();
-      seededScopes.add(scopeKey);
     } finally {
       unsubscribeMainPanel();
     }
+  };
+
+  // Applies panel availability and seeds default placements only when the scope is
+  // new: no persisted layout and not seeded earlier in this session.
+  const prepareScope = (mode: WorkbenchModeContribution) => {
+    const context = input.resolveContext();
+    const scopeKey = `${mode.id}\0${context.layout.getPersistenceScope() ?? "unscoped"}`;
+    const availableLayout = applyModePanelAvailability(context.layout.getLayout(), panelsForMode(mode));
+    restoreModeLayout(context, availableLayout);
+    context.layout.reconcilePanelMenus();
+    if (!seededScopes.has(scopeKey) && !context.layout.enteredWithPersistedLayout()) {
+      seedScope(mode, context);
+    }
+    seededScopes.add(scopeKey);
+  };
+
+  // One reconciliation pass for every context activation: first activation,
+  // reselecting the active mode, and persistence-scope changes. Repair of required
+  // structure belongs to mode.reconcile and runs every time, so a user can recover
+  // required placements by reselecting the active mode. Reconciliation must not
+  // rerun activate or enter.
+  const reconcileScope = (mode: WorkbenchModeContribution) => {
+    prepareScope(mode);
+    mode.reconcile?.(input.resolveContext());
+  };
+
+  // Switching modes stashes the outgoing unscoped layout, disposes the active mode,
+  // and restores the incoming mode's unscoped layout before activating it. Scoped
+  // layouts are owned by the persistence scope instead.
+  const transitionToMode = (id: string | undefined) => {
+    const context = input.resolveContext();
+    const previousModeId = store.getState().activeModeId;
+    const unscoped = context.layout.getPersistenceScope() === undefined;
+    if (previousModeId && unscoped) unscopedLayouts.set(previousModeId, context.layout.getLayout());
+
+    disposeActive();
+    if (id === undefined) {
+      store.setState({ ...store.getState(), activeModeId: undefined }, false, "deactivateMode");
+      return;
+    }
+
+    const mode = store.getState().modes[id];
+    if (!mode) throw new Error(`Workbench mode not registered: ${id}`);
+    if (unscoped) {
+      restoreModeLayout(
+        context,
+        restoreUnscopedModeLayout(context.layout.getLayout(), unscopedLayouts.get(id), panelsForMode(mode)),
+      );
+    }
+    activate(id, { seed: deferredSeedModeId !== id });
   };
 
   const disposeActive = () => {
@@ -267,8 +319,9 @@ export const createWorkbenchModeRegistry = (input: CreateWorkbenchModeRegistryIn
     try {
       initializeMode(mode);
       store.setState({ ...store.getState(), activeModeId: id }, false, "activateMode");
-      if (options.seed) seedScope(mode);
+      if (options.seed) prepareScope(mode);
       activeDisposables = toDisposables(mode.enter?.(context));
+      if (options.seed) mode.reconcile?.(input.resolveContext());
     } catch (error) {
       disposeActive();
       store.setState({ ...store.getState(), activeModeId: undefined }, false, "deactivateMode");
@@ -280,7 +333,7 @@ export const createWorkbenchModeRegistry = (input: CreateWorkbenchModeRegistryIn
     const activeModeId = store.getState().activeModeId;
     if (activeModeId === deferredSeedModeId) return;
     const mode = activeModeId ? store.getState().modes[activeModeId] : undefined;
-    if (mode) seedScope(mode);
+    if (mode) reconcileScope(mode);
   });
   const registryDisposable = createDisposable(() => {
     scopeSubscription.dispose();
@@ -335,34 +388,25 @@ export const createWorkbenchModeRegistry = (input: CreateWorkbenchModeRegistryIn
       return store.getState().activeModeId;
     },
 
+    // A deferred seed is the second half of one transition: the caller rotates the
+    // layout persistence scope between the two halves. Observers must not treat the
+    // gap as a settled context, so the transition is not over until the seed runs.
     isTransitioning() {
-      return transitioning;
+      return transitioning || deferredSeedModeId !== undefined;
     },
 
     setActiveMode(id, setActiveInput = {}) {
-      if (id === store.getState().activeModeId) return;
+      if (id === store.getState().activeModeId) {
+        // Reselecting the active mode reconciles its layout without disposing or
+        // rerunning enter, so a missing required placement can recover.
+        const mode = id ? store.getState().modes[id] : undefined;
+        if (mode && id !== deferredSeedModeId) reconcileScope(mode);
+        return;
+      }
       transitioning = true;
       deferredSeedModeId = setActiveInput.deferSeed ? id : undefined;
       try {
-        const context = input.resolveContext();
-        const previousModeId = store.getState().activeModeId;
-        if (previousModeId && context.layout.getPersistenceScope() === undefined) {
-          unscopedLayouts.set(previousModeId, context.layout.getLayout());
-        }
-        disposeActive();
-        if (id === undefined) {
-          store.setState({ ...store.getState(), activeModeId: undefined }, false, "deactivateMode");
-          return;
-        }
-        const mode = store.getState().modes[id];
-        if (!mode) throw new Error(`Workbench mode not registered: ${id}`);
-        if (context.layout.getPersistenceScope() === undefined) {
-          restoreModeLayout(
-            context,
-            restoreUnscopedModeLayout(context.layout.getLayout(), unscopedLayouts.get(id), panelsForMode(mode)),
-          );
-        }
-        activate(id, { seed: deferredSeedModeId !== id });
+        transitionToMode(id);
       } finally {
         transitioning = false;
       }
@@ -371,8 +415,13 @@ export const createWorkbenchModeRegistry = (input: CreateWorkbenchModeRegistryIn
     seedActiveMode() {
       const activeModeId = store.getState().activeModeId;
       const mode = activeModeId ? store.getState().modes[activeModeId] : undefined;
-      deferredSeedModeId = undefined;
-      if (mode) seedScope(mode);
+      transitioning = true;
+      try {
+        if (mode) reconcileScope(mode);
+      } finally {
+        deferredSeedModeId = undefined;
+        transitioning = false;
+      }
     },
 
     onDidChangeActive(listener) {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eventRef, packageAsset } from "@pstdio/sdk/extensions";
+import { commandRef, eventRef, packageAsset, type RendererEventReference } from "@pstdio/sdk/extensions";
 import { normalizeExtensionSources } from "../../runtime/normalize";
 import { createWorkbenchExtensionMetadata } from "./workbench-extension-metadata";
 
@@ -39,8 +39,10 @@ describe("createWorkbenchExtensionMetadata", () => {
             review: {
               id: "pstdio.lab.review",
               label: "Review",
-              resourceKind: "ticket",
-              layout: { panels: ["main"], open: [{ region: "main", panel: "ticketPanel" }] },
+              panelRegions: ["main"],
+              resources: {
+                ticket: { slots: { primary: { region: "main", required: true } } },
+              },
             },
           },
           routes: {
@@ -73,21 +75,17 @@ describe("createWorkbenchExtensionMetadata", () => {
           panels: {
             rows: {
               title: "Rows",
-              region: "main",
-              closable: false,
+              supportedRegions: ["main"],
               renderer: { kind: "kanban", id: "rows" },
             },
             files: {
               title: "Files",
-              region: "main",
-              closable: false,
+              supportedRegions: ["main"],
               renderer: { kind: "tree", id: "files" },
             },
             ticketPanel: {
               title: "Ticket",
-              region: "main",
-              closable: false,
-              resourceKind: "ticket",
+              supportedRegions: ["main"],
               webview: { entry: webviewAsset("./ticket.tsx") },
             },
           },
@@ -120,7 +118,7 @@ describe("createWorkbenchExtensionMetadata", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "lab.ticketPanel",
-          resourceKind: "ticket",
+          supportedRegions: ["main"],
           webview: expect.objectContaining({ moduleUrl: "/modules/lab.ticketPanel.js" }),
         }),
         expect.objectContaining({
@@ -150,8 +148,8 @@ describe("createWorkbenchExtensionMetadata", () => {
     expect(metadata.settingsDefinitions?.[0]).toMatchObject({ key: "enabled", default: true });
     expect(metadata.modes[0]).toMatchObject({
       modeId: "pstdio.lab.review",
-      resourceKind: "ticket",
-      layout: { panels: ["main"], open: [{ region: "main", panel: "lab.ticketPanel" }] },
+      panelRegions: ["main"],
+      resources: { ticket: { slots: { primary: { region: "main", required: true } } } },
     });
   });
 });
@@ -159,7 +157,7 @@ describe("createWorkbenchExtensionMetadata", () => {
 describe("createWorkbenchExtensionMetadata renderer refresh events", () => {
   test("normalizes typed and string event references once for every native renderer", () => {
     const changed = eventRef("lab.changed");
-    const refreshEvents = [changed, "external.changed", changed, ""] as const;
+    const refreshEvents = [changed, "external.changed", changed, ""] as unknown as RendererEventReference[];
     const runtime = normalizeExtensionSources([
       {
         sourcePath,
@@ -223,7 +221,7 @@ describe("createWorkbenchExtensionMetadata command records", () => {
             tickets: {
               title: "Tickets",
               resourceKind: "ticket",
-              queryCommand: "queryTickets",
+              queryCommand: commandRef("queryTickets"),
               refreshEvents: ["lab.ticket.changed"],
             },
           },
@@ -411,8 +409,7 @@ describe("createWorkbenchExtensionMetadata Panel Menu owners", () => {
           panels: {
             notes: {
               title: "Notes",
-              region: "main",
-              closable: true,
+              supportedRegions: ["main"],
               webview: { entry: webviewAsset("./notes.tsx") },
               panelMenus: {
                 tools: {
@@ -492,7 +489,7 @@ describe("createWorkbenchExtensionMetadata data table renderers", () => {
             },
           },
           panels: {
-            health: { title: "Health", region: "main", closable: false, renderer: { kind: "dataTable", id: "health" } },
+            health: { title: "Health", supportedRegions: ["main"], renderer: { kind: "dataTable", id: "health" } },
           },
         },
       },
@@ -559,5 +556,46 @@ describe("createWorkbenchExtensionMetadata tree item actions", () => {
         args: { modeId: "pstdio.lab.review" },
       },
     });
+  });
+});
+
+describe("createWorkbenchExtensionMetadata resource kind references", () => {
+  test("resolves both reference spellings to the plain declared resource kind id", () => {
+    const runtime = normalizeExtensionSources([
+      {
+        packagePath: "/extension",
+        sourcePath: "/extension/extension.ts",
+        sourceKind: "local_path",
+        manifest: {
+          id: "pstdio.planner",
+          name: "planner",
+          displayName: "Planner",
+          version: "1.0.0",
+          publisher: "pstdio",
+          main: "./extension.ts",
+          enginesPstdio: "^1.0.0",
+        },
+        definition: {
+          resourceKinds: {
+            ticket: { surface: "primary", slots: { primary: { cardinality: "one", external: false } } },
+          },
+          kanbanRenderers: {
+            tickets: { title: "Tickets", resourceKind: "ticket", query: async () => ({ rows: [] }) },
+            sessions: { title: "Sessions", resourceKind: "session", query: async () => ({ rows: [] }) },
+            owned: { title: "Owned", resourceKind: "planner.ticket", query: async () => ({ rows: [] }) },
+          },
+        },
+      },
+    ]);
+
+    const metadata = createWorkbenchExtensionMetadata({ runtime });
+
+    // A resource kind keeps the plain name it was declared with, so the bare reference
+    // already names it and the namespaced reference resolves to the same id.
+    expect(metadata.resourceKinds?.map((record) => record.id)).toEqual(["ticket"]);
+    expect(metadata.kanbanRenderers?.[0]?.resourceKind).toBe("ticket");
+    // `session` is a host kind the planner does not declare, so it stays as written.
+    expect(metadata.kanbanRenderers?.[1]?.resourceKind).toBe("session");
+    expect(metadata.kanbanRenderers?.[2]?.resourceKind).toBe("ticket");
   });
 });

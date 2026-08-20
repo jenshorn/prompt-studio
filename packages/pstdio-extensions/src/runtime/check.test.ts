@@ -45,7 +45,7 @@ afterEach(() => {
 const validExtensionSource = `export default {
   commands: {
     "say-hello": { title: "Say hello", cli: true, run: async () => undefined },
-    "counter.bump": { title: "Bump counter", cli: true, run: async () => undefined },
+    "counter-bump": { title: "Bump counter", cli: true, run: async () => undefined },
   },
   middlewares: {
     rejectDoomDeletes: {
@@ -106,11 +106,11 @@ describe("checkExtensions", () => {
     expect(report).toContain("name:      extension-lab");
     expect(report).toContain("version:   0.1.0");
     expect(report).toContain("CLI: pstdio extension-lab say-hello");
-    expect(report).toContain("CLI: pstdio extension-lab counter bump");
+    expect(report).toContain("CLI: pstdio extension-lab counter-bump");
     expect(report).toContain("tickets -> .pstdio/extension-lab/tickets");
   });
 
-  test("reports empty eligible locations panel warnings", async () => {
+  test("reports a panel without docked supported regions as an error", async () => {
     const home = createTempHome();
     writeExtension(
       home,
@@ -119,9 +119,7 @@ describe("checkExtensions", () => {
         panels: {
           everywhere: {
             title: "Everywhere",
-            region: "main",
-            closable: true,
-            eligibleLocations: {},
+            supportedRegions: [],
             webview: { entry: "./panel.tsx" },
           },
         },
@@ -130,19 +128,13 @@ describe("checkExtensions", () => {
 
     const result = await checkExtensions({ homeRoot: home, includeUserRoot: false });
 
-    expect(result.errorCount).toBe(0);
-    expect(result.warningCount).toBe(1);
+    expect(result.errorCount).toBe(1);
     expect(result.runtime.diagnostics).toEqual([
       expect.objectContaining({
-        code: "extension_panel_empty_eligible_locations",
-        severity: "warning",
-        metadata: { contributionId: "extension-lab.everywhere" },
+        code: "extension_panel_contract_invalid",
+        severity: "error",
       }),
     ]);
-
-    const report = formatCheckReport(result);
-    expect(report).toContain("Warnings: 1");
-    expect(report).toContain("warning extension_panel_empty_eligible_locations");
   });
 
   test("flags invalid default exports", async () => {
@@ -158,7 +150,7 @@ describe("checkExtensions", () => {
     const home = createTempHome();
     const make = () => `export default {
       commands: {
-        "counter.bump": { title: "B", cli: { path: ["counter", "bump"] }, run: async () => undefined },
+        "counter-bump": { title: "B", cli: { path: ["counter", "bump"] }, run: async () => undefined },
       },
     };`;
     writeExtension(home, "dup-a", make());
@@ -262,6 +254,22 @@ describe("checkExtensionHostCompatibility", () => {
       schedules: [],
       artifactMounts: [],
       modes: [],
+      statusItems: [],
+      resourceKinds: [],
+      resourcePanels: [
+        {
+          id: "lab.rowsForTicket",
+          localId: "rowsForTicket",
+          extensionId: "pstdio.lab",
+          name: "lab",
+          sourcePath: "/extension/extension.ts",
+          resourceKindId: "lab.ticket",
+          panelId: "lab.panel",
+          slotId: "inspector",
+          contribution: { resourceKind: "ticket", panel: "panel", slot: "inspector" },
+        },
+      ],
+      resourceHierarchyProviders: [],
       panels: [
         {
           id: "lab.panel",
@@ -271,10 +279,8 @@ describe("checkExtensionHostCompatibility", () => {
           sourcePath: "/extension/extension.ts",
           contribution: {
             title: "Rows",
-            region: "main",
-            closable: true,
+            supportedRegions: ["main"],
             renderer: { kind: "dataTable", id: "rows" },
-            resourceKind: "ticket",
           },
         },
       ],

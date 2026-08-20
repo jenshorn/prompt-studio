@@ -93,40 +93,7 @@ describe("loadExtensionRuntime", () => {
     expect(runtime.diagnostics.map((d) => d.code)).toContain("invalid_default_export");
   });
 
-  test("warns when a panel declares empty eligible locations", async () => {
-    const root = createTempDir();
-    mkdirSync(join(root, "lab"));
-    writePackage(join(root, "lab"), "lab");
-    writeFileSync(
-      join(root, "lab", "extension.ts"),
-      `export default {
-        panels: {
-          everywhere: {
-            title: "Everywhere",
-            region: "main",
-            closable: true,
-            eligibleLocations: {},
-            webview: { entry: "./panel.tsx" },
-          },
-        },
-      };`,
-    );
-
-    const runtime = await loadExtensionRuntime({
-      includeUserRoot: false,
-      extensionRoots: [{ path: root }],
-    });
-
-    expect(runtime.diagnostics).toEqual([
-      expect.objectContaining({
-        code: "extension_panel_empty_eligible_locations",
-        severity: "warning",
-        metadata: { contributionId: "lab.everywhere" },
-      }),
-    ]);
-  });
-
-  test("does not warn when panel eligibility is absent or constrained", async () => {
+  test("accepts panels that declare their docked regions", async () => {
     const root = createTempDir();
     mkdirSync(join(root, "lab"));
     writePackage(join(root, "lab"), "lab");
@@ -136,15 +103,12 @@ describe("loadExtensionRuntime", () => {
         panels: {
           content: {
             title: "Content",
-            region: "main",
-            closable: false,
+            supportedRegions: ["main"],
             webview: { entry: "./content.tsx" },
           },
           tickets: {
             title: "Tickets",
-            region: "main",
-            closable: true,
-            eligibleLocations: { resourceKinds: ["ticket"] },
+            supportedRegions: ["main", "side"],
             webview: { entry: "./tickets.tsx" },
           },
         },
@@ -156,6 +120,7 @@ describe("loadExtensionRuntime", () => {
       extensionRoots: [{ path: root }],
     });
 
-    expect(runtime.diagnostics.map((d) => d.code)).not.toContain("extension_panel_empty_eligible_locations");
+    expect(runtime.diagnostics).toEqual([]);
+    expect(runtime.panels.map((panel) => panel.localId)).toEqual(["content", "tickets"]);
   });
 });

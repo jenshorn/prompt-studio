@@ -4,22 +4,19 @@ import {
   createContributionRegistrations,
   createRegionQueries,
 } from "./layout-contribution-helpers";
-import type { CreateLayoutModelInput, LayoutModel, LayoutScope } from "./layout-model-types";
+import type { CreateLayoutModelInput, LayoutModel } from "./layout-model-types";
 import {
   activateInLayout,
   closeWidgetInLayout,
   findPlacementByWidgetId,
   getActiveLocationPlacement,
   removePlacementsForContribution,
+  selectRegionActiveWidget,
   setLocationSubPanelSelection,
 } from "./layout-operations";
 import { createLayoutPlacementMethods } from "./layout-placement-methods";
-import {
-  carryPinnedWorkbenchChrome,
-  carryWorkbenchRegionState,
-  createScopeEvent,
-  resolveScopedLayout,
-} from "./layout-scope";
+import { resolveScopedLayout } from "./layout-scope";
+import { createLayoutScopeMethods } from "./layout-scope-methods";
 import {
   mergeWithDefaultRegions,
   type RegisteredWidgetContribution,
@@ -34,6 +31,7 @@ import {
 } from "./layout-types";
 import { createWidgetOpeners } from "./layout-widget-openers";
 import { createPanelLayoutMethods } from "./panel-layout-methods";
+import { createOwnedMenuMethods } from "./panel-menu-ownership";
 import { createPanelRegistrations } from "./panel-registration";
 
 export type {
@@ -160,10 +158,7 @@ const requireRegisteredWidget = (
 };
 
 export const createLayoutModel = (input: CreateLayoutModelInput = {}): LocationAwareLayoutModel => {
-  let currentScope: LayoutScope | undefined;
-  const willChangeScope = createScopeEvent<LayoutScope | undefined>();
-  const didChangeScope = createScopeEvent<LayoutScope | undefined>();
-  const persisted = input.persistence?.getLayout(currentScope);
+  const persisted = input.persistence?.getLayout(undefined);
   const initialLayout = resolveScopedLayout(input.defaultRegionVisibility, persisted);
 
   const store = createWorkbenchStore<WorkbenchLayoutStoreState>({
@@ -178,7 +173,13 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LocationA
   const regionQueries = createRegionQueries({ getLayout, getWidgets, getPlaceholder });
   const contributionLists = createContributionLists({ getPlaceholders, getWidgets });
 
-  const persistLayout = () => input.persistence?.setLayout(getLayout(), currentScope);
+  const scopeMethods = createLayoutScopeMethods({
+    defaultRegionVisibility: input.defaultRegionVisibility,
+    getLayout,
+    persistence: input.persistence,
+    setLayout: (layout, action) => store.setState({ ...store.getState(), layout }, false, action),
+  });
+  const persistLayout = () => scopeMethods.persistLayout();
 
   const requireWidget = (id: string) => requireRegisteredWidget(getWidgets(), id);
 
@@ -233,6 +234,14 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LocationA
     setLayout,
     widgetOpeners,
   });
+  const ownedMenus = createOwnedMenuMethods({
+    getLayout,
+    getWidget: (id) => getWidgets()[id],
+    openWidget: widgetOpeners.openWidget,
+    persistLayout,
+    setLayout,
+  });
+
   const establishLocation = createLocationEstablisher({
     applyAndActivate,
     getLayout,
@@ -280,39 +289,18 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LocationA
     listPlaceholders: contributionLists.listPlaceholders,
     listWidgets: contributionLists.listWidgets,
     ...panelMethods,
-    openWidget: widgetOpeners.openWidget,
+    openWidget: ownedMenus.openWidget,
 
     ...placementMethods,
 
     establishLocation,
 
-    setRegionActiveWidget(regionId, widgetId) {
-      const layout = getLayout();
-      const region = layout.regions[regionId];
-      const placement = widgetId ? region.widgets.find((candidate) => candidate.widgetId === widgetId) : undefined;
-      if (widgetId && !placement) throw new Error(`Widget placement not found in ${regionId}: ${widgetId}`);
-      if (region.activeWidgetId === widgetId) return;
+    reconcilePanelMenus: ownedMenus.reconcilePanelMenus,
 
-      const nextLayout = {
-        ...layout,
-        activeWidgetId: layout.activeWidgetId === region.activeWidgetId ? placement?.widgetId : layout.activeWidgetId,
-        activeResourceUri:
-          layout.activeWidgetId === region.activeWidgetId ? placement?.resourceUri : layout.activeResourceUri,
-        regions: {
-          ...layout.regions,
-          [regionId]: { ...region, activeWidgetId: placement?.widgetId },
-        },
-      };
-      const withSelection =
-        regionId !== "side" && workbenchPanelRegions.includes(regionId as WorkbenchPanelRegion)
-          ? setLocationSubPanelSelection(
-              nextLayout,
-              getActiveLocationPlacement(nextLayout),
-              regionId as WorkbenchPanelRegion,
-              placement?.role === "sub-panel" ? placement.widgetId : undefined,
-            )
-          : nextLayout;
-      setLayout(withSelection);
+    setRegionActiveWidget(regionId, widgetId) {
+      const nextLayout = selectRegionActiveWidget(getLayout(), regionId, widgetId);
+      if (!nextLayout) return;
+      setLayout(nextLayout);
       persistLayout();
     },
 
@@ -384,25 +372,11 @@ export const createLayoutModel = (input: CreateLayoutModelInput = {}): LocationA
       persistLayout();
     },
 
-    setPersistenceScope(nextScope, scopeInput = {}) {
-      if (currentScope === nextScope) return;
-      input.persistence?.setLayout(getLayout(), currentScope);
-      willChangeScope.notify(nextScope);
-      currentScope = nextScope;
-      const incoming = input.persistence?.getLayout(currentScope);
-      const scopedLayout = resolveScopedLayout(input.defaultRegionVisibility, incoming);
-      // Module-owned chrome is global workbench structure. Project scopes replace
-      // Location workspaces, but must not unmount pinned navigation and headers.
-      const withPinnedChrome = carryPinnedWorkbenchChrome(getLayout(), scopedLayout);
-      const nextLayout = carryWorkbenchRegionState(getLayout(), withPinnedChrome, scopeInput.carryRegionState ?? []);
-      const snapshot = store.getState();
-      store.setState({ ...snapshot, layout: nextLayout }, false, "setPersistenceScope");
-      didChangeScope.notify(currentScope);
-    },
-
-    getPersistenceScope: () => currentScope,
-
-    onWillChangePersistenceScope: willChangeScope.subscribe,
-    onDidChangePersistenceScope: didChangeScope.subscribe,
+    setPersistenceScope: scopeMethods.setPersistenceScope,
+    getPersistenceScope: scopeMethods.getPersistenceScope,
+    hasPersistedLayout: scopeMethods.hasPersistedLayout,
+    enteredWithPersistedLayout: scopeMethods.enteredWithPersistedLayout,
+    onWillChangePersistenceScope: scopeMethods.onWillChangePersistenceScope,
+    onDidChangePersistenceScope: scopeMethods.onDidChangePersistenceScope,
   };
 };

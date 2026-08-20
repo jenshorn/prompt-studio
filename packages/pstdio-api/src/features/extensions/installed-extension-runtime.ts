@@ -12,7 +12,7 @@ import type { LoadedExtension } from "./extension-runtime";
 import { createExtensionSourceWatcher } from "./extension-source-watcher";
 import { createExtensionWebviewBuildManager } from "./extension-webview-build-manager";
 import { EXTENSION_INSTALLING_MARKER, resolvePstdioHome } from "./install-extension-source";
-import { createProjectExtensionRuntimeCatalog } from "./project-extension-runtime-catalog";
+import type { ProjectExtensionRuntimeCatalog } from "./project-extension-runtime-catalog";
 import { listLinkedRepoExtensionRoots } from "./repo-extension-roots";
 import { syncRepoExtensionsForProject } from "./repo-extensions";
 
@@ -36,6 +36,7 @@ export const createInstalledExtensionRuntime = async (input: {
   extensionService: ReturnType<typeof createExtensionService>;
   harnessRegistry: HarnessRegistryService;
   installedExtensionSourcesService: ReturnType<typeof createInstalledExtensionSourcesDBService>;
+  projectRuntimeCatalog: ProjectExtensionRuntimeCatalog;
   projectService: ReturnType<typeof createProjectService>;
   repoService: ReturnType<typeof createRepoService>;
   webviewBuilds: boolean;
@@ -44,10 +45,6 @@ export const createInstalledExtensionRuntime = async (input: {
   const createRootWatcher = input.createRootWatcher ?? createExtensionRootWatcher;
   const createSourceWatcher = input.createSourceWatcher ?? createExtensionSourceWatcher;
   const createWebviewBuildManager = input.createWebviewBuildManager ?? createExtensionWebviewBuildManager;
-  const projectRuntimeCatalog = createProjectExtensionRuntimeCatalog({
-    extensionService: input.extensionService,
-    repoService: input.repoService,
-  });
   const reportError = (err: unknown) =>
     apiLogger.error({ err, event: "extensions.webview_build.error" }, "Extension webview build manager failed");
   // Forward reference to refresh(): a repo root sync that marks sources missing must reconcile the
@@ -98,15 +95,24 @@ export const createInstalledExtensionRuntime = async (input: {
   const webviewBuildManager: RuntimeProcess = input.webviewBuilds
     ? createWebviewBuildManager({
         listInstalledSources: listExistingInstalledSources,
-        reportBuildFailure: (installName, webviewId, error, expectedSource) =>
-          input.extensionService.reportWebviewBuildFailure(installName, webviewId, error, expectedSource),
-        reportBuildSuccess: (installName, webviewId, expectedSource) =>
-          input.extensionService.reportWebviewBuildSuccess(installName, webviewId, expectedSource),
+        reportBuildFailure: (installName, webviewId, error, expectedSource) => {
+          // A snapshot serves each webview's built module URL, so a finished build — for
+          // better or worse — changes what the snapshot must say.
+          input.projectRuntimeCatalog.invalidate({ sourcePath: expectedSource.sourcePath, reason: "webviews_built" });
+          return input.extensionService.reportWebviewBuildFailure(installName, webviewId, error, expectedSource);
+        },
+        reportBuildSuccess: (installName, webviewId, expectedSource) => {
+          input.projectRuntimeCatalog.invalidate({ sourcePath: expectedSource.sourcePath, reason: "webviews_built" });
+          return input.extensionService.reportWebviewBuildSuccess(installName, webviewId, expectedSource);
+        },
         onError: reportError,
       })
     : { dispose: () => {}, refresh: async () => {} };
   const refreshWebviewsInBackground = (sourcePath?: string) => {
-    webviewBuildManager.refresh(sourcePath).catch(reportError);
+    webviewBuildManager
+      .refresh(sourcePath)
+      .then(() => input.projectRuntimeCatalog.invalidate({ sourcePath, reason: "webviews_built" }))
+      .catch(reportError);
   };
   const sourceWatcher = await createSourceWatcher({
     listInstalledSources: listExistingInstalledSources,
@@ -120,12 +126,18 @@ export const createInstalledExtensionRuntime = async (input: {
   };
 
   const refresh = async (sourcePath?: string, validatedSource?: LoadedExtension) => {
-    projectRuntimeCatalog.refresh();
     if (sourcePath) {
+      // A single changed source invalidates only the projects that use it.
+      input.projectRuntimeCatalog.invalidate({ sourcePath, reason: "source_changed" });
       await sourceWatcher.refresh(sourcePath);
       await webviewBuildManager.refresh(sourcePath, validatedSource);
+      // A snapshot serves the module URL of each built webview bundle, so a snapshot
+      // read between the source change and the finished build would cache the previous
+      // bundle. The build is part of what the snapshot describes: invalidate again.
+      input.projectRuntimeCatalog.invalidate({ sourcePath, reason: "webviews_built" });
       return;
     }
+    input.projectRuntimeCatalog.invalidate({ reason: "runtime_refresh" });
     await refreshWatchers();
     refreshWebviewsInBackground();
   };
@@ -140,7 +152,7 @@ export const createInstalledExtensionRuntime = async (input: {
       sourceWatcher.dispose();
       webviewBuildManager.dispose();
     },
-    projectRuntimeCatalog,
     refresh,
+    refreshWatchers,
   };
 };

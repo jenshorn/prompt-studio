@@ -12,7 +12,7 @@ import type {
   ExtensionTreeItemContribution,
 } from "pstdio-api-contracts";
 import type { ExtensionRuntime } from "pstdio-extensions";
-import { toCommandRecord } from "./extension-command-runtime";
+import { toCommandRecord } from "./extension-command-record";
 import {
   toCommandPaletteResourceRecord,
   toDataTableRendererRecord,
@@ -178,12 +178,7 @@ const toPanelRecord = (panel: ExtensionRuntime["panels"][number]) => ({
   id: panel.id,
   extensionId: panel.extensionId,
   title: panel.contribution.title,
-  region: panel.contribution.region,
-  closable: panel.contribution.closable,
-  group: panel.contribution.group,
-  placement: panel.contribution.placement,
-  resourceKind: panel.contribution.resourceKind,
-  eligibleLocations: panel.contribution.eligibleLocations,
+  supportedRegions: [...panel.contribution.supportedRegions],
   panelMenus: Object.entries(panel.contribution.panelMenus ?? {}).map(([localId, menu]) => ({
     id: `${panel.id}.${localId}`,
     extensionId: panel.extensionId,

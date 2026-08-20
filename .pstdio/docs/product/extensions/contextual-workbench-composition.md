@@ -1,5 +1,5 @@
 ---
-status: "draft"
+status: "shipped"
 created: "2026-08-18T17:03:48.668Z"
 ---
 
@@ -130,9 +130,9 @@ This matches the current kernel, where mode layout targets already cover only do
 5. Removed or invalid contributions are omitted and reported. They do not prevent unrelated valid panels from rendering.
 6. Two panels in the same slot and region use stable contribution order until the user reorders them.
 
-## Proposed Interface
+## Interface
 
-The final names may change during SDK review, but the relationships are normative.
+These are the shipped names. The relationships are normative.
 
 ~~~ts
 defineExtension({
@@ -146,8 +146,8 @@ defineExtension({
 
   resourcePanels: {
     ticketInsights: {
-      // A bare id resolves inside the declaring extension.
-      // Another extension's contribution uses the namespaced form.
+      // A kind reference may be bare or namespaced. Naming the owner is
+      // clearer when the kind belongs to another extension.
       resourceKind: "planner.ticket",
       panel: "insights",
       slot: "inspector",
@@ -181,7 +181,7 @@ modes: {
       ticket: {
         slots: {
           primary: { region: "main", required: true },
-          navigation: { region: "sidenav", required: true },
+          navigation: { region: "sidenav" },
           inspector: {
             region: "side",
             allowedRegions: ["side", "secondary"],
@@ -209,9 +209,12 @@ modes: {
 
 ## Rules and Constraints
 
-- Resource and panel ids are stable, namespaced contribution ids.
-- A bare id in a contribution resolves inside the declaring extension. A reference to another extension's resource kind, panel, or slot uses the namespaced form `<extension>.<id>`.
+- Panel and mode ids are stable, namespaced contribution ids. A bare id in a contribution resolves inside the declaring extension; a reference to another extension's panel uses the namespaced form `<extension>.<id>`.
+- A resource kind's id is the plain name its extension declares. The host does not namespace it, because that same name is the resource type in every payload crossing the extension boundary, in resource URIs, and in stored session anchors.
+- A resource kind reference may be written bare or namespaced as `<extension>.<kind>`. Both resolve to the declared id; the namespaced form records who owns the kind.
+- A resource kind has exactly one owner. Two extensions declaring the same kind is an install-time error for both.
 - A slot name is local to its resource kind.
+- A resource is not a mode. Opening one keeps the workbench the user is in, so a resource kind needs a mode only when it reshapes the workbench around itself. Without a mode recipe, each panel bound to the kind lands in the region it supports and the surrounding chrome stays put.
 - External extensions cannot claim a closed slot or primary location.
 - A mode layout cannot expand a panel's supported regions.
 - Required placement reconciliation cannot reset user tab order.
@@ -223,6 +226,7 @@ modes: {
 | Code | Cause |
 | ---- | ----- |
 | extension_resource_kind_missing | A resource-panel or mode references an unknown resource kind. |
+| extension_resource_kind_duplicate | Two extensions declare the same resource kind. |
 | extension_resource_slot_missing | A resource-panel or mode references an unknown slot. |
 | extension_resource_slot_closed | An external extension contributes to a closed slot. |
 | extension_panel_missing | A resource-panel or mode references an unknown panel. |

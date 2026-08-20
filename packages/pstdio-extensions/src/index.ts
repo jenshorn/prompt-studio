@@ -73,7 +73,8 @@ export {
   runPackageInstall,
   toCommandPaletteContributions,
 } from "./runtime";
-
+export { collectConventionDiagnostics } from "./runtime/conventions";
 export { collectIconFontAssets } from "./runtime/normalize/icon-fonts";
+export { workbenchIconNames } from "./runtime/workbench-icon-names";
 
 export type * from "./types";

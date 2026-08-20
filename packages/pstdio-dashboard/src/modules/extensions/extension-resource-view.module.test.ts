@@ -16,15 +16,30 @@ describe("createExtensionsModule resource inspectors", () => {
       modes: [],
       kanbanRenderers: [],
       treeRenderers: [],
+      resourceKinds: [
+        {
+          id: "glass-lab-artifact",
+          extensionId: "pstdio.extension-lab",
+          surface: "attached" as const,
+          slots: { detail: { cardinality: "one" as const, external: false } },
+        },
+      ],
+      resourcePanels: [
+        {
+          id: "extension-lab.labArtifact.detail",
+          extensionId: "pstdio.extension-lab",
+          resourceKind: "glass-lab-artifact",
+          panel: "extension-lab.labArtifactDetail",
+          slot: "detail",
+        },
+      ],
       panels: [
         {
           id: "extension-lab.labArtifactDetail",
           extensionId: "pstdio.extension-lab",
           title: "Artifact",
           icon: "package-search",
-          region: "side" as const,
-          closable: true,
-          resourceKind: "glass-lab-artifact",
+          supportedRegions: ["side" as const],
           webview: {
             entry: {
               kind: "package-asset" as const,
@@ -86,6 +101,7 @@ describe("createExtensionsModule resource views", () => {
     workbench.modes.registerMode({ id: "project", label: "Project", activate: () => undefined });
     workbench.resources.registerKind({ kind: "dashboard-view", label: "Dashboard view" });
     selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
+    workbench.modes.setActiveMode("project");
     const disposable = workbench.registerModule(
       createExtensionsModule({ executeCommand, loadMetadata, loadAppearance }),
     );
@@ -110,7 +126,9 @@ describe("createExtensionsModule resource views", () => {
 
       await workbench.resources.openResource(ticket, { replaceActive: true });
 
-      expect(workbench.modes.getActiveModeId()).toBe("pstdio-core-tickets.ticket");
+      // A ticket is a resource: opening one keeps the workbench the user is in, so the
+      // project's own chrome stays put instead of being replaced by a ticket mode.
+      expect(workbench.modes.getActiveModeId()).toBe("project");
       expect(workbench.renderers.getTreeRenderer("pstdio-core-tickets.ticketFiles")).toMatchObject({
         title: "Files",
       });

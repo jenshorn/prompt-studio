@@ -30,16 +30,14 @@ const seedBacklogTicket = async (storage: ReturnType<typeof createMemoryStorage>
   } satisfies StoredTicket);
 
 describe("pstdio planner extension contributions", () => {
-  test("contributes a ticket detail workbench mode", () => {
-    expect(extension.modes?.ticket).toMatchObject({
-      id: "pstdio-planner.ticket",
-      label: { $l10n: "modes.ticket.label", default: "Ticket" },
-      icon: "FileText",
-      resourceKind: "ticket",
-      layout: {
-        panels: ["main", "secondary", "side"],
-        open: [{ region: "sidenav", panel: "ticketFiles", pinned: true }],
-      },
+  test("contributes the ticket resource without a ticket mode", () => {
+    // A ticket is a resource. A ticket mode would reshape the workbench on open and
+    // drop the project chrome the user had.
+    expect(extension.modes).toBeUndefined();
+    expect(extension.resourceKinds?.ticket).toMatchObject({ surface: "primary" });
+    expect(extension.resourcePanels).toMatchObject({
+      ticketEditor: { resourceKind: "ticket", panel: "ticketEditor", slot: "primary" },
+      ticketFiles: { resourceKind: "ticket", panel: "ticketFiles", slot: "navigation" },
     });
   });
 
@@ -52,9 +50,7 @@ describe("pstdio planner extension contributions", () => {
     });
     expect(extension.panels?.ticketFiles).toMatchObject({
       title: { $l10n: "panels.ticketFiles.title", default: "Files" },
-      region: "sidenav",
-      closable: false,
-      resourceKind: "ticket",
+      supportedRegions: ["sidenav"],
       renderer: { kind: "tree", id: "ticketFiles" },
     });
     expect(extension.panels?.ticketFiles).not.toHaveProperty("target");
@@ -219,7 +215,7 @@ describe("pstdio planner extension contributions", () => {
     expect(extension.kanbanRenderers?.tickets?.onColumnAction).toBeFunction();
     expect(extension.kanbanRenderers?.tickets?.onRowActivate).toBeFunction();
     expect(extension.panels?.tickets).toMatchObject({
-      region: "main",
+      supportedRegions: ["main"],
       renderer: { kind: "kanban", id: "tickets" },
     });
   });

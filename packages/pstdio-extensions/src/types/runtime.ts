@@ -22,10 +22,14 @@ import type {
   PanelContribution,
   ParamObjectSchema,
   RendererCallback,
+  ResourceHierarchyProvider,
+  ResourceKindContribution,
+  ResourcePanelContribution,
   RouteContribution,
   SettingsPanelContribution,
   SettingsSectionContribution,
   SkillContribution,
+  StatusItemContribution,
   TemplateContribution,
   TemplateTypeContribution,
   ThemeContribution,
@@ -170,6 +174,46 @@ export interface RuntimePanelRecord {
   name: string;
   sourcePath: string;
   contribution: PanelContribution;
+}
+
+export interface RuntimeStatusItemRecord {
+  id: string;
+  localId: string;
+  extensionId: string;
+  name: string;
+  sourcePath: string;
+  contribution: StatusItemContribution;
+}
+
+export interface RuntimeResourceKindRecord {
+  id: string;
+  localId: string;
+  extensionId: string;
+  name: string;
+  sourcePath: string;
+  contribution: ResourceKindContribution;
+}
+
+export interface RuntimeResourcePanelRecord {
+  id: string;
+  localId: string;
+  extensionId: string;
+  name: string;
+  sourcePath: string;
+  resourceKindId: string;
+  panelId: string;
+  slotId: string;
+  contribution: ResourcePanelContribution;
+}
+
+export interface RuntimeResourceHierarchyProviderRecord {
+  id: string;
+  localId: string;
+  extensionId: string;
+  name: string;
+  sourcePath: string;
+  resourceKindId: string;
+  provider: ResourceHierarchyProvider;
 }
 
 export interface RuntimeRouteRecord {
@@ -430,6 +474,10 @@ export interface ExtensionRuntime {
   artifactMounts: RuntimeArtifactMount[];
   modes: RuntimeModeRecord[];
   panels: RuntimePanelRecord[];
+  resourceKinds: RuntimeResourceKindRecord[];
+  resourcePanels: RuntimeResourcePanelRecord[];
+  resourceHierarchyProviders: RuntimeResourceHierarchyProviderRecord[];
+  statusItems: RuntimeStatusItemRecord[];
   routes: RuntimeRouteRecord[];
   treeItems: RuntimeTreeItemRecord[];
   activityItems: RuntimeActivityItemRecord[];

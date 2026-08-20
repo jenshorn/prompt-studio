@@ -21,12 +21,16 @@ metadata:
    - Use hooks to react to project, ticket, workspace, worktree, git, session, attempt-status, or command lifecycle events.
    - Use schedules for cron-triggered command execution.
    - Use templates, skills, themes, file icon themes, and template types for packaged static catalog assets.
-   - Use kanban renderers for Planner-style native dashboard lists or boards. Add a Panel for the renderer, then point a `treeItems` panel action at it when it belongs in the project sidenav.
+   - Use kanban renderers for Planner-style native dashboard lists or boards. Add a panel for the renderer, then point a `treeItems` panel action at it when it belongs in the project sidenav.
    - Use `fileRenderers` plus `panels` for native resource file content such as markdown, code, and image previews.
-   - Use `treeRenderers` plus `panels` for native workbench trees such as resource files, outline, or navigation Panels.
-   - Use resource `modes` and mode layouts to open or pin native resource Panels. Each Panel must bind either a `webview` or one native `renderer` reference.
+   - Use `treeRenderers` plus `panels` for native workbench trees such as resource files, outline, or navigation.
+   - A panel declares `supportedRegions` (the docked regions it can occupy) and exactly one body: a `webview` or one native `renderer` reference. A panel never places itself.
+   - Use `resourceKinds` to declare a domain resource type and its named slots. A slot is an extension point on the resource; `external: true` slots accept panels from other extensions. A resource kind keeps the plain name you give it, and that same name is the resource `type` your commands return, so pick a name no other extension will claim.
+   - Use `resourcePanels` to bind a panel to one resource kind slot. A bare panel id resolves inside your extension; use `<extension>.<id>` for another extension's panel. A resource kind reference works either way, so name the owner when the kind is not yours.
+   - Use mode `resources` recipes to place slots and known panels into docked regions, with `required` and `allowedRegions` policy. Use `modePanels` for mode-wide panels and `defaultResource` to enter a mode without a compatible resource.
+   - Use `statusItems` for status-surface chrome. Status content is not a panel and takes no part in docked layout.
    - Use routes plus `treeItems` for custom webview pages in the project sidenav, not for native resource detail screens. Route tree-item actions reference the route path, not the normalized route id.
-   - Use Panels and settings panels for dashboard UI that is not project-sidenav navigation. Use `activityItems` for activity-rail entries.
+   - Use panels and settings panels for dashboard UI that is not project-sidenav navigation. Use `activityItems` for activity-rail entries.
    - Use artifact mounts for files under `.pstdio/<extension-package-name>/`.
    - Use Harnesses and workspace types only when adding a new execution or workspace provider.
 3. Implement the smallest useful extension change.
@@ -34,7 +38,7 @@ metadata:
    - Export a single default `defineExtension({ ... })` value from `extension.ts`.
    - Use `packageAsset()` for every shipped file or directory asset.
    - Keep package asset paths relative and inside the extension package.
-   - Prefer typed refs from `commandRef`, `commandsOf`, `eventRef`, and kernel events over string ids when possible.
+   - Prefer typed refs from `commandRef`, `eventRef`, and kernel events over string ids when possible.
 4. Test the change following the repo's testing conventions.
    - For behavior changes, add or update the tests that cover the new behavior.
    - Put tests next to the behavior they cover.
