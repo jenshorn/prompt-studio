@@ -70,3 +70,17 @@ Targets describe the dashboard surface. Optional `when` expressions restrict vis
 - [Dashboard UI attachments](./workbench-attachments.md)
 - [Extension modes](./modes-and-layout.md)
 - [Cookbook](./cookbook.md)
+
+## Product Requirements
+
+- [Contextual Workbench Composition](./contextual-workbench-composition.md)
+- [Extension Navigation and Layout State](./navigation-and-layout-state.md)
+- [Project Extension Runtime Snapshots](./runtime-snapshots.md)
+- [Renderer Edit and Refresh Lifecycle](./renderer-edit-refresh-lifecycle.md)
+- [Extension Conformance and Regression Coverage](./conformance.md)
+
+## Architecture
+
+- [Extension Workbench Composition](../../architecture/extension-workbench-composition.md)
+- [Extension Navigation](../../architecture/extension-navigation.md)
+- [Project Extension Runtime Snapshots](../../architecture/project-extension-runtime-snapshots.md)
