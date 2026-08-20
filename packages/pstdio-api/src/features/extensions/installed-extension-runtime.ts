@@ -114,9 +114,13 @@ export const createInstalledExtensionRuntime = async (input: {
       .then(() => input.projectRuntimeCatalog.invalidate({ sourcePath, reason: "webviews_built" }))
       .catch(reportError);
   };
+  // Editing a watched folder rebuilds the assets of the extension the project already adopted. It
+  // never re-reads contributions from disk: adopting new source is an explicit act.
   const sourceWatcher = await createSourceWatcher({
     listInstalledSources: listExistingInstalledSources,
-    reloadInstalledSource: (sourcePath) => input.extensionService.reloadInstalledSourceBySourcePath(sourcePath),
+    onSourceChanged: async (sourcePath) => {
+      await webviewBuildManager.refresh(sourcePath);
+    },
     onError: (err) => apiLogger.error({ err, event: "extensions.source_watcher.error" }, "Extension watcher failed"),
   });
 
