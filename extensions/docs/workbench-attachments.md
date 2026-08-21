@@ -45,7 +45,7 @@ export default defineExtension({
 
 Targets are closed and host-owned. A menu cannot target `workbench.left.tree`, and normal contributions cannot attach to bare mode-layout areas such as `workbench.left`.
 
-Panels are not attachments. A panel declares the docked regions it supports, and the active mode places it. See [Workbench panels](#workbench-panels). Command palette entries are declared on the command itself with `palette`, not with a menu target.
+Panels are not attachments. A panel's optional `show` value declares default placement and allowed movement for its extension's own resource or mode. The active mode can refine that placement. See [Workbench panels](#workbench-panels). Command palette entries are declared on the command itself with `palette`, not with a menu target.
 
 ## When Expressions
 
@@ -173,19 +173,40 @@ statusItems: {
 
 ## Workbench Panels
 
-A panel declares its title, an optional icon, the docked regions it supports, and exactly one body: a `webview` or a native `renderer` reference. A panel never places itself.
+A panel declares its title, optional icon, exactly one body, and optional default placement for its extension's own resource or mode.
 
 ```ts
 panels: {
   ticketEditor: {
     title: "Ticket",
-    supportedRegions: ["main"],
+    show: {
+      for: "ticket",
+      region: "main",
+      allowedRegions: ["main", "sidenav"],
+      required: true,
+    },
     webview: { entry: packageAsset("./src/ticket-editor.tsx", import.meta.url) },
   },
 }
 ```
 
-To show a panel for a resource, bind it to one of the resource kind's slots with a `resourcePanels` entry. A slot is a named extension point declared by the resource kind:
+`show` accepts one placement or an array of placements. Use the array form when the same panel has a different default in more than one owned resource context:
+
+```ts
+show: [
+  { for: "ticket", region: "main", allowedRegions: ["main", "sidenav"], required: true },
+  { for: "project", region: "secondary", allowedRegions: ["secondary", "side"] },
+]
+```
+
+Each placement has these fields:
+
+- `for` scopes the default to a resource kind owned by the same extension. Omit it for a mode-wide default.
+- `region` is the default docked region: `sidenav`, `main`, `secondary`, or `side`.
+- `allowedRegions` lists the regions where the user or another mode may keep the panel. It defaults to only `region`.
+- `required: true` makes the placement structural and non-closable. Optional placements can be closed and later restored through Add Panel when they resolve to `main`, `secondary`, or `side`.
+
+A slot is a named extension point for panels from other extensions:
 
 ```ts
 resourceKinds: {
@@ -196,9 +217,6 @@ resourceKinds: {
       inspector: { cardinality: "many", external: true },
     },
   },
-},
-resourcePanels: {
-  ticketEditor: { resourceKind: "ticket", panel: "ticketEditor", slot: "primary" },
 }
 ```
 
@@ -210,7 +228,7 @@ resourcePanels: {
 }
 ```
 
-The active mode's `resources` recipe places each slot (and, when named, each specific panel) into a region. See [Extension modes](./modes-and-layout.md).
+The active mode's `resources` recipe may move owned panels and place cross-extension slots. `modePanels` applies the same rules to mode-wide panels. A recipe can move a panel only within its declared `allowedRegions`. See [Extension modes](./modes-and-layout.md).
 
 ## Panel Placement
 
@@ -227,8 +245,8 @@ Invalid UI attachments are reported by extension checks and runtime diagnostics:
 | Unknown target id | `extension_target_invalid`. |
 | Target used by the wrong contribution kind | `extension_target_unsupported`. |
 | Missing settings scope | `extension_settings_scope_invalid`. |
-| Panel declares no docked supported region | `extension_panel_contract_invalid`. |
-| Invalid slot, kind, panel, or placement in composition | `extension_resource_kind_missing`, `extension_resource_slot_missing`, `extension_resource_slot_closed`, `extension_panel_missing`, `extension_panel_region_unsupported`, `extension_mode_resource_unsupported`, `extension_placement_required_invalid`, or `extension_resource_primary_invalid`. |
+| Panel placement has an invalid shape | `extension_panel_contract_invalid`. |
+| Invalid slot, kind, panel, or placement in composition | `extension_resource_kind_missing`, `extension_resource_slot_missing`, `extension_resource_slot_closed`, `extension_panel_missing`, `extension_panel_placement_unresolvable`, `extension_mode_resource_unsupported`, `extension_placement_required_invalid`, or `extension_resource_primary_invalid`. |
 | Missing package asset | Webview, template, skill, theme, or icon source cannot be loaded. |
 
 Diagnostics include the extension id, package path, contribution id, requested target, expected kind, and supported alternatives when applicable.

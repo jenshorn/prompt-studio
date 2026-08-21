@@ -18,7 +18,11 @@ export interface CompositionPanelDefinition {
   extensionId: string;
   title: string;
   icon?: string;
-  supportedRegions: readonly DockedCompositionRegion[];
+  show?: CompositionPanelPlacement | readonly CompositionPanelPlacement[];
+}
+
+export interface CompositionPanelPlacement extends CompositionPlacementPolicy {
+  resourceKind?: string;
 }
 
 export interface CompositionResourcePanelEdge {
@@ -33,6 +37,8 @@ export interface CompositionPlacementPolicy {
   region: DockedCompositionRegion;
   allowedRegions?: readonly DockedCompositionRegion[];
   required?: boolean;
+  defaultOpen?: boolean;
+  pinned?: boolean;
 }
 
 export interface CompositionModeRecipe {
@@ -42,6 +48,7 @@ export interface CompositionModeRecipe {
 
 export interface CompositionModeDefinition {
   id: string;
+  extensionId?: string;
   resources?: Record<string, CompositionModeRecipe>;
   modePanels?: Record<string, CompositionPlacementPolicy>;
 }
@@ -81,7 +88,8 @@ export interface ResolvedCompositionPlacement {
   region: DockedCompositionRegion;
   slot?: string;
   required: boolean;
-  closable: boolean;
+  defaultOpen: boolean;
+  pinned?: boolean;
   allowedRegions: readonly DockedCompositionRegion[];
   origin: "persisted" | "required" | "default";
 }
@@ -90,6 +98,7 @@ export interface ResolvedCompositionAddablePanel {
   panelId: string;
   region: DockedCompositionRegion;
   allowedRegions: readonly DockedCompositionRegion[];
+  pinned?: boolean;
 }
 
 export interface CompositionDiagnostic {
@@ -98,7 +107,7 @@ export interface CompositionDiagnostic {
     | "extension_resource_slot_missing"
     | "extension_resource_slot_closed"
     | "extension_panel_missing"
-    | "extension_panel_region_unsupported"
+    | "extension_panel_placement_unresolvable"
     | "extension_mode_resource_unsupported"
     | "extension_placement_required_invalid"
     | "extension_resource_primary_invalid";
@@ -112,7 +121,6 @@ export interface ResolvedComposition {
   regionOrder: Partial<Record<DockedCompositionRegion, readonly string[]>>;
   activePanelIds: Partial<Record<DockedCompositionRegion, string>>;
   addablePanels: readonly ResolvedCompositionAddablePanel[];
-  optionalPanels: readonly string[];
   diagnostics: readonly CompositionDiagnostic[];
   // The safest main placement when a required placement cannot be resolved.
   requiredFallback?: { panelId: string };

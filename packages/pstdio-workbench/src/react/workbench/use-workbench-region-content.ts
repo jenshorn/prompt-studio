@@ -1,7 +1,7 @@
 import {
   getWorkbenchModePanelForRegion,
   isWorkbenchModePanelAvailable,
-  matchesWorkbenchLocationEligibility,
+  isWorkbenchPanelPlacementVisible,
   matchesWorkbenchModeEligibility,
   type WorkbenchCore,
   type WorkbenchRegion,
@@ -34,7 +34,7 @@ export const useWorkbenchRegionContent = (
       if (!widget) return false;
       return region === "side"
         ? matchesWorkbenchModeEligibility(widget, modeId)
-        : matchesWorkbenchLocationEligibility(widget, resource, modeId, placement);
+        : isWorkbenchPanelPlacementVisible(widget, resource, modeId, placement);
     });
   });
 };

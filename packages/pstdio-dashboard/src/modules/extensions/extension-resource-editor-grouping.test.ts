@@ -4,14 +4,14 @@ import { emptyDashboardExtensionMetadata } from "@/shared/extensions/workbench-e
 import { groupResourceEditorViews } from "./extension-resource-editor-grouping";
 
 type ExtensionPanelRecord = DashboardExtensionMetadata["panels"][number];
-type ExtensionRegion = ExtensionPanelRecord["supportedRegions"][number];
+type ExtensionRegion = "sidenav" | "main" | "secondary" | "side";
 
 const panel = (id: string, region: ExtensionRegion = "main"): ExtensionPanelRecord =>
   ({
     id,
     extensionId: "ext",
     title: id,
-    supportedRegions: [region],
+    show: { region },
     webview: { entry: { kind: "package-asset", path: `./${id}.tsx`, baseUrl: "file:///ext/extension.ts" } },
   }) as ExtensionPanelRecord;
 
@@ -81,6 +81,43 @@ describe("groupResourceEditorViews", () => {
 
     expect(groups[0]?.primary?.panel.id).toBe("editor");
     expect(groups[0]?.companions.map((companion) => companion.panel.id)).toEqual(["files"]);
+  });
+
+  test("uses the active mode override and policy for an owned show.for panel", () => {
+    const artifacts: ExtensionPanelRecord = {
+      ...panel("artifacts", "side"),
+      show: { for: "artifact", region: "side", allowedRegions: ["side", "secondary"] },
+    };
+    const editor = { ...panel("editor"), show: { for: "artifact", region: "main" as const, required: true } };
+    const records = metadata({
+      panels: [editor, artifacts],
+      resourceKinds: [kind("artifact", [])],
+      modes: [
+        {
+          id: "ext.sculpt",
+          extensionId: "ext",
+          modeId: "ext.sculpt",
+          label: "Sculpt",
+          resources: {
+            artifact: {
+              panels: {
+                artifacts: { region: "secondary", required: true, pinned: true },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const groups = groupResourceEditorViews(records, { modeId: "ext.sculpt" });
+
+    expect(groups[0]?.primary?.panel.id).toBe("editor");
+    expect(groups[0]?.companions[0]).toMatchObject({
+      panel: { id: "artifacts" },
+      region: "secondary",
+      required: true,
+      pinned: true,
+    });
   });
 
   test("groups side-only kinds as inspector groups without a primary", () => {

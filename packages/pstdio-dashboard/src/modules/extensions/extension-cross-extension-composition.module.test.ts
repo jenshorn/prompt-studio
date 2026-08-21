@@ -53,7 +53,7 @@ const crossExtensionMetadata = {
     {
       id: "planner.editor",
       extensionId: "pstdio.planner",
-      supportedRegions: ["main"],
+      show: { for: "planner.ticket", region: "main", required: true },
       title: "Ticket",
       webview: {
         entry: { kind: "package-asset", path: "./editor.tsx", baseUrl: "file:///extension/extension.ts" },
@@ -64,7 +64,6 @@ const crossExtensionMetadata = {
     {
       id: "insights.details",
       extensionId: "pstdio.insights",
-      supportedRegions: ["side", "secondary"],
       title: "Insights",
       webview: {
         entry: { kind: "package-asset", path: "./insights.tsx", baseUrl: "file:///extension/extension.ts" },
@@ -74,13 +73,6 @@ const crossExtensionMetadata = {
     },
   ],
   resourcePanels: [
-    {
-      id: "planner.editor",
-      extensionId: "pstdio.planner",
-      resourceKind: "planner.ticket",
-      panel: "planner.editor",
-      slot: "primary",
-    },
     {
       id: "insights.ticketDetails",
       extensionId: "pstdio.insights",
@@ -108,24 +100,41 @@ const openTicket = async (metadata: DashboardExtensionMetadata) => {
     metadata,
     projectId: "project-1",
   });
+  const resource = { kind: "planner.ticket", uri: "pstdio://ticket/PS-1", id: "PS-1", label: "PS-1" };
   await workbench.navigator.open({
     modeId: "planner.ticket",
-    resource: { kind: "planner.ticket", uri: "pstdio://ticket/PS-1", id: "PS-1", label: "PS-1" },
+    resource,
   });
   const regionOf = (contributionId: string) =>
     Object.values(workbench.layout.getLayout().regions).find((region) =>
       region.widgets.some((placement) => placement.contributionId === contributionId),
     )?.id;
-  return { disposables, regionOf };
+  const placementsOf = (contributionId: string) =>
+    Object.values(workbench.layout.getLayout().regions).flatMap((region) =>
+      region.widgets.filter((placement) => placement.contributionId === contributionId),
+    );
+  return { disposables, placementsOf, regionOf, resource, workbench };
 };
 
 describe("cross-extension composition", () => {
   test("places a panel one extension contributed into another extension's open slot", async () => {
-    const { disposables, regionOf } = await openTicket(crossExtensionMetadata);
+    const { disposables, placementsOf, regionOf, resource, workbench } = await openTicket(crossExtensionMetadata);
 
     try {
       expect(regionOf("dashboard-workbench.extension-view.planner.editor")).toBe("main");
       expect(regionOf("dashboard-workbench.extension-view.insights.details")).toBe("side");
+      expect(placementsOf("dashboard-workbench.extension-view.planner.editor")).toEqual([
+        expect.objectContaining({ resourceUri: resource.uri, closable: false }),
+      ]);
+      expect(placementsOf("dashboard-workbench.extension-view.insights.details")).toEqual([
+        expect.objectContaining({ resourceUri: resource.uri, closable: true }),
+      ]);
+
+      workbench.layout.closePanel(placementsOf("dashboard-workbench.extension-view.insights.details")[0]!.widgetId);
+      await workbench.resources.openResource(resource);
+      expect(placementsOf("dashboard-workbench.extension-view.insights.details")).toEqual([
+        expect.objectContaining({ resourceUri: resource.uri, closable: true }),
+      ]);
     } finally {
       for (const disposable of disposables) disposable.dispose();
     }

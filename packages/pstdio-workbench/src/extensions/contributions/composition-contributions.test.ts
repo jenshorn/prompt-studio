@@ -22,13 +22,13 @@ const setupRegistry = () => {
     id: "planner.editor",
     extensionId: "pstdio.planner",
     title: "Editor",
-    supportedRegions: ["main"],
+    show: { region: "main" },
   });
   registry.registerPanelCapability({
     id: "planner.properties",
     extensionId: "pstdio.planner",
     title: "Properties",
-    supportedRegions: ["side", "secondary"],
+    show: { region: "side", allowedRegions: ["side", "secondary"] },
   });
   registry.registerResourcePanel({
     id: "planner.editor",
@@ -96,6 +96,32 @@ describe("composition reconciliation", () => {
     expect(layout.regions.side.widgets[0]?.closable).toBe(true);
   });
 
+  test("applies the recipe pinned policy instead of pinning every seeded panel", () => {
+    const registry = setupRegistry();
+    registry.registerModeComposition({
+      id: "planner.pin-policy",
+      resources: {
+        "planner.ticket": {
+          panels: {
+            "planner.editor": { region: "main", required: true, pinned: true },
+            "planner.properties": { region: "side", pinned: false },
+          },
+        },
+      },
+    });
+    const ctx = setupWorkbench();
+
+    reconcileCompositionLayout(ctx, {
+      registry,
+      modeId: "planner.pin-policy",
+      resourceKind: "planner.ticket",
+      seeding: true,
+    });
+
+    expect(ctx.layout.getLayout().regions.main.widgets[0]?.pinned).toBe(true);
+    expect(ctx.layout.getLayout().regions.side.widgets[0]?.pinned).toBe(false);
+  });
+
   test("restores a missing required placement without reopening a closed optional panel", () => {
     const registry = setupRegistry();
     const ctx = setupWorkbench();
@@ -155,19 +181,12 @@ describe("composition reconciliation", () => {
       id: "planner.editor",
       extensionId: "pstdio.planner",
       title: "Editor",
-      supportedRegions: ["main"],
-    });
-    registry.registerResourcePanel({
-      id: "planner.editor",
-      extensionId: "pstdio.planner",
-      resourceKind: "planner.ticket",
-      panel: "planner.editor",
-      slot: "primary",
+      show: { resourceKind: "planner.ticket", region: "main" },
     });
     registry.registerModeComposition({
       id: "planner.ticket-mode",
       resources: {
-        "planner.ticket": { slots: { primary: { region: "sidenav", required: true } } },
+        "planner.ticket": { panels: { "planner.editor": { region: "sidenav", required: true } } },
       },
     });
     const ctx = setupWorkbench();
@@ -182,5 +201,6 @@ describe("composition reconciliation", () => {
     expect(ctx.layout.getLayout().regions.main.widgets.map((placement) => placement.contributionId)).toEqual([
       "planner.editor",
     ]);
+    expect(ctx.layout.getLayout().regions.main.widgets[0]?.role).toBe("location");
   });
 });

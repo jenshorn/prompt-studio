@@ -145,26 +145,61 @@ const metadata = {
     {
       id: "lab.rows",
       extensionId: "pstdio.lab",
-      supportedRegions: ["main", "side"],
+      show: { region: "main", allowedRegions: ["main", "side"] },
       title: "Rows",
       renderer: { kind: "kanban", id: "lab.rows" },
     },
     {
       id: "lab.ticketPanel",
       extensionId: "pstdio.lab",
-      supportedRegions: ["main"],
+      show: { region: "main" },
       title: "Ticket",
       webview,
     },
     {
       id: "lab.ticketModal",
       extensionId: "pstdio.lab",
-      supportedRegions: ["side"],
+      show: { region: "side" },
       title: "Ticket modal",
       webview: { ...webview, moduleUrl: "/ticket-modal.js" },
     },
   ],
 } satisfies WorkbenchExtensionMetadata;
+
+const registerOwnedShowForPresenter = async () => {
+  const workbench = createWorkbenchCore();
+  const showOnlyMetadata = {
+    ...metadata,
+    resourcePanels: [],
+    modes: [
+      {
+        ...metadata.modes[0],
+        resources: { ticket: { panels: { "lab.ticketPanel": { region: "main", required: true } } } },
+      },
+    ],
+    panels: metadata.panels.map((panel) =>
+      panel.id === "lab.ticketPanel" ? { ...panel, show: { for: "ticket", region: "main" as const } } : panel,
+    ),
+  } satisfies WorkbenchExtensionMetadata;
+
+  registerWorkbenchExtensionContributions({
+    executeCommand: async (commandId) => success(commandId, undefined),
+    metadata: showOnlyMetadata,
+    projectId: "project-1",
+    workbench,
+  });
+
+  await workbench.resources.openResource({
+    kind: "ticket",
+    uri: "workbench://ticket/T-1",
+    id: "T-1",
+    label: "T-1",
+  });
+
+  expect(workbench.layout.listPanelInstances("main")).toEqual([
+    expect.objectContaining({ panelId: "lab.ticketPanel", resourceUri: "workbench://ticket/T-1" }),
+  ]);
+};
 
 describe("registerWorkbenchExtensionContributions", () => {
   test("registers workbench-facing contributions and command-backed callbacks", async () => {
@@ -192,17 +227,17 @@ describe("registerWorkbenchExtensionContributions", () => {
     expect(workbench.layout.getPanel("lab.ticketPanel")).toMatchObject({
       region: "main",
       rendererId: BRIDGE_WEBVIEW_RENDERER_ID,
-      resourceKinds: ["ticket"],
       config: expect.objectContaining({ moduleUrl: "/ticket.js" }),
     });
+    expect(workbench.layout.getPanel("lab.ticketPanel")?.resourceKinds).toBeUndefined();
     expect(workbench.layout.getPanel("lab.ticketModal")).toMatchObject({
       region: "side",
       rendererId: BRIDGE_WEBVIEW_RENDERER_ID,
-      resourceKinds: ["ticket"],
       config: expect.objectContaining({
         moduleUrl: "/ticket-modal.js",
       }),
     });
+    expect(workbench.layout.getPanel("lab.ticketModal")?.resourceKinds).toBeUndefined();
     expect(workbench.commands.getCommand("lab.create")?.command.params).toEqual({
       title: { type: "text", label: "Title" },
       amount: { type: "number", defaultValue: 1 },
@@ -219,8 +254,8 @@ describe("registerWorkbenchExtensionContributions", () => {
     expect(workbench.layout.getPanel("lab.rows")).toMatchObject({
       region: "main",
       rendererId: "lab.rows",
-      resourceKinds: ["ticket"],
     });
+    expect(workbench.layout.getPanel("lab.rows")?.resourceKinds).toBeUndefined();
     await expect(
       renderer?.executeQuery({
         settings: {
@@ -274,6 +309,10 @@ describe("registerWorkbenchExtensionContributions", () => {
       "lab.ticketModal",
     ]);
     expect(workbench.shell.getSidePanelPresentation()).toBe("attached");
+  });
+
+  test("registers a resource presenter for an owned show.for panel without a resourcePanels edge", async () => {
+    await registerOwnedShowForPresenter();
   });
 
   test("keeps webview command executions in the extension command response envelope", async () => {

@@ -7,7 +7,6 @@ describe("openPanelWidget", () => {
     const workbench = createWorkbenchCore();
 
     workbench.layout.registerPanel({
-      closable: false,
       id: "chrome.overview",
       title: "Overview",
       region: "main",
@@ -15,7 +14,6 @@ describe("openPanelWidget", () => {
       rendererId: "chrome.overview",
     });
     workbench.layout.registerPanel({
-      closable: true,
       id: "chrome.timeline",
       title: "Timeline",
       region: "main",
@@ -55,7 +53,6 @@ describe("openPanelWidget", () => {
     const workbench = createWorkbenchCore();
 
     workbench.layout.registerPanel({
-      closable: true,
       id: "lab.artifacts",
       title: "Artifacts",
       region: "main",
@@ -70,5 +67,19 @@ describe("openPanelWidget", () => {
     });
 
     expect(workbench.layout.getLayout().regions.main.widgets[0]?.role).toBe("location");
+  });
+
+  test("applies composition pinning when the user adds a panel", () => {
+    const workbench = createWorkbenchCore();
+    workbench.layout.registerPanel({ id: "timeline", title: "Timeline", region: "side", rendererId: "timeline" });
+
+    openPanelWidget({
+      workbench,
+      widget: workbench.layout.getWidget("timeline")!,
+      region: "side",
+      pinned: true,
+    });
+
+    expect(workbench.layout.listPanelInstances("side")[0]?.pinned).toBe(true);
   });
 });

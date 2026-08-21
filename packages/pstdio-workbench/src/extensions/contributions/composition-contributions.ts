@@ -27,6 +27,21 @@ export interface WorkbenchCompositionRegistry {
   getModeComposition(modeId: string): CompositionModeDefinition | undefined;
 }
 
+interface DeclaredPanelPlacement {
+  for?: string;
+  region: DockedCompositionRegion;
+  allowedRegions?: readonly DockedCompositionRegion[];
+  required?: boolean;
+  defaultOpen?: boolean;
+  pinned?: boolean;
+}
+
+export const toPanelPlacements = (show: DeclaredPanelPlacement | readonly DeclaredPanelPlacement[] | undefined) => {
+  if (!show) return [];
+  const placements = Array.isArray(show) ? show : [show];
+  return placements.map(({ for: resourceKind, ...placement }) => ({ ...placement, resourceKind }));
+};
+
 export const createWorkbenchCompositionRegistry = (): WorkbenchCompositionRegistry => {
   const resourceKinds: CompositionResourceKindDefinition[] = [];
   const panels: CompositionPanelDefinition[] = [];
@@ -124,8 +139,8 @@ const applyPlacement = (ctx: CompositionReconcileContext, placement: ResolvedCom
   const open = () =>
     ctx.layout.openWidget(placement.panelId, {
       region: placement.region,
-      closable: placement.closable,
-      pinned: true,
+      closable: !placement.required,
+      pinned: placement.pinned,
       role: placementRole(placement.region),
     });
 
@@ -142,8 +157,9 @@ const applyPlacement = (ctx: CompositionReconcileContext, placement: ResolvedCom
   );
   if (!existing) return;
   const role = placementRole(existingRegion);
-  if ((existing.closable ?? true) !== placement.closable || existing.role !== role) {
-    ctx.layout.updateWidgetPlacement(existing.widgetId, { closable: placement.closable, role });
+  const closable = !placement.required;
+  if ((existing.closable ?? true) !== closable || existing.pinned !== placement.pinned || existing.role !== role) {
+    ctx.layout.updateWidgetPlacement(existing.widgetId, { closable, pinned: placement.pinned, role });
   }
 };
 
@@ -174,7 +190,7 @@ const reportRequiredFallback = (ctx: CompositionReconcileContext, modeId: string
   const placed = ctx.layout
     .getLayout()
     .regions.main.widgets.some((placement) => placement.contributionId === fallbackPanelId);
-  if (!placed) ctx.layout.openWidget(fallbackPanelId, { region: "main", pinned: true });
+  if (!placed) ctx.layout.openWidget(fallbackPanelId, { region: "main", pinned: true, role: "location" });
   ctx.notifications.show({
     id: notificationId,
     level: "error",
