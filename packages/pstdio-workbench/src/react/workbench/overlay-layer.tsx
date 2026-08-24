@@ -203,8 +203,12 @@ export const WorkbenchOverlayLayer = (props: WorkbenchOverlayLayerProps) => {
       onInteractOutside={handleInteractOutside}
     >
       <Portal>
-        <Dialog.Backdrop position="fixed" inset="0" />
-        <Dialog.Positioner position="fixed" inset="0" overflow="auto">
+        <Dialog.Backdrop position="fixed" inset="0" pointerEvents="auto" />
+        <Dialog.Positioner
+          position="fixed"
+          inset="0"
+          overflow={dialogRootConfig.scrollBehavior === "outside" ? "auto" : "hidden"}
+        >
           <Dialog.Content
             position="relative"
             overflow="hidden"

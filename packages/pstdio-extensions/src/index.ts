@@ -40,6 +40,7 @@ export {
   findReservedKeybindingConflict,
   findReservedKeybindingConflicts,
   formatCheckReport,
+  getExtensionApiVersionError,
   type HostCommandExecuteInput,
   keybindingDedupeEntries,
   type LoadExtensionRuntimeInput,
@@ -58,6 +59,7 @@ export {
   type ReservedKeybindingPlatform,
   type ReservedKeybindingReason,
   readPackageManifest,
+  readPackageManifestMetadata,
   toCommandPaletteContributions,
 } from "./runtime";
 export { collectConventionDiagnostics } from "./runtime/conventions";
