@@ -7,7 +7,28 @@ import { getDashboardSelectedProjectId, selectDashboardProject } from "@/shared/
 import { dashboardWidgetIds } from "@/shared/app/widget-ids";
 import { createProjectsModule } from "./module";
 
+const findProjectPicker = (workbench: ReturnType<typeof createWorkbenchCore>) =>
+  workbench.layout
+    .getLayout()
+    .regions.overlay.widgets.find((placement) => placement.contributionId === dashboardWidgetIds.projectPicker);
+
 describe("createProjectsModule", () => {
+  test("opens a closable project picker without changing the active project mode", async () => {
+    const workbench = createWorkbenchCore();
+    workbench.registerModule(createProjectsModule());
+    workbench.modes.registerMode({ id: "project", label: "Project", activate: () => undefined });
+    workbench.layout.registerPanel({ id: "project.main", title: "Project", region: "main", rendererId: "noop" });
+    selectDashboardProject(workbench, { id: "project-1", name: "Prompt Studio" });
+    workbench.modes.setActiveMode("project");
+    const projectPanel = workbench.layout.openPanel("project.main");
+
+    await workbench.commands.executeCommand(dashboardCommandIds.openProjects);
+
+    expect(workbench.modes.getActiveModeId()).toBe("project");
+    expect(workbench.layout.getLayout().regions.main.activeWidgetId).toBe(projectPanel.instanceId);
+    expect(findProjectPicker(workbench)?.closable).toBe(true);
+  });
+
   test("updates the selection without forcing a landing resource (bootstrap owns landing)", async () => {
     const workbench = createWorkbenchCore();
 

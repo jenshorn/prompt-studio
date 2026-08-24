@@ -109,11 +109,11 @@
       "back": "Atrás",
       "create": "Crear proyecto"
     },
-    "agents": {
-      "title": "Seleccionar agentes",
-      "description": "Elige qué agentes habilitar para este proyecto.",
-      "selectAtLeastOne": "Selecciona al menos un agente.",
-      "noAgentsHint": "Aún no hay agentes instalados. Puedes crear el proyecto ahora y agregar agentes más tarde en Configuración > Agentes."
+    "harnesses": {
+      "title": "Seleccionar harness",
+      "description": "Elige qué harnesses habilitar para este proyecto.",
+      "selectAtLeastOne": "Selecciona al menos un harness.",
+      "notDetectedWarning": "Este harness no se detectó. Puede que no funcione hasta que se instale."
     },
     "folderPicker": {
       "title": "Seleccionar repositorio",
@@ -326,7 +326,7 @@
     "createFirstProject": "Crear tu primer proyecto",
     "agentLoadErrorBanner": {
       "title": "No se pudo cargar la disponibilidad de agentes",
-      "description": "No pudimos verificar los agentes instalados en este momento. Reintenta para continuar con la creación del proyecto.",
+      "description": "No pudimos verificar los agentes instalados. Puedes crear el proyecto y añadir agentes más tarde.",
       "retry": "Reintentar"
     }
   },

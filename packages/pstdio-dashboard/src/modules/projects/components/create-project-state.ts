@@ -42,17 +42,15 @@ export const resolveRepoName = (path: string) => {
 };
 
 export const resolveProjectCreationAvailability = (input: AgentAvailabilityStateInput) => {
-  const availableAgents = input.agentInfo.filter((agent) => agent.availability.type === "INSTALLED");
-  const hasAvailableAgents = availableAgents.length > 0;
-  const hasNoAgents = !input.isAgentsLoading && !input.isAgentsError && !hasAvailableAgents;
+  const detectedHarnesses = input.agentInfo.filter((agent) => agent.availability.type === "INSTALLED");
+  const undetectedHarnesses = input.agentInfo.filter((agent) => agent.availability.type === "NOT_FOUND");
   const showAgentErrorBanner = input.isAgentsError;
-  // Missing agents no longer blocks creation; a project can be created and have agents added later.
-  const isCreateProjectBlocked = input.isAgentsLoading || showAgentErrorBanner;
 
   return {
-    availableAgents,
-    hasNoAgents,
+    detectedHarnesses,
+    undetectedHarnesses,
+    harnesses: [...detectedHarnesses, ...undetectedHarnesses],
+    shouldSelectHarness: detectedHarnesses.length > 0,
     showAgentErrorBanner,
-    isCreateProjectBlocked,
   };
 };

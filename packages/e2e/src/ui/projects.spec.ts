@@ -42,6 +42,16 @@ const mockNoAvailableAgents = async (page: Page) => {
   });
 };
 
+const mockAgentDiscoveryFailure = async (page: Page) => {
+  await page.route("**/v1/agents/info", async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Agent discovery unavailable" }),
+    });
+  });
+};
+
 const createProjectViaApi = async (request: import("@playwright/test").APIRequestContext, name: string) => {
   const res = await request.post(`${apiBase}/v1/projects`, {
     data: { name },
@@ -106,7 +116,11 @@ const getCommonPrefixLength = (left: string[], right: string[]) => {
 
 const getProjectPickerModal = (page: Page) => page.getByTestId("project-picker-modal");
 
-const getCreateProjectDialog = (page: Page) => page.getByTestId("create-project-dialog");
+const getCreateProjectDialog = (page: Page) =>
+  page
+    .getByRole("dialog")
+    .filter({ has: page.getByRole("button", { name: "Close Create project" }) })
+    .last();
 
 const getFolderPickerDialog = (page: Page) =>
   page
@@ -182,6 +196,7 @@ const selectRepoFromFolderPicker = async (page: Page, repoPath: string) => {
   await expect(repoOption).toBeAttached();
   await repoOption.click();
   await dialog.getByRole("button", { name: "Select repository", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
   await expect(createProjectDialog.getByText(repoName, { exact: true })).toBeVisible();
 };
 
@@ -258,7 +273,6 @@ test.describe("Project picker modal", () => {
     await page.goto("/projects");
 
     const modal = getProjectPickerModal(page);
-    await expect(modal.getByText("No coding agents available")).not.toBeVisible();
     await expect(getCreateProjectRow(modal)).toBeEnabled();
   });
 });
@@ -319,7 +333,7 @@ test.describe("Project creation", () => {
     await expect(createProjectDialog.getByText(repoName, { exact: true })).toBeVisible();
 
     await createProjectDialog.getByRole("button", { name: "Next", exact: true }).click();
-    await expect(createProjectDialog.getByText("Select agents")).toBeVisible();
+    await expect(createProjectDialog.getByText("Select harness")).toBeVisible();
 
     const selectedAgents = createProjectDialog.getByRole("checkbox", { checked: true });
     await expect(selectedAgents).toHaveCount(2);
@@ -336,6 +350,61 @@ test.describe("Project creation", () => {
 
     await page.waitForURL(`**${resolveProjectDefaultPath(createdProject.id)}`);
     expect(page.url()).toContain(resolveProjectDefaultPath(createdProject.id));
+  });
+
+  test("creates a project when agent discovery fails", async ({ page }) => {
+    const repoPath = createTempGitRepo();
+    tempRepoPaths.push(repoPath);
+    let releaseProjectRequest: (() => void) | undefined;
+    const projectRequestPending = new Promise<void>((resolve) => {
+      releaseProjectRequest = resolve;
+    });
+
+    await bypassOnboarding(page);
+    await mockAgentDiscoveryFailure(page);
+    await page.route("**/v1/projects", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+
+      await projectRequestPending;
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "project-no-agents",
+          name: "No Agents Project",
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z",
+          default_agent_id: null,
+          default_agent_model: null,
+        }),
+      });
+    });
+    await page.route("**/v1/projects/project-no-agents/repos", async (route) => {
+      await route.fulfill({ status: 201, contentType: "application/json", body: "{}" });
+    });
+    await page.goto("/projects");
+
+    const openCreateProjectButton = page.getByRole("button", { name: "Create project", exact: true });
+    await expect(openCreateProjectButton).toBeEnabled({ timeout: pickerLoadTimeoutMs });
+    await openCreateProjectButton.click();
+
+    const createProjectDialog = getCreateProjectDialog(page);
+    await createProjectDialog.getByPlaceholder("Project name").fill("No Agents Project");
+    await selectRepoFromFolderPicker(page, repoPath);
+
+    const createProjectRequest = page.waitForRequest(
+      (request) => request.url().endsWith("/v1/projects") && request.method() === "POST",
+    );
+    const createRepoRequest = page.waitForRequest(
+      (request) => request.url().endsWith("/v1/projects/project-no-agents/repos") && request.method() === "POST",
+    );
+    await createProjectDialog.getByRole("button", { name: "Create project", exact: true }).click();
+    releaseProjectRequest?.();
+    expect((await createProjectRequest).postDataJSON()).toEqual({ name: "No Agents Project", agents: [] });
+    await createRepoRequest;
   });
 
   test("requires at least one agent on step two", async ({ page }) => {
@@ -358,7 +427,7 @@ test.describe("Project creation", () => {
     await checkboxes.nth(1).uncheck();
     await createProjectDialog.getByRole("button", { name: "Create project", exact: true }).click();
 
-    await expect(createProjectDialog.getByText("Select at least one agent.")).toBeVisible();
+    await expect(createProjectDialog.getByText("Select at least one harness.")).toBeVisible();
   });
 
   test("creates alphabetically sorted templates when creating a project via the dialog", async ({ page, request }) => {
