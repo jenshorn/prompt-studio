@@ -14,6 +14,7 @@ import type { EventDeliveryResult, EventRef } from "./events";
 import type { JsonObject, MaybePromise, Struct } from "./json";
 import type { RendererContext, RepoContext, ResourceAnchor, ResourceRef } from "./resources";
 import type { SlotInvocationContext } from "./slots";
+import type { ExtensionWorkspacesApi } from "./workspaces";
 
 export interface ExtensionStorageCollectionApi<TItem = unknown> {
   get(id: string): Promise<TItem | undefined>;
@@ -189,28 +190,6 @@ export interface ExtensionSessionsApi {
 export interface ExtensionHarnessInput {
   harnessId: string;
   model?: string;
-}
-
-export interface ExtensionWorkspace {
-  id: string;
-  name?: string;
-  project_id?: string;
-  workspace_shorthand?: string;
-  branch?: string | null;
-  worktree_path?: string | null;
-  anchors_json?: ResourceAnchor[];
-  initializing?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface ExtensionWorkspacesApi {
-  list(): Promise<ExtensionWorkspace[]>;
-  get(id: string): Promise<ExtensionWorkspace | null>;
-  getByShorthand(shorthand: string): Promise<ExtensionWorkspace | null>;
-  create(input: JsonObject): Promise<ExtensionWorkspace>;
-  archive(id: string): Promise<void>;
-  delete(id: string): Promise<void>;
 }
 
 export interface ExtensionReposApi {
