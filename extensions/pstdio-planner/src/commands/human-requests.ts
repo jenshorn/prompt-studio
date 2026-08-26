@@ -181,6 +181,7 @@ const attemptStates: AttemptState[] = [
 ];
 
 export const requestHumanCommand = defineCommand({
+  id: "request-human",
   title: "Request human input",
   cli: true,
   params: {
@@ -205,6 +206,7 @@ export const requestHumanCommand = defineCommand({
 });
 
 export const resolveHumanRequestCommand = defineCommand({
+  id: "resolve-human-request",
   title: "Resolve human request",
   cli: true,
   params: {

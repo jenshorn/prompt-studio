@@ -48,6 +48,7 @@ const reconcilePendingRefinements = async (ctx: AutomationContext, backlogId: st
 };
 
 export const refineTicketsCommand = defineCommand({
+  id: "refine-tickets",
   title: "Refine backlog tickets",
   cli: true,
   async run(ctx, _commandParams) {

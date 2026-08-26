@@ -84,6 +84,7 @@ export const loadAttemptReadiness = async (
 };
 
 export const attemptReadinessCommand = defineCommand({
+  id: "attempt-readiness",
   title: "Read attempt readiness",
   cli: true,
   params: {
