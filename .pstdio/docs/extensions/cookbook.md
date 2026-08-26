@@ -22,7 +22,7 @@ This cookbook gives short recipes for the implemented extension API.
   "publisher": "pstdio",
   "main": "./extension.ts",
   "engines": {
-    "pstdio": "1.0.0-alpha.2"
+    "pstdio": "1.0.0-alpha.3"
   },
   "type": "module",
   "dependencies": {
@@ -47,8 +47,8 @@ export default defineExtension({
       params: {
         title: params.text({ label: "Title", required: true }),
       },
-      async run(ctx) {
-        return { title: ctx.params.title };
+      async run(_ctx, commandParams) {
+        return { title: commandParams.title };
       },
     },
   },
@@ -74,7 +74,7 @@ export default defineExtension({
           when: { resourceType: ["ticket"] },
         },
       ],
-      async run(ctx) {
+      async run(ctx, _commandParams) {
         return { ticket: ctx.resource?.id };
       },
     },
@@ -93,11 +93,11 @@ export default defineExtension({
   middlewares: {
     requireReviewReadyChecks: {
       command: workspaceCommands.setAttemptStatus,
-      async handler(ctx) {
-        if (ctx.params.status !== "review-ready")
+      async handler(ctx, commandParams) {
+        if (commandParams.status !== "review-ready")
           return ctx.commands.continue();
 
-        const workspace = await ctx.workspaces.get(ctx.params.workspaceId);
+        const workspace = await ctx.workspaces.get(commandParams.workspaceId);
         if (!workspace?.worktree_path) return ctx.commands.continue();
 
         const result = await ctx.process.run({
@@ -171,7 +171,7 @@ export default defineExtension({
   commands: {
     publish: {
       title: "Publish",
-      async run() {
+      async run(_ctx, _commandParams) {
         return { published: true };
       },
     },
@@ -211,13 +211,13 @@ export default defineExtension({
       group: "Planner",
       label: "Planner",
       icon: "calendar-check",
-      action: { kind: "route", route: "planner" },
+      action: { kind: "view", viewId: "planner.planner" },
     },
   },
 });
 ```
 
-Omit `when.mode` when a route or command should stay visible in every active mode where the host left tree exists. Add `when: { mode: "project" }` for project-only navigation, or use an extension-defined mode id such as `when: { mode: "planner.focus" }` for mode-only navigation.
+The route registers `planner.planner` as its stable view ID and `planner` as its deep-link path. Omit `when.mode` when a route or command should stay visible in every active mode where the host left tree exists. Add `when: { mode: "project" }` for project-only navigation, or use an extension-defined mode id such as `when: { mode: "planner.focus" }` for mode-only navigation.
 
 ## Call Commands From A Webview
 
@@ -231,15 +231,15 @@ import { defineCommand, params } from "@pstdio/sdk/extensions";
 export const commands = {
   "ticketStatus.read": defineCommand({
     title: "Read ticket statuses",
-    async run() {
+    async run(_ctx, _commandParams) {
       return { statuses: [] as { id: string; name: string }[] };
     },
   }),
   "ticketStatus.create": defineCommand({
     title: "Create ticket status",
     params: { label: params.text({ required: true }) },
-    async run(ctx) {
-      return { id: ctx.params.label };
+    async run(_ctx, commandParams) {
+      return { id: commandParams.label };
     },
   }),
 };

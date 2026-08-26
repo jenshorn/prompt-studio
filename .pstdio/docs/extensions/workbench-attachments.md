@@ -22,7 +22,7 @@ export default defineExtension({
           when: { mode: "project" },
         },
       ],
-      async run(ctx) {
+      async run(ctx, _commandParams) {
         return { target: ctx.attachment?.target, projectId: ctx.projectId };
       },
     },
@@ -84,7 +84,7 @@ export default defineExtension({
           when: { resourceType: ["ticket"] },
         },
       ],
-      async run(ctx) {
+      async run(ctx, _commandParams) {
         return { ticket: ctx.attachment?.resource?.id ?? ctx.resource?.id };
       },
     },
@@ -130,14 +130,15 @@ export default defineExtension({
       group: "Lab",
       label: "Lab",
       icon: "flask-conical",
-      action: { kind: "route", route: "lab" },
+      action: { kind: "view", viewId: "extension-lab.labPage" },
       when: { mode: "project" },
     },
   },
 });
 ```
 
-Routes define webview-backed dashboard pages. Tree items attach those routes, commands, or links to host-owned area trees.
+Routes define webview-backed dashboard pages and register a stable view ID from the package name and route key. Their
+`path` values remain deep links. Tree items attach views, commands, resources, or links to host-owned area trees.
 
 ## Settings Panel
 

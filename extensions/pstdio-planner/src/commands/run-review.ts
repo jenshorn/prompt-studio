@@ -3,11 +3,13 @@ import { actorFromSource } from "../data/attempt-actors";
 import { appendAttemptEvent, putAttempt, readAttempt, reviewLaunchClaimsCollection } from "../data/attempt-storage";
 import type { AttemptReview } from "../data/attempt-types";
 
-const workspaceIdFrom = (ctx: {
-  params: { workspaceId?: string };
-  resource?: { type: string; id: string; metadata?: Record<string, unknown> };
-}) => {
-  const workspaceId = ctx.params.workspaceId?.trim();
+const workspaceIdFrom = (
+  ctx: {
+    resource?: { type: string; id: string; metadata?: Record<string, unknown> };
+  },
+  commandParams: { workspaceId?: string },
+) => {
+  const workspaceId = commandParams.workspaceId?.trim();
   if (workspaceId) return workspaceId;
   if (ctx.resource?.type !== "workspace") throw new Error("Workspace is required.");
   const metadataId = ctx.resource.metadata?.workspaceId;
@@ -29,8 +31,8 @@ export const runReviewCommand = defineCommand({
     workspaceId: params.text({ label: "Workspace", required: false }),
     harness: params.harness({ label: "Harness", required: false }),
   },
-  async run(ctx) {
-    const workspaceId = workspaceIdFrom(ctx);
+  async run(ctx, commandParams) {
+    const workspaceId = workspaceIdFrom(ctx, commandParams);
     const attempt = await readAttempt(ctx.storage, workspaceId);
     if (!attempt) throw new Error(`Unknown managed attempt "${workspaceId}"`);
     const revision = attempt.revisions.at(-1);
@@ -95,7 +97,7 @@ export const runReviewCommand = defineCommand({
         workspaceId,
         title: `Code review: ${attempt.ticketShorthand} revision ${revision.revision}`,
         anchors,
-        harness: ctx.params.harness,
+        harness: commandParams.harness,
         template: "review-code",
         vars: {
           ticket: attempt.ticketShorthand,

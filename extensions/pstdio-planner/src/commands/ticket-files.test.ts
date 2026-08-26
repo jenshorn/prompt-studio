@@ -3,7 +3,7 @@ import { ticketsCollection } from "../data/collections";
 import { createMemoryStorage } from "../data/memory-storage";
 import type { StoredTicketAttachment } from "../data/types";
 import { attachTicketFileCommand } from "./attach-ticket-file";
-import { makeCommandContext } from "./command-context.fixture";
+import { makeCommandArgs } from "./command-context.fixture";
 import { createTicketCommand } from "./create-ticket";
 import { createWorkspaceCommand } from "./ticket-actions";
 import { createTicketFileCommand, listTicketFilesTreeCommand } from "./ticket-files";
@@ -34,7 +34,7 @@ const ticketDocumentTarget = (ticket: { id: string; shorthand: string; title?: s
     metadata: {
       shorthand: ticket.shorthand,
       documentId,
-      resourceParent: { type: "extension-view", id: "pstdio-planner.tickets", label: "Tickets", icon: "square-kanban" },
+      resourceParent: { type: "view", viewId: "pstdio-planner.tickets" },
     },
   },
   input: { strategy: "replace-active" as const },
@@ -43,15 +43,15 @@ const ticketDocumentTarget = (ticket: { id: string; shorthand: string; title?: s
 describe("ticket files tree commands", () => {
   test("returns a native tree section for the ticket body and editable files", async () => {
     const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Write a haiku" } }));
+    const ticket = await createTicketCommand.run(...makeCommandArgs({ storage, params: { title: "Write a haiku" } }));
     const file = await createTicketFileCommand.run(
-      makeCommandContext({ storage, params: { ticketId: ticket.id, name: "notes.md" } }),
+      ...makeCommandArgs({ storage, params: { ticketId: ticket.id, name: "notes.md" } }),
     );
     // The editor filters the broadcast by ticketId, so the result must carry it.
     expect(file).toMatchObject({ ticketId: ticket.id });
 
     const body = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
+      ...makeCommandArgs({
         storage,
         params: ticketRendererParams(ticket),
       }),
@@ -123,13 +123,13 @@ describe("ticket files tree commands", () => {
 
   test("marks the selected document so the host highlights it", async () => {
     const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
+    const ticket = await createTicketCommand.run(...makeCommandArgs({ storage, params: { title: "Ticket" } }));
     const file = await createTicketFileCommand.run(
-      makeCommandContext({ storage, params: { ticketId: ticket.id, name: "notes.md" } }),
+      ...makeCommandArgs({ storage, params: { ticketId: ticket.id, name: "notes.md" } }),
     );
 
     const sections = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
+      ...makeCommandArgs({
         storage,
         params: ticketRendererParams(ticket, file.id),
       }),
@@ -141,7 +141,7 @@ describe("ticket files tree commands", () => {
 
   test("appends image attachments to the Files section and skips non-image attachments", async () => {
     const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
+    const ticket = await createTicketCommand.run(...makeCommandArgs({ storage, params: { title: "Ticket" } }));
 
     const makeAttachment = (name: string, mimeType: string): StoredTicketAttachment => ({
       id: `att-${name}`,
@@ -155,14 +155,14 @@ describe("ticket files tree commands", () => {
     });
 
     await attachTicketFileCommand.run(
-      makeCommandContext({ storage, params: { ticketId: ticket.id, ref: makeAttachment("diagram.png", "image/png") } }),
+      ...makeCommandArgs({ storage, params: { ticketId: ticket.id, ref: makeAttachment("diagram.png", "image/png") } }),
     );
     await attachTicketFileCommand.run(
-      makeCommandContext({ storage, params: { ticketId: ticket.id, ref: makeAttachment("notes.txt", "text/plain") } }),
+      ...makeCommandArgs({ storage, params: { ticketId: ticket.id, ref: makeAttachment("notes.txt", "text/plain") } }),
     );
 
     const sections = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
+      ...makeCommandArgs({
         storage,
         params: ticketRendererParams(ticket),
       }),
@@ -188,7 +188,7 @@ describe("ticket files tree commands", () => {
 describe("ticket files tree workspace commands", () => {
   test("appends a Workspaces section for linked workspaces and excludes unrelated ones", async () => {
     const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
+    const ticket = await createTicketCommand.run(...makeCommandArgs({ storage, params: { title: "Ticket" } }));
 
     const linked = {
       id: "ws-1",
@@ -209,19 +209,14 @@ describe("ticket files tree workspace commands", () => {
           label: "PS-999",
           metadata: {
             shorthand: "PS-999",
-            resourceParent: {
-              type: "extension-view",
-              id: "pstdio-planner.tickets",
-              label: "Tickets",
-              icon: "square-kanban",
-            },
+            resourceParent: { type: "view", viewId: "pstdio-planner.tickets" },
           },
         },
       ],
     };
 
     const sections = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
+      ...makeCommandArgs({
         storage,
         params: ticketRendererParams(ticket),
         overrides: { workspaces: { list: async () => [linked, unrelated] } },
@@ -262,12 +257,7 @@ describe("ticket files tree workspace commands", () => {
                   label: `${ticket.shorthand} ${ticket.title}`,
                   metadata: {
                     shorthand: ticket.shorthand,
-                    resourceParent: {
-                      type: "extension-view",
-                      id: "pstdio-planner.tickets",
-                      label: "Tickets",
-                      icon: "square-kanban",
-                    },
+                    resourceParent: { type: "view", viewId: "pstdio-planner.tickets" },
                   },
                 },
                 workspaceId: "ws-1",
@@ -283,10 +273,10 @@ describe("ticket files tree workspace commands", () => {
 
   test("sorts linked workspaces by latest workspace activity before shorthand", async () => {
     const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
+    const ticket = await createTicketCommand.run(...makeCommandArgs({ storage, params: { title: "Ticket" } }));
 
     const sections = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
+      ...makeCommandArgs({
         storage,
         params: ticketRendererParams(ticket),
         overrides: {
@@ -319,10 +309,10 @@ describe("ticket files tree workspace commands", () => {
 
   test("keeps the Workspaces section action and empty row when no workspace is linked to the ticket", async () => {
     const storage = createMemoryStorage();
-    const ticket = await createTicketCommand.run(makeCommandContext({ storage, params: { title: "Ticket" } }));
+    const ticket = await createTicketCommand.run(...makeCommandArgs({ storage, params: { title: "Ticket" } }));
 
     const sections = await listTicketFilesTreeCommand.run(
-      makeCommandContext({
+      ...makeCommandArgs({
         storage,
         params: ticketRendererParams(ticket),
         overrides: {
@@ -337,12 +327,7 @@ describe("ticket files tree workspace commands", () => {
                     label: "PS-999",
                     metadata: {
                       shorthand: "PS-999",
-                      resourceParent: {
-                        type: "extension-view",
-                        id: "pstdio-planner.tickets",
-                        label: "Tickets",
-                        icon: "square-kanban",
-                      },
+                      resourceParent: { type: "view", viewId: "pstdio-planner.tickets" },
                     },
                   },
                 ],

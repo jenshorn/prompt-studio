@@ -3,8 +3,6 @@ import { fontCommands } from "./src/commands/font-commands";
 
 const extension = defineExtension({
   commands: fontCommands,
-  // PS-214 will give routes and panels one view identity. Until then, the panel
-  // form keeps host-owned project tools available beside the editor.
   panels: {
     fontEditor: {
       title: l10n("panels.fontEditor.title", "Font editor"),
@@ -22,7 +20,7 @@ const extension = defineExtension({
       label: l10n("treeItems.fontEditor.label", "Font editor"),
       icon: "case-upper",
       when: { mode: "project" },
-      action: { kind: "panel", panel: "fontEditor" },
+      action: { kind: "view", viewId: "fontEditor" },
     },
   },
   artifactMounts: {
