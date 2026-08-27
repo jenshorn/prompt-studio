@@ -95,8 +95,16 @@ const extension = defineExtension({
         const workspaceByShorthand = await ctx.workspaces.getByShorthand("PS-1_A1");
         const worktreePath: string | null | undefined = workspace?.worktree_path;
         const shorthandWorktreePath: string | null | undefined = workspaceByShorthand?.worktree_path;
+        const removed: boolean = (await ctx.workspaces.removeWorktree(commandParams.workspaceId)).removed;
+        const packagedGuide: string = await ctx.packageFiles.readText("guide.md");
         void worktreePath;
         void shorthandWorktreePath;
+        void removed;
+        void packagedGuide;
+
+        if (ctx.extensionFiles) await ctx.extensionFiles.writeText("cache/index.json", "{}");
+        // @ts-expect-error packaged extension files are read-only
+        await ctx.packageFiles.writeText("guide.md", "changed");
       },
     }),
   ],

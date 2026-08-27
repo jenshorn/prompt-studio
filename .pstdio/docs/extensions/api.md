@@ -65,9 +65,9 @@ Invalid packages produce diagnostics from `pst extensions check`. Missing manife
 
 Installs and updates are explicit. Source that appears in the extensions root is never adopted on its own.
 
-- `pst extensions add <name>` installs the extension that belongs to the running release. The name is
-  resolved to a release tag, then to the commit that tag points at, and that commit is recorded with
-  the install. The same install can never resolve to different source later.
+- `pst extensions add <name>` resolves the name through the extension catalog. The catalog entry
+  names the Git repository, folder, and release ref. Prompt Studio records the resolved commit with
+  the install, so the installed source stays pinned even when a tag or branch moves.
 - `pst extensions add <name> --branch <branch>` installs from a branch instead. A branch moves, so
   this is for extension development only.
 - Editing a folder under the extensions root does not change what a project runs. The extension is
@@ -75,14 +75,19 @@ Installs and updates are explicit. Source that appears in the extensions root is
 - Choosing **Update** in the extension panel validates the source on disk and adopts it. If the source
   is refused, for example because it targets a different `engines.pstdio`, the previously adopted
   version keeps running and the update stays on offer.
-- A Git-backed Marketplace extension shows **Update** in its detail view. Update fetches the extension
-  from the running Prompt Studio release, validates it in staging, replaces the installed source, and
-  adopts it. Local-path extensions do not show this action because their source belongs to the user.
-- Prompt Studio's default extensions are Marketplace entries. Packaged hosts fetch them from the Git
-  release paired with the host. Removing one leaves its Marketplace entry available for reinstall.
+- A catalog extension shows **Upgrade** when its recorded commit differs from the catalog release.
+  Upgrade fetches that origin, validates it in staging, replaces the installed source, and adopts it.
+  Healthy local-path extensions stay under local control.
+- Catalog entries marked `default` are installed for new projects. Catalog membership alone does not
+  make an extension a default. The packaged catalog defaults to the harnesses, base themes, and
+  Prompt Studio skills.
 - An adopted extension whose `engines.pstdio` does not match the host is shown as an error in the
-  extension list and detail view. The error names both API versions and offers Update when the host
-  owns the source.
+  extension list and detail view. The error names both API versions and offers Upgrade when the
+  extension has a catalog origin.
+
+The host reads its packaged catalog unless `PSTDIO_EXTENSION_CATALOG` points to a local JSON file or
+an HTTPS URL. Remote catalogs are cached under `$PSTDIO_HOME/cache/extension-catalog`. The catalog is
+trusted configuration because every entry names code the host may run.
 - Editing an installed folder still rebuilds that extension's webview assets, so an open webview
   updates while you work. Only its contributions wait for the update, because those are what the
   project agreed to run.
@@ -517,6 +522,15 @@ Terminals are layered: the workbench-native terminal surface is the product UI, 
 
 Use `packageAsset()` for files shipped inside the extension package.
 
+Template files are extension defaults, not host records. If users can edit them, declare a template type with `list`, `read`, `save`, and `delete` command refs. Keep overrides in `ctx.storage` and read untouched defaults through `ctx.packageFiles`. The dashboard discovers the type and calls those commands; it does not know the extension's storage format.
+
+The command values use these shapes:
+
+- `list`: returns `{ name, title, type }[]`.
+- `read`: accepts `{ name }` and returns `{ name, title, type, content } | null`.
+- `save`: accepts `{ name, title?, type, content }` and returns the saved item.
+- `delete`: accepts `{ name }`.
+
 ```ts
 import { defineExtension, defineView, packageAsset } from "@pstdio/sdk/extensions";
 
@@ -544,6 +558,10 @@ export default defineExtension({
 
 Package asset paths must be relative and stay inside the package.
 
+Command and hook handlers can read other packaged files through `ctx.packageFiles`. This API is read-only and scoped to the installed package root. Files omitted from an installed copy by `.gitignore` are unavailable at runtime.
+
+Set `pstdio.repoFiles.tracked` in the package manifest to control the allocated `ctx.extensionFiles` repo mount. It is rooted at `.pstdio/ext/<publisher>.<name>/`. The host adds an ignore entry on the first write unless `tracked` is true.
+
 ## Artifact Mounts And Storage
 
 Artifact mounts are constrained to the package-name root under each repo:
@@ -559,6 +577,12 @@ For package `planner`, the default scoped root is:
 ```
 
 Extension storage is API-owned and scoped by extension instance. Project-owned storage also carries the project id.
+
+Artifact mounts create their directories on the first write. Before that, `exists()` returns false and `list()` returns an empty array.
+
+## Workspace Cleanup
+
+`ctx.workspaces.removeWorktree(id)` removes the local worktree and branch but preserves the workspace record. `ctx.workspaces.delete(id)` performs the full provider cleanup and deletes the workspace. Both operations emit `worktree.removed` when they remove a local worktree.
 
 ## Appearance Contributions
 

@@ -3,12 +3,7 @@ import type { DbClient } from "../../db/connection.pglite";
 import { createDb } from "../../db/connection.pglite";
 import { activity_events } from "../../db/schemas.pg";
 import { createProjectsDBService } from "../projects/projects";
-import {
-  ACTIVITY_ACTOR_TYPES,
-  ACTIVITY_CORE_RESOURCE_TYPES,
-  ACTIVITY_EVENT_SOURCES,
-  createActivityEventsDBService,
-} from "./activity-events";
+import { ACTIVITY_ACTOR_TYPES, ACTIVITY_EVENT_SOURCES, createActivityEventsDBService } from "./activity-events";
 
 let db: DbClient;
 let close: () => Promise<void>;
@@ -292,7 +287,6 @@ describe("activity events service pagination", () => {
 
 describe("activity event taxonomy", () => {
   test("exports taxonomy constants", () => {
-    expect(ACTIVITY_CORE_RESOURCE_TYPES).toEqual(["ticket", "workspace", "session"]);
     expect(ACTIVITY_ACTOR_TYPES).toEqual(["user", "agent", "system"]);
     expect(ACTIVITY_EVENT_SOURCES).toEqual(["ui", "api", "hook", "system", "agent"]);
   });

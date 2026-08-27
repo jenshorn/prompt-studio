@@ -4,6 +4,7 @@ import { reportsCollection } from "../data/collections";
 import { reportFilesDir, reportMarkdownPath } from "../data/draft-storage";
 import { parseReportFrontmatter, stripFrontmatter } from "../data/frontmatter";
 import { createMemoryStorage } from "../data/memory-storage";
+import { saveReportTemplate } from "../data/template-store";
 import { makeCommandArgs } from "./command-context.fixture";
 import { deleteReportCommand } from "./delete-report";
 import { readReportCommand } from "./read-report";
@@ -52,7 +53,7 @@ const failBlobDeletes = (storage: ExtensionStorageApi): ExtensionStorageApi => (
 describe("report workflow", () => {
   test("write creates a workspace draft report with frontmatter", async () => {
     const { storage, repoFiles, events } = setup();
-    repoFiles.files.set(".pstdio/config.json", new TextEncoder().encode(JSON.stringify({ workspace_id: "ws-1" })));
+    repoFiles.files.set(".pstdio/config.json", new TextEncoder().encode(JSON.stringify({ workspace_id: "stale" })));
 
     const result = await writeReportCommand.run(
       ...makeCommandArgs({
@@ -61,6 +62,7 @@ describe("report workflow", () => {
         overrides: {
           events: recordEvents(events),
           repoFiles,
+          workspaceId: "ws-1",
           workspaces: {
             get: async () => ({ id: "ws-1", workspace_shorthand: "PS-116_A1" }),
           },
@@ -101,33 +103,18 @@ describe("report workflow", () => {
 
   test("write uses a selected registered report template", async () => {
     const { storage, repoFiles } = setup();
+    const context = makeCommandArgs({ storage, params: {} })[0];
+    await saveReportTemplate(context, {
+      name: "review",
+      title: "Review report",
+      content: "# Review Template\n\nSelected body.",
+    });
 
     await writeReportCommand.run(
       ...makeCommandArgs({
         storage,
         params: { workspace: "PS-116_A1", kind: "review", name: "pre-merge", template: "review" },
-        overrides: {
-          repoFiles,
-          templates: {
-            get: async (name) =>
-              name === "review"
-                ? {
-                    id: "template-1",
-                    project_id: "proj-1",
-                    name: "review",
-                    title: "Review report",
-                    template_type: "report",
-                    source_kind: "project",
-                    is_default: false,
-                    editable: true,
-                    content: "# Review Template\n\nSelected body.",
-                    created_at: "2026-01-01T00:00:00.000Z",
-                    updated_at: "2026-01-01T00:00:00.000Z",
-                    deleted_at: null,
-                  }
-                : null,
-          },
-        },
+        overrides: { repoFiles },
       }),
     );
 
@@ -149,7 +136,7 @@ describe("report workflow", () => {
     ).rejects.toThrow("Report template is required. Available templates: change-request, review");
   });
 
-  test("write infers the workspace from the current worktree path when config has no workspace id", async () => {
+  test("write infers the workspace from the current worktree path when context has no workspace id", async () => {
     const { storage, repoFiles } = setup();
     const worktreePath = "/workspaces/PS-116_A1";
     repoFiles.files.set(".pstdio/config.json", new TextEncoder().encode(JSON.stringify({ project_id: "proj-1" })));
@@ -174,7 +161,7 @@ describe("report workflow", () => {
     expect(report).toMatchObject({ workspaceId: "ws-1", workspaceShorthand: "PS-116_A1" });
   });
 
-  test("write treats a malformed config as a missing workspace id and falls back to the worktree path", async () => {
+  test("write ignores host config content and falls back to the worktree path", async () => {
     const { storage, repoFiles } = setup();
     const worktreePath = "/workspaces/PS-116_A1";
     repoFiles.files.set(".pstdio/config.json", new TextEncoder().encode("{ not valid json"));

@@ -1,18 +1,7 @@
-import {
-  type DbClient,
-  eq,
-  files,
-  project_repos,
-  projects,
-  repos,
-  sessions,
-  sql,
-  templates,
-  workspaces,
-} from "pstdio-db";
+import { type DbClient, eq, files, project_repos, projects, repos, sessions, sql, workspaces } from "pstdio-db";
 import type { EventBus } from "./event-bus";
 
-// FK cascade graph: parent → children that cascade-delete via project_id, ticket_id, etc.
+// FK cascade graph: parent → children that cascade-delete through their foreign keys.
 // Order matters: emit children first, parent last.
 const projectDependents = async (db: DbClient, projectId: string, bus: EventBus) => {
   const ws = await db.select().from(workspaces).where(eq(workspaces.project_id, projectId));
@@ -24,13 +13,9 @@ const projectDependents = async (db: DbClient, projectId: string, bus: EventBus)
 
   const projectFiles = await db.select().from(files).where(eq(files.project_id, projectId));
   for (const row of projectFiles) bus.emit("files", "delete", { id: row.id });
-
-  // Templates (cascade-delete via project_id)
-  const tmpl = await db.select().from(templates).where(eq(templates.project_id, projectId));
-  for (const row of tmpl) bus.emit("templates", "delete", { id: row.id });
 };
 
-type SupportedTable = "projects" | "repos" | "sessions" | "workspaces" | "files" | "templates" | "project_repos";
+type SupportedTable = "projects" | "repos" | "sessions" | "workspaces" | "files" | "project_repos";
 
 const tableRefs = {
   projects,
@@ -38,7 +23,6 @@ const tableRefs = {
   sessions,
   workspaces,
   files,
-  templates,
   project_repos,
 } as const;
 

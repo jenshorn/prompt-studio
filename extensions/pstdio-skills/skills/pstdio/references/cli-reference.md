@@ -36,10 +36,10 @@ pst agents install-skills <agent-id> [--global-skills]
 ## Sessions
 
 ```sh
-pst sessions create (--prompt <text> | --template <name>) [--var KEY=value...] [--title <title>] [--workspace-id <id>] [--project-id <id>] [--agent <agent>] [--model <model>] [--attach <path>...] [--original-session-id <id>]
+pst sessions create --prompt <text> [--title <title>] [--workspace-id <id>] [--project-id <id>] [--agent <agent>] [--model <model>] [--attach <path>...] [--original-session-id <id>]
 pst sessions list [--project-id <id>] [--status <status>] [--agent <agent>] [--workspace-id <id>] [--archived]
 pst sessions view --id <id>
-pst sessions follow-up --id <id> [--prompt <text> | --template <name> | --summary-of <id>] [--var KEY=value...] [--summary-format <brief|detailed>] [--summary-role <assistant|all>] [--agent <agent>] [--model <model>] [--attach <path>...]
+pst sessions follow-up --id <id> [--prompt <text> | --summary-of <id>] [--summary-format <brief|detailed>] [--summary-role <assistant|all>] [--agent <agent>] [--model <model>] [--attach <path>...]
 pst sessions stream --id <id>
 pst sessions approve --id <id> --approval-id <id>
 pst sessions deny --id <id> --approval-id <id>
@@ -58,18 +58,6 @@ pst workspaces delete --id <id>
 ```
 
 Core workspace creation is standalone. Planner creates ticket-linked workspaces through managed attempts.
-
-## Templates
-
-```sh
-pst templates list
-pst templates create --name <name> --type <type> --file <path|-> [--default]
-pst templates update --name <name> [--file <path|->] [--default]
-pst templates write --name <name> (--target <path> | --ticket <id>) [--var KEY=value...]
-pst templates delete --name <name>
-```
-
-The template type can come from the default catalog or an enabled extension.
 
 ## Extensions
 

@@ -1,14 +1,15 @@
 import { type CommandContext, defineCommand, l10n, params, type ResourceAnchor } from "@pstdio/sdk/extensions";
 import { ticketsCollection } from "../data/collections";
 import { findTicket } from "../data/resolve";
+import { renderOwnedTemplate } from "../data/template-store";
 import { ticketResourceHierarchyMetadata } from "../data/ticket-resource-hierarchy";
 import type { StoredTicket } from "../data/types";
 import { notifyProposalRefined, resolveProposalRefinedNotification } from "../planner-notifications";
-import { ticketSlots } from "../slots";
+import { ticketMenuSlots } from "../resource-kinds";
 
 export const ticketActionParams = {
-  ticket: params.text({ label: "Ticket" }),
-  rowId: params.text({ label: "Ticket row" }),
+  ticket: params.text({ label: "Ticket", resolvedFrom: "resource" }),
+  rowId: params.text({ label: "Ticket row", resolvedFrom: "resource" }),
   agent: params.harness({ label: "Model" }),
 };
 
@@ -136,7 +137,7 @@ export const createWorkspaceCommand = defineCommand({
   title: "Create workspace",
   menus: [
     {
-      slot: ticketSlots.headerOverflow,
+      slot: ticketMenuSlots.headerOverflow,
       label: l10n("kanbanRenderers.tickets.rowActions.createWorkspace", "Create workspace"),
       icon: "git-branch",
       placement: "first",
@@ -165,29 +166,29 @@ export const refineTicketCommand = defineCommand({
   title: "Refine ticket",
   menus: [
     {
-      slot: ticketSlots.headerOverflow,
+      slot: ticketMenuSlots.headerOverflow,
       label: l10n("kanbanRenderers.tickets.rowActions.refineTicket", "Refine ticket"),
       icon: "sparkles",
     },
   ],
   params: {
     ...selectedTicketParams,
-    template: params.template({ label: "Template", type: "ticket", required: false }),
+    template: params.text({ label: "Ticket template", required: false }),
     context: params.longText({ label: "Additional context", required: false }),
   },
   async run(ctx, commandParams) {
     const { agent, context, template } = commandParams;
     const ticketRef = resolveTicket(ctx, commandParams);
     const { anchor, shorthand } = await resolveTicketAnchor(ctx, ticketRef);
+    const variables = {
+      ...ticketTemplateVars(shorthand, template),
+      ...(context ? { additionalContext: context } : {}),
+    };
     const session = await ctx.sessions.create({
       title: `Refine ticket: ${shorthand}`,
       anchors: [anchor],
       ...harnessInput(agent),
-      template: "refine-ticket",
-      vars: {
-        ...ticketTemplateVars(shorthand, template),
-        ...(context ? { additionalContext: context } : {}),
-      },
+      prompt: await renderOwnedTemplate(ctx, "refine-ticket", variables),
     });
 
     return session;
@@ -232,14 +233,14 @@ export const breakIntoSubTicketsCommand = defineCommand({
   title: "Break into sub-tickets",
   menus: [
     {
-      slot: ticketSlots.headerOverflow,
+      slot: ticketMenuSlots.headerOverflow,
       label: l10n("kanbanRenderers.tickets.rowActions.breakIntoSubTickets", "Break into sub-tickets"),
       icon: "list-tree",
     },
   ],
   params: {
     ...ticketActionParams,
-    template: params.template({ label: "Template", type: "ticket", required: false }),
+    template: params.text({ label: "Ticket template", required: false }),
   },
   async run(ctx, commandParams) {
     const { agent, template } = commandParams;
@@ -250,8 +251,7 @@ export const breakIntoSubTicketsCommand = defineCommand({
       title: `Break into sub-tickets: ${shorthand}`,
       anchors: [anchor],
       ...harnessInput(agent),
-      template: "create-sub-tickets",
-      vars: ticketTemplateVars(shorthand, template),
+      prompt: await renderOwnedTemplate(ctx, "create-sub-tickets", ticketTemplateVars(shorthand, template)),
     });
   },
 });

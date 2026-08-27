@@ -55,66 +55,81 @@ export default defineExtension({
 });
 ```
 
-## Add A Dashboard Header Action
+## Add A Resource Header Action
 
 ```ts
-import { defineExtension } from "@pstdio/sdk/extensions";
+import {
+  defineCommand,
+  defineExtension,
+  defineResourceKind,
+  params,
+  resourceMenuSlotRef,
+} from "@pstdio/sdk/extensions";
 
-export default defineExtension({
-  commands: {
-    runAttempt: {
-      title: "Run attempt",
-      cli: true,
-      menus: [
-        {
-          target: "workbench.nav.actions",
-          label: "Run attempt",
-          icon: "play",
-          presentation: "button",
-          when: { resourceType: ["ticket"] },
-        },
-      ],
-      async run(ctx, _commandParams) {
-        return { ticket: ctx.resource?.id };
-      },
+const ticket = defineResourceKind({
+  id: "ticket",
+  surface: "primary",
+  menuSlots: [
+    { id: "headerActions", placement: "header-primary", access: "owner" },
+  ],
+});
+
+const runAttempt = defineCommand({
+  id: "run-attempt",
+  title: "Run attempt",
+  menus: [
+    {
+      slot: resourceMenuSlotRef(ticket.ref, "headerActions"),
+      label: "Run attempt",
+      icon: "play",
+      presentation: "button",
     },
+  ],
+  params: {
+    ticketId: params.text({ resolvedFrom: "resource" }),
+  },
+  async run(ctx) {
+    return { ticket: ctx.resource?.id };
   },
 });
+
+export default defineExtension({
+  resourceKinds: [ticket],
+  commands: [runAttempt],
+});
 ```
+
+`resolvedFrom: "resource"` tells the host not to show that parameter in a command form. The command reads the active resource from `ctx.resource`.
 
 ## Add Middleware
 
 Middleware runs before a command. Use it when the extension needs to validate, reject, or rewrite command invocation.
 
 ```ts
-import { defineExtension, workspaceCommands } from "@pstdio/sdk/extensions";
+import { defineCommand, defineExtension, defineMiddleware, params } from "@pstdio/sdk/extensions";
 
-export default defineExtension({
-  middlewares: {
-    requireReviewReadyChecks: {
-      command: workspaceCommands.setAttemptStatus,
-      async handler(ctx, commandParams) {
-        if (commandParams.status !== "review-ready")
-          return ctx.commands.continue();
-
-        const workspace = await ctx.workspaces.get(commandParams.workspaceId);
-        if (!workspace?.worktree_path) return ctx.commands.continue();
-
-        const result = await ctx.process.run({
-          command: ["bun", "run", "test"],
-          cwd: workspace.worktree_path,
-        });
-
-        if (result.exitCode === 0) return ctx.commands.continue();
-
-        return ctx.commands.reject({
-          code: "review_ready_checks_failed",
-          reason: "Tests must pass before marking an attempt review-ready.",
-        });
-      },
-    },
+const publishWorkspace = defineCommand({
+  id: "publish-workspace",
+  title: "Publish workspace",
+  params: { workspaceId: params.text({ required: true }) },
+  async run(_ctx, commandParams) {
+    return { published: commandParams.workspaceId };
   },
 });
+
+const requirePassingChecks = defineMiddleware<{ workspaceId: string }>({
+  id: "require-passing-checks",
+  command: publishWorkspace.ref,
+  async run(ctx, commandParams) {
+    const workspace = await ctx.workspaces.get(commandParams.workspaceId);
+    if (!workspace?.worktree_path) return ctx.commands.continue();
+    const result = await ctx.process.run({ command: ["bun", "run", "test"], cwd: workspace.worktree_path });
+    if (result.exitCode === 0) return ctx.commands.continue();
+    return ctx.commands.reject({ code: "checks_failed", reason: "Tests must pass before publishing." });
+  },
+});
+
+export default defineExtension({ commands: [publishWorkspace], middlewares: [requirePassingChecks] });
 ```
 
 Middleware can return:
@@ -139,7 +154,7 @@ export default defineExtension({
       event: sessionEvents.started,
       async handler(ctx, event) {
         await ctx.storage.set(
-          `session:${event.session.id}:started`,
+          `session:${event.sessionId}:started`,
           new Date().toISOString(),
         );
       },
@@ -362,6 +377,59 @@ export default defineExtension({
 });
 ```
 
+## Read Files Packaged With The Extension
+
+`ctx.packageFiles` is read-only and scoped to the installed extension package. Paths cannot leave that package.
+
+```ts
+const guide = await ctx.packageFiles.readText("docs/guide.md");
+const examples = await ctx.packageFiles.list("examples/**/*.json");
+```
+
+Files excluded from the installed package by its `.gitignore` are not available. Keep every runtime asset out of ignored paths.
+
+## Store Private Repo Files
+
+Declare `pstdio.repoFiles.tracked` in `package.json`, then use the extension-scoped mount:
+
+```json
+{ "pstdio": { "repoFiles": { "tracked": false } } }
+```
+
+```ts
+await ctx.extensionFiles?.writeText("cache/index.json", JSON.stringify(index));
+```
+
+The host allocates `.pstdio/ext/<publisher>.<name>/` and keeps it out of git when `tracked` is false.
+
+## Store Extension Data
+
+Use `ctx.storage` for private structured data and blobs. Use a declared artifact mount for files users should see in the project repository.
+
+```ts
+const preferences = ctx.storage.collection<{ id: string; enabled: boolean }>("preferences");
+await preferences.put("defaults", { id: "defaults", enabled: true });
+
+const reports = ctx.artifacts.mount("reports");
+await reports.writeText("latest/summary.md", "# Summary\n");
+```
+
+Artifact directories are created on the first write. Before then, `exists()` is false, `list()` is empty, and direct reads fail. Mounts stay under `.pstdio/<extension-name>/` and reject path escapes.
+
+## Work With Repositories And Workspaces
+
+- `ctx.repoFiles` reads and writes the invocation repository. It is absent when no repository is in scope.
+- `ctx.workspaceFiles` reads and writes the active workspace. It is absent when no local workspace is in scope.
+- `ctx.workspaces.removeWorktree(id)` removes a workspace worktree and branch without deleting the workspace record.
+- `ctx.workspaces.delete(id)` deletes the workspace and performs its full provider cleanup.
+
+Use `removeWorktree` for cleanup commands that must preserve workspace history:
+
+```ts
+const result = await ctx.workspaces.removeWorktree(workspaceId);
+return { removed: result.removed };
+```
+
 ## Validate An Extension
 
 ```bash
@@ -378,5 +446,5 @@ bun run validate
 When bundled runtime artifacts change, also run:
 
 ```bash
-bun run scripts/verify-packages.ts
+bun run --cwd scripts verify:packages
 ```

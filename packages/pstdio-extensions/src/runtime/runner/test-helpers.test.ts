@@ -36,13 +36,19 @@ export const stubEnvironment = (storage: CommandRunnerEnvironment["storage"]): C
     project: { id: "p1", name: "Prompt Studio", shorthand: "PS" },
     storage,
     artifacts: { mount: () => ({}) as never },
+    packageFiles: {
+      exists: async () => false,
+      readText: async () => "",
+      readBytes: async () => new Uint8Array(),
+      list: async () => [],
+      listDirs: async () => [],
+    },
     files: {
       readText: async () => "",
       writeText: async () => {},
       createText: async () => ({ id: "" }),
       delete: async () => {},
     },
-    templates: { get: async () => null },
     sessions: {
       get: async () => null,
       list: async () => [],
@@ -59,6 +65,7 @@ export const stubEnvironment = (storage: CommandRunnerEnvironment["storage"]): C
       resolve: async () => ({}) as never,
       cancel: async () => ({ id: "" }),
       archive: async () => ({ id: "" }),
+      removeWorktree: async () => ({ removed: true }),
       delete: async () => {},
     },
     repos: {

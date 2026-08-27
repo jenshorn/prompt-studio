@@ -9,6 +9,7 @@ import { buildAbsoluteApiUrl } from "@/lib/api";
 import { prepareDashboardNavigationResource, selectDashboardNavigationView } from "@/shared/app/navigation-state";
 import { uploadExtensionCommandFile } from "@/shared/extensions/api";
 import { collectExtensionCommandNotifications } from "@/shared/extensions/command-outcome";
+import { toWorkbenchContributionId } from "@/shared/extensions/contribution-ref";
 import {
   localizeExtensionValue,
   type ResolvedLocalizable,
@@ -21,7 +22,6 @@ import {
 import {
   buildDashboardExtensionMenuRegistrations,
   buildDashboardWorkbenchWhenExpression,
-  dashboardMenuSlotsById,
   dashboardMenuTargetsById,
 } from "@/shared/extensions/workbench-extension-contributions";
 import { setDashboardSidenavSelection } from "@/shared/workbench/dashboard-sidenav";
@@ -46,9 +46,6 @@ interface RegisterExtensionContributionsInput {
   onRegistrationError?: (error: unknown, extensionId: string) => void;
 }
 
-const contributionRefId = (ref: { extensionId: string; kind: string; id: string }) =>
-  ref.extensionId === "pstdio" ? ref.id : `${ref.extensionId}.${ref.kind}.${ref.id}`;
-
 export const extensionViewResolveInput =
   (ctx: WorkbenchModuleContext, view: { id: string; title: string; icon?: string }, navigationItemId = view.id) =>
   (openInput: OpenWorkbenchViewInput) => {
@@ -60,7 +57,7 @@ export const extensionViewResolveInput =
   };
 
 export const registerExtensionActivityNavigationOwnership = (metadata: ResolvedWorkbenchExtensionMetadata) => {
-  const modeIds = new Set((metadata.activityItems ?? []).flatMap((item) => item.modes.map(contributionRefId)));
+  const modeIds = new Set((metadata.activityItems ?? []).flatMap((item) => item.modes.map(toWorkbenchContributionId)));
   const registrations = [...modeIds].map(registerNavigationOwningMode);
   return {
     dispose() {
@@ -104,6 +101,14 @@ export const localizeDashboardExtensionCommandResponse = <T extends { extensionI
 export const registerExtensionContributions = (input: RegisterExtensionContributionsInput) => {
   const disposables: Disposable[] = [];
   try {
+    const menuResult = buildDashboardExtensionMenuRegistrations(input.metadata);
+    for (const unresolved of menuResult.unresolved) {
+      input.ctx.notifications.show({
+        level: "warning",
+        title: "Extension action unavailable",
+        message: `The menu target “${unresolved.targetId}” for “${unresolved.contribution.label}” is not available.`,
+      });
+    }
     const webviewRenderer = registerDashboardExtensionWebviewRenderer(input.ctx);
     if (webviewRenderer) disposables.push(webviewRenderer);
     const kanban = createDashboardKanbanAdapter(input);
@@ -130,9 +135,9 @@ export const registerExtensionContributions = (input: RegisterExtensionContribut
           return response;
         },
         kanbanAdapter: kanban.adapter,
-        menuSlotsById: dashboardMenuSlotsById,
+        menuSlotsById: menuResult.menuSlotsById,
         menuTargetsById: dashboardMenuTargetsById,
-        menuRegistrations: buildDashboardExtensionMenuRegistrations(input.metadata),
+        menuRegistrations: menuResult.registrations,
         metadata: withoutIntegratedResourceSidenavViews(
           withoutDashboardNavigationItems(withDashboardWebviewUrls(input.metadata)),
         ),
@@ -149,7 +154,7 @@ export const registerExtensionContributions = (input: RegisterExtensionContribut
         resolveTreeNodeResource: (resource) => toDashboardExtensionResource(resource, input.projectId)!,
         resolveViewInput: (view) => {
           const navigationItem = input.metadata.navigationItems.find(
-            (item) => item.action.kind === "view" && contributionRefId(item.action.view) === view.id,
+            (item) => item.action.kind === "view" && toWorkbenchContributionId(item.action.view) === view.id,
           );
           return extensionViewResolveInput(input.ctx, view, navigationItem?.id);
         },

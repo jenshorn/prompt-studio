@@ -215,6 +215,17 @@ const workbenchExtensionResourceKindRecordSchema = z.object({
   slots: z
     .array(z.object({ id: z.string(), cardinality: z.enum(["one", "many"]), access: z.enum(["owner", "public"]) }))
     .optional(),
+  menuSlots: z
+    .array(
+      z.object({
+        id: z.string(),
+        placement: z.enum(["header-primary", "header-overflow", "context-menu"]),
+        label: localizableStringSchema.optional(),
+        access: z.enum(["owner", "public"]),
+        order: z.number().optional(),
+      }),
+    )
+    .optional(),
 });
 
 const workbenchExtensionResourceViewRecordSchema = z.object({
@@ -320,6 +331,19 @@ export const workbenchExtensionMetadataSchema = z.object({
         localId: z.string(),
         extensionId: z.string(),
         title: localizableStringSchema.optional(),
+      }),
+    )
+    .optional(),
+  templateTypes: z
+    .array(
+      z.object({
+        id: z.string(),
+        localId: z.string(),
+        extensionId: z.string(),
+        label: localizableStringSchema,
+        description: localizableStringSchema.optional(),
+        order: z.number().optional(),
+        commands: z.object({ list: z.string(), read: z.string(), save: z.string(), delete: z.string() }).optional(),
       }),
     )
     .optional(),

@@ -10,6 +10,7 @@ const makeEnabledSources = () => [
     installedSource: {
       id: "source-1",
       extension_id: "pstdio.extension-lab",
+      source_path: "/fake/extension-lab",
     },
   },
 ];
@@ -64,7 +65,10 @@ describe("createCommandEnvironment sessions listByWorkspace", () => {
     const env = createCommandEnvironment(
       {
         extensionStorageService: makeStorageService(),
-        workspaceService: { get: async () => ({ id: "workspace-1", project_id: "project-1" }) },
+        workspaceService: {
+          get: async () => ({ id: "workspace-1", project_id: "project-1" }),
+          getByShorthand: async () => null,
+        },
         workspaceSessionService: { listByWorkspace },
       } as never,
       makeEnabledSources() as never,

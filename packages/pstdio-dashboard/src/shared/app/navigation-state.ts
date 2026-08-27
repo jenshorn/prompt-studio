@@ -1,16 +1,12 @@
 import type { ResourceRef, WorkbenchModuleContext } from "@pstdio/workbench";
 import { setResourceBreadcrumb } from "@/shared/workbench/resource-sync";
 import { getDashboardSelectedProjectId } from "./project-context";
-import { dashboardViews } from "./resources";
 
-export type DashboardCollection = "sessions" | "workspaces" | "tickets";
-
-export const dashboardActiveCollectionContextKey = "dashboard.navigation.activeCollection";
 export const dashboardSelectedResourceContextKey = "dashboard.navigation.selectedResource";
 
 type DashboardNavigationContext = Pick<WorkbenchModuleContext, "context" | "layout" | "modes" | "panels">;
 
-const activeCollectionByWorkbench = new WeakMap<WorkbenchModuleContext["context"]["store"], DashboardCollection>();
+const activeViewByWorkbench = new WeakMap<WorkbenchModuleContext["context"]["store"], string>();
 const selectedResourceByWorkbench = new WeakMap<WorkbenchModuleContext["context"]["store"], ResourceRef>();
 const projectOwnedRegions = [
   "nav",
@@ -24,29 +20,23 @@ const projectOwnedRegions = [
   "status",
 ] as const;
 
-const collectionFromViewId = (viewId: string): DashboardCollection | undefined => {
-  if (viewId === dashboardViews.sessions.id || viewId === dashboardViews.workspaces.id) return viewId;
-  return viewId.endsWith(".tickets") ? "tickets" : undefined;
-};
-
-export const getDashboardActiveCollection = (ctx: DashboardNavigationContext) =>
-  activeCollectionByWorkbench.get(ctx.context.store);
-
 export const getDashboardSelectedResource = (ctx: DashboardNavigationContext) =>
   selectedResourceByWorkbench.get(ctx.context.store);
 
 interface DashboardLayoutPersistenceScopeInput {
-  activeCollection?: DashboardCollection;
   modeId?: string;
   projectId?: string;
   resource?: ResourceRef;
+  viewId?: string;
 }
 
 export const resolveDashboardLayoutPersistenceScope = (input: DashboardLayoutPersistenceScopeInput) => {
   if (!input.projectId) return undefined;
   const modeId = input.modeId ?? "none";
   if (input.resource) return `project/${input.projectId}/mode/${modeId}/resource/${input.resource.uri}`;
-  return `project/${input.projectId}/mode/${modeId}/aggregate/${input.activeCollection ?? "empty"}`;
+  return input.viewId
+    ? `project/${input.projectId}/mode/${modeId}/view/${input.viewId}`
+    : `project/${input.projectId}/mode/${modeId}/view/empty`;
 };
 
 export const syncDashboardLayoutPersistenceScope = (
@@ -54,10 +44,10 @@ export const syncDashboardLayoutPersistenceScope = (
   modeId = ctx.modes.getActiveModeId(),
 ) => {
   const scope = resolveDashboardLayoutPersistenceScope({
-    activeCollection: getDashboardActiveCollection(ctx),
     modeId,
     projectId: getDashboardSelectedProjectId(ctx),
     resource: getDashboardSelectedResource(ctx),
+    viewId: activeViewByWorkbench.get(ctx.context.store),
   });
   ctx.panels.setPersistenceScope(scope);
   const currentProjectId = ctx.layout.getPersistenceScope()?.match(/^project\/([^/]+)\//)?.[1];
@@ -68,9 +58,8 @@ export const syncDashboardLayoutPersistenceScope = (
 
 export const clearDashboardNavigationState = (ctx: DashboardNavigationContext) => {
   ctx.layout.expirePreviewTabs();
-  activeCollectionByWorkbench.delete(ctx.context.store);
+  activeViewByWorkbench.delete(ctx.context.store);
   selectedResourceByWorkbench.delete(ctx.context.store);
-  ctx.context.delete(dashboardActiveCollectionContextKey);
   ctx.context.delete(dashboardSelectedResourceContextKey);
 };
 
@@ -85,8 +74,7 @@ export const applyDashboardNavigationSelection = (
     ctx.context.delete(dashboardSelectedResourceContextKey);
     return;
   }
-  activeCollectionByWorkbench.delete(ctx.context.store);
-  ctx.context.delete(dashboardActiveCollectionContextKey);
+  activeViewByWorkbench.delete(ctx.context.store);
   selectedResourceByWorkbench.set(ctx.context.store, resource);
   ctx.context.set(dashboardSelectedResourceContextKey, resource.uri);
 };
@@ -139,13 +127,6 @@ export const selectDashboardNavigationView = (
   input: { modeId?: string } = {},
 ) => {
   registerDashboardNavigator(ctx);
-  const collection = collectionFromViewId(viewId);
-  if (collection) {
-    activeCollectionByWorkbench.set(ctx.context.store, collection);
-    ctx.context.set(dashboardActiveCollectionContextKey, collection);
-  } else {
-    activeCollectionByWorkbench.delete(ctx.context.store);
-    ctx.context.delete(dashboardActiveCollectionContextKey);
-  }
+  activeViewByWorkbench.set(ctx.context.store, viewId);
   ctx.navigator.commitContext({ modeId: input.modeId, resource: null });
 };

@@ -41,7 +41,6 @@ If an auto-started process exits before becoming healthy, the CLI reports its ex
 | `PSTDIO_HOME` | `~/.pstdio` | Root for Prompt Studio runtime state. Default database, storage, workspaces, extensions, caches, and logs derive from this directory. |
 | `PSTDIO_DB_PATH` | `$PSTDIO_HOME/pstdio.db` | Narrow database path override. Use for tests and debugging; normal dev isolation should prefer `PSTDIO_HOME`. |
 | `PSTDIO_STORAGE_PATH` | `$PSTDIO_HOME/storage` | Narrow file-storage override. Use only when storage must move independently from the rest of Prompt Studio state. |
-| `PSTDIO_FILES_ROOT` | bundled/package files root | Override for packaged seed files such as built-in templates and skills. Mostly for source-tree and packaging tests. |
 
 Workspaces always derive from `PSTDIO_HOME` as `$PSTDIO_HOME/workspaces`.
 
@@ -61,7 +60,8 @@ Workspaces always derive from `PSTDIO_HOME` as `$PSTDIO_HOME/workspaces`.
 | -------- | ------- | ------- |
 | `PSTDIO_API_TOKEN` | discovered descriptor token | Bearer token published for authenticated runtime-control requests. |
 | `PSTDIO_AGENTS` | `claude-code,opencode` | Comma-separated agent registry override. Tests commonly use `fake`. |
-| `PSTDIO_DEFAULT_EXTENSIONS` | core skills, templates, and automation extensions | JSON array or `{ "defaultExtensions": [...] }` object installed by each extension's `pstdio.scope` and enabled for new projects. Tests can set `[]`. |
+| `PSTDIO_EXTENSION_CATALOG` | packaged extension catalog | Local JSON path or HTTPS URL. Remote data is cached under the active Prompt Studio home. |
+| `PSTDIO_DEFAULT_EXTENSIONS` | catalog entries marked as defaults | JSON array or `{ "defaultExtensions": [...] }` override installed by each extension's `pstdio.scope` and enabled for new projects. Tests can set `[]`. |
 | `PSTDIO_EVENT_BUS_BUFFER_SIZE` | service default | Optional positive integer for the sync event bus replay buffer. |
 | `PSTDIO_LOG_LEVEL` | `error` | Runtime log level. |
 | `PSTDIO_LOG_PATH` | derived from state path | Explicit log file path. |

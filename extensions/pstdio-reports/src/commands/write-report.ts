@@ -10,16 +10,16 @@ import {
   requireRepoFiles,
 } from "../data/draft-storage";
 import { resolveReportName, resolveWorkspace } from "../data/resolve";
+import { readReportTemplate } from "../data/template-store";
 
 const resolveTemplateBody = async (ctx: CommandContext, name: string | undefined) => {
   if (!name) {
     throw new Error(`Report template is required. Available templates: ${reportTemplateNames.join(", ")}`);
   }
-  const template = await ctx.templates.get(name);
+  const template = await readReportTemplate(ctx, name);
   if (!template) {
     throw new Error(`Unknown report template "${name}"`);
   }
-  if (template.template_type !== "report") throw new Error(`Template "${name}" is not a report template`);
   return template.content;
 };
 
@@ -56,7 +56,11 @@ export const writeReportCommand = defineCommand({
     workspace: params.text(),
     kind: params.text(),
     name: params.text(),
-    template: params.template({ label: "Template", type: "report", required: false }),
+    template: params.select({
+      label: "Template",
+      options: reportTemplateNames.map((name) => ({ label: name, value: name })),
+      required: false,
+    }),
     source: params.text(),
   },
   async run(ctx, commandParams) {
@@ -64,7 +68,7 @@ export const writeReportCommand = defineCommand({
     const kind = commandParams.kind ?? "report";
     const directoryName = resolveReportName(commandParams.name, kind);
     const templateBody = await resolveTemplateBody(ctx, commandParams.template);
-    const { workspace, workspaceShorthand } = await resolveWorkspace(ctx, repoFiles, commandParams.workspace);
+    const { workspace, workspaceShorthand } = await resolveWorkspace(ctx, commandParams.workspace);
     const { name, path, filesPath } = await resolveAvailableReport(ctx, repoFiles, workspaceShorthand, directoryName);
 
     const now = new Date().toISOString();

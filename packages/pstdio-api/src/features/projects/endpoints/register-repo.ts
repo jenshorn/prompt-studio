@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRoute, z } from "@hono/zod-openapi";
 import { listBranches } from "pstdio-wt";
@@ -141,14 +141,10 @@ export const registerRepoHandler = (deps: ProjectsRouteDeps): AppRouteHandler<ty
 
     const repo = await deps.repoService.registerForProject(id, { name, path });
 
-    if (relinkState.isRelinking) {
-      await rm(join(pstdioPath, "tickets"), { recursive: true, force: true });
-    }
-
     await bootstrapProjectRepo(path, id);
     await installRepoDefaultExtensions({
       repoPath: repo.path,
-      defaultExtensions: resolveDefaultExtensionsConfig().defaultExtensions,
+      defaultExtensions: (await resolveDefaultExtensionsConfig()).defaultExtensions,
     });
     await syncRepoExtensionsForProject({
       extensionService: deps.extensionService,

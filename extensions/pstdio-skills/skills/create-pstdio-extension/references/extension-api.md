@@ -26,6 +26,8 @@ Every extension package needs a `package.json` next to its entry file:
 }
 ```
 
+Set `pstdio.repoFiles.tracked` when the extension uses its allocated repo directory. It defaults to false.
+
 Required fields are `name`, `version`, `publisher`, `main`, and `engines.pstdio`. The extension id is derived as
 `${publisher}.${name}`. Keep the package `name` lowercase kebab-case because it scopes command ids, catalog names,
 artifact roots, themes, and CLI paths.
@@ -114,6 +116,10 @@ kebab-case. For example `create_pstdio_extension` and `createPstdioExtension` be
 | `artifactMounts`                                  | Safe file access under `.pstdio/<package-name>/`.                                 |
 | `workspaceTypes`, `harnesses`                     | Advanced provider integrations.                                                   |
 
+Editable template types must declare `list`, `read`, `save`, and `delete` command refs. The dashboard invokes those commands and never reads template storage directly. Store user overrides in `ctx.storage`; read packaged defaults with `ctx.packageFiles`.
+
+The commands exchange `{ name, title, type }` summaries and `{ name, title, type, content }` content values. Read and delete accept `{ name }`. Save accepts `{ name, title?, type, content }`.
+
 ## Host capability validation
 
 `pst extensions check` validates declared dashboard UI surfaces against the dashboard build that will load them. Contract-valid extensions can still fail if the host does not advertise the bridge for a surface. The diagnostic code is `extension_host_capability_missing`; its metadata includes `contributionId`, `missingCapability`, `hostVersion`, and `requiredSince` when known.
@@ -153,17 +159,20 @@ points with `menus` and a host-owned workbench target such as `workbench.nav.act
 `workbench.nav.overflow`. Add command palette entries explicitly with `palette`.
 
 Available param builders include `params.text`, `params.longText`, `params.number`, `params.boolean`,
-`params.select`, `params.multiSelect`, `params.repo`, `params.harness`, `params.template`, `params.resource`, and
+`params.select`, `params.multiSelect`, `params.repo`, `params.harness`, `params.resource`, and
 `params.json`.
 
-`ctx` in a command includes:
+Command params are the handler's second argument. `ctx` in a command includes:
 
-- `projectId`, `extensionId`, `name`, `repo`, `source`, `resource`, `params`
+- `projectId`, `workspaceId`, `project`, `extensionId`, `name`, `repo`, `source`, and `resource`
+- `commandId`, `invocationId`, `signal`, `invocation`, `attachment`, and `slot`
 - `attachment` for host-owned workbench invocations, including the target, mode, project, and active resource
-- `storage`, `artifacts`, `files`
-- `tickets`, `sessions`, `workspaces`, `worktrees`, `repos`
+- `storage`, `artifacts`, `files`, read-only `packageFiles`, and repo-scoped `extensionFiles`
+- `repoFiles`, `workspaceFiles`, `skills`, `sessions`, `workspaces`, and `repos`
 - `commands`, `events`, `activity`, `notify`
-- `process`, `net`, `logger`, `settings`
+- `process`, optional `terminal`, `net`, `connections`, `logger`, and `settings`
+
+Harness handlers also receive host-wide, extension-scoped `state`. See `host-storage-and-workspaces.md` for storage and workspace recipes.
 
 Return transport-safe JSON values from commands. To reject before a command runs, use middleware and
 `ctx.commands.reject({ code, reason })`.

@@ -2,7 +2,6 @@ import type { TerminalSessionHandle, TerminalSessionRequest } from "../../extens
 import type { CreateNotificationInput, Notification, NotificationStatus } from "../../notifications/types";
 import type { SessionAttachmentRef, SessionStatus } from "../../sessions";
 import type { Skill } from "../../skills";
-import type { TemplateWithContent } from "../../templates";
 import type {
   CommandHelpersApi,
   CommandMiddlewareResult,
@@ -86,6 +85,8 @@ export interface ArtifactMount {
   delete(path: string): Promise<void>;
 }
 
+export type ExtensionPackageFilesApi = Pick<ArtifactMount, "exists" | "readText" | "readBytes" | "list" | "listDirs">;
+
 export interface WorkspaceSyncFile {
   /** Path relative to the `dir` passed to {@link WorkspaceFilesMount.syncDir}. */
   path: string;
@@ -115,11 +116,6 @@ export interface ExtensionFilesApi {
 export interface ExtensionSkillsApi {
   /** The project's resolved skill catalog (DB skills + extension-contributed skills, deduped). */
   list(): Promise<Skill[]>;
-}
-
-export interface ExtensionTemplatesApi {
-  /** The project's resolved template catalog, including enabled extension templates and project overrides. */
-  get(name: string): Promise<TemplateWithContent | null>;
 }
 
 export interface ExtensionSessionResource {
@@ -167,8 +163,6 @@ export interface ExtensionSessionsApi {
   create(input: {
     title: string;
     prompt?: string;
-    template?: string;
-    vars?: JsonObject;
     harness?: ExtensionHarnessInput;
     workspaceId?: string;
     repoId?: string;
@@ -177,13 +171,7 @@ export interface ExtensionSessionsApi {
     originalSessionId?: string;
   }): Promise<ExtensionSessionResource>;
 
-  followup(input: {
-    sessionId: string;
-    prompt?: string;
-    template?: string;
-    vars?: JsonObject;
-    attachments?: SessionAttachmentRef[];
-  }): Promise<void>;
+  followup(input: { sessionId: string; prompt?: string; attachments?: SessionAttachmentRef[] }): Promise<void>;
 
   addAnchors(sessionId: string, anchors: ResourceAnchor[]): Promise<void>;
 }
@@ -283,10 +271,13 @@ export interface ExtensionContextBase<TSettings extends Record<string, unknown> 
   repoFiles?: ArtifactMount;
   /** Files of the workspace this context targets, scoped to its working dir. */
   workspaceFiles?: WorkspaceFilesMount;
+  /** Read-only files packaged with the installed extension, scoped to its package root. */
+  packageFiles: ExtensionPackageFilesApi;
+  /** Repo directory allocated to this extension. Present wherever repoFiles is present. */
+  extensionFiles?: ArtifactMount;
   files: ExtensionFilesApi;
   /** Project skill catalog. Present where the host wires it (command/event contexts). */
   skills?: ExtensionSkillsApi;
-  templates: ExtensionTemplatesApi;
   sessions: ExtensionSessionsApi;
   workspaces: ExtensionWorkspacesApi;
   repos: ExtensionReposApi;

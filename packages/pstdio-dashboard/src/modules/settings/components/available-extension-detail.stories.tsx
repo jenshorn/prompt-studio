@@ -48,6 +48,21 @@ const metadata = {
       title: "Change request",
     },
   ],
+  templateTypes: [
+    {
+      id: "pstdio.pstdio-reports.template-type.report",
+      localId: "report",
+      extensionId: "pstdio.pstdio-reports",
+      label: "Report",
+      order: 40,
+      commands: {
+        list: "pstdio.pstdio-reports.command.templates.list",
+        read: "pstdio.pstdio-reports.command.templates.read",
+        save: "pstdio.pstdio-reports.command.templates.save",
+        delete: "pstdio.pstdio-reports.command.templates.delete",
+      },
+    },
+  ],
   diagnostics: [],
 } as never;
 
@@ -61,6 +76,13 @@ const meta: Meta<typeof AvailableExtensionDetail> = {
       displayName: "Prompt Studio Reports",
       description: "Workspace reports for agent handoffs.",
       installed: false,
+      origin: {
+        kind: "git",
+        url: "https://github.com/pufflyai/prompt-studio",
+        path: "extensions/pstdio-reports",
+        ref: "pstdio@0.28.0",
+      },
+      publisher: "pufflyai",
     },
     metadata,
     loadingContributions: false,

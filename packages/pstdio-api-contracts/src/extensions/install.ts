@@ -39,7 +39,7 @@ export const projectExtensionInstanceSchema = z.object({
   lastError: jsonObjectSchema.nullable().optional(),
   enabled: z.boolean(),
   config: z.record(z.string(), z.unknown()),
-  /** A newer source is available for this Git-backed marketplace extension in the running Prompt Studio release. */
+  /** A newer pinned release is available for this extension's source. */
   canUpgrade: z.boolean(),
   /** New source is waiting in the extensions root. The project keeps running the adopted version until a person takes it. */
   updateAvailable: z.boolean(),
@@ -50,6 +50,13 @@ export const marketplaceExtensionSchema = z.object({
   displayName: z.string(),
   description: z.string(),
   installed: z.boolean(),
+  origin: z.object({
+    kind: z.literal("git"),
+    url: z.string(),
+    path: z.string(),
+    ref: z.string(),
+  }),
+  publisher: z.string().optional(),
 });
 
 export const listProjectExtensionsResponseSchema = z.object({
@@ -79,16 +86,6 @@ export const installMarketplaceExtensionResponseSchema = z.object({
   extension: projectExtensionInstanceSchema,
 });
 
-export const updateInstalledExtensionTemplateInputSchema = z.object({
-  content: z.string().min(1),
-});
-
-export const updateInstalledExtensionTemplateResponseSchema = z.object({
-  installName: z.string(),
-  key: z.string(),
-  content: z.string(),
-});
-
 export const setupProjectExtensionResponseSchema = z.object({
   extensionId: z.string(),
   name: z.string(),
@@ -113,6 +110,4 @@ export type SetExtensionAutomationEnabledRequest = z.infer<typeof setExtensionAu
 export type AttemptExtensionFixResponse = z.infer<typeof attemptExtensionFixResponseSchema>;
 export type UpgradeProjectExtensionResponse = z.infer<typeof upgradeProjectExtensionResponseSchema>;
 export type InstallMarketplaceExtensionResponse = z.infer<typeof installMarketplaceExtensionResponseSchema>;
-export type UpdateInstalledExtensionTemplateInput = z.infer<typeof updateInstalledExtensionTemplateInputSchema>;
-export type UpdateInstalledExtensionTemplateResponse = z.infer<typeof updateInstalledExtensionTemplateResponseSchema>;
 export type SetupProjectExtensionResponse = z.infer<typeof setupProjectExtensionResponseSchema>;

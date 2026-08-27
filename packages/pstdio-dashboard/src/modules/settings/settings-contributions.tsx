@@ -2,8 +2,6 @@ import { standardResourceIcons, type WorkbenchModuleContext } from "@pstdio/work
 import { settingsPanelResource } from "@pstdio/workbench/react";
 import { dashboardCommandIds } from "@/shared/app/commands";
 import { getDashboardSelectedProjectId, getDashboardSelectedProjectName } from "@/shared/app/project-context";
-import { createProjectTemplate, getProjectTemplateAssets } from "@/shared/projects/project-api";
-import type { ProjectTemplateAsset, ProjectTemplateAssetType } from "@/shared/projects/project-types";
 import { ExtensionsPanel } from "./components/extensions-panel";
 import { MachineTokensPanel } from "./components/machine-tokens-panel";
 import { ProjectDangerZone } from "./components/project-danger-zone";
@@ -12,30 +10,37 @@ import { RuntimeSettingsPanel } from "./components/runtime-settings-panel";
 import { SkillViewer } from "./components/skill-viewer";
 import { TemplateSettingsEditor } from "./components/template-settings-editor";
 import { getProjectSkills, type ProjectSkill } from "./data/skills-api";
+import {
+  createProjectTemplate,
+  getProjectTemplateAssets,
+  type ProjectTemplateAsset,
+  templateTypesForProject,
+} from "./data/template-provider-api";
 
 // The default settings entry opened by the command/sidenav. It is global, so it
 // stays reachable even when no project is selected.
 export const dashboardSettingsDefaultPanel = { id: "runtime", title: "Runtime", icon: standardResourceIcons.settings };
 
-const TEMPLATE_GROUP_ORDER: ProjectTemplateAssetType[] = ["prompt", "ticket", "document"];
-const TEMPLATE_GROUP_LABELS: Record<ProjectTemplateAssetType, string> = {
-  prompt: "Prompts",
-  ticket: "Tickets",
-  document: "Documents",
-};
-
-const nextTemplateName = (existingNames: string[]) => {
-  const taken = new Set(existingNames);
-  if (!taken.has("new-template")) return "new-template";
-  let index = 2;
-  while (taken.has(`new-template-${index}`)) index += 1;
-  return `new-template-${index}`;
-};
-
 // Registers the dashboard's settings sections and panels against the workbench
 // settings registry. The unified surface (`createWorkbenchSettingsModule`) turns
 // these into the navigation tree and dispatching panel.
 export const registerDashboardSettingsContributions = (ctx: WorkbenchModuleContext) => {
+  ctx.commands.registerCommand<{ templateType: string }>(
+    { id: dashboardCommandIds.createTemplate, label: "New template" },
+    {
+      execute: async ({ templateType }) => {
+        const projectId = getDashboardSelectedProjectId(ctx);
+        if (!projectId) return;
+        const existing = await getProjectTemplateAssets(projectId);
+        await createProjectTemplate(
+          projectId,
+          existing.map((template) => template.name),
+          templateType,
+        );
+        ctx.settings.refresh();
+      },
+    },
+  );
   ctx.settings.registerSection({ id: "workbench", title: "Workbench", order: 10, scope: "global" });
   ctx.settings.registerSection({ id: "project", title: "Project", order: 20, scope: "project" });
 
@@ -105,8 +110,9 @@ export const registerDashboardSettingsContributions = (ctx: WorkbenchModuleConte
     itemLabel: (template) => template.title || template.name,
     groupBy: {
       key: (template) => template.templateType,
-      order: TEMPLATE_GROUP_ORDER,
-      label: (key) => TEMPLATE_GROUP_LABELS[key as ProjectTemplateAssetType] ?? key,
+      order: templateTypesForProject(getDashboardSelectedProjectId(ctx) ?? "").map((type) => type.id),
+      label: (key) =>
+        templateTypesForProject(getDashboardSelectedProjectId(ctx) ?? "").find((type) => type.id === key)?.label ?? key,
     },
     renderItem: (template) => (
       <TemplateSettingsEditor
@@ -125,16 +131,27 @@ export const registerDashboardSettingsContributions = (ctx: WorkbenchModuleConte
         id: "create",
         label: "New template",
         icon: "Plus",
-        run: async () => {
+        run: () => {
           const projectId = getDashboardSelectedProjectId(ctx);
           if (!projectId) return;
-          const existing = await getProjectTemplateAssets(projectId);
-          await createProjectTemplate(projectId, {
-            name: nextTemplateName(existing.map((template) => template.name)),
-            templateType: "prompt",
-            content: "",
+          const types = templateTypesForProject(projectId);
+          ctx.commandPalette.requestParams({
+            record: {
+              command: {
+                id: dashboardCommandIds.createTemplate,
+                label: "New template",
+                params: {
+                  templateType: {
+                    type: "select",
+                    label: "Template type",
+                    required: true,
+                    options: types.map((type) => ({ label: type.label, value: type.id })),
+                  },
+                },
+              },
+            },
+            label: "New template",
           });
-          ctx.settings.refresh();
         },
       },
     ],

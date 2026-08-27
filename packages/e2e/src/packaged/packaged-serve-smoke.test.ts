@@ -85,13 +85,29 @@ describe("packaged pstdio — self-hosted serve", () => {
         expect(createRes.status).toBe(201);
 
         const project = (await createRes.json()) as { id: string };
-        const templatesRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/templates`, {
+        const extensionsRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/extensions`, {
           headers: runtimeAuthorization(started.descriptor),
         });
-        expect(templatesRes.status).toBe(200);
-
-        const templates = (await templatesRes.json()) as { name: string }[];
-        expect(templates).toEqual([]);
+        expect(extensionsRes.status).toBe(200);
+        const extensionCatalog = (await extensionsRes.json()) as {
+          marketplace: Array<{
+            installName: string;
+            origin: { kind: "git"; path: string; ref: string; url: string };
+            publisher?: string;
+          }>;
+        };
+        expect(extensionCatalog.marketplace).toContainEqual(
+          expect.objectContaining({
+            installName: "pstdio-planner",
+            origin: {
+              kind: "git",
+              path: "extensions/pstdio-planner",
+              ref: "{hostRelease}",
+              url: "https://github.com/pufflyai/prompt-studio",
+            },
+            publisher: "pufflyai",
+          }),
+        );
 
         const skillsRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/skills`, {
           headers: runtimeAuthorization(started.descriptor),
@@ -285,34 +301,6 @@ describe("packaged pstdio — core default extensions", () => {
           ]),
         );
 
-        const templatesRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/templates`, {
-          headers: runtimeAuthorization(started.descriptor),
-        });
-        expect(templatesRes.status).toBe(200);
-
-        const templates = (await templatesRes.json()) as Array<{
-          install_name?: string;
-          is_default: boolean;
-          name: string;
-          template_type: string;
-        }>;
-        expect(templates).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              install_name: "pstdio-reports",
-              is_default: false,
-              name: "review",
-              template_type: "report",
-            }),
-            expect.objectContaining({
-              install_name: "pstdio-reports",
-              is_default: false,
-              name: "change-request",
-              template_type: "report",
-            }),
-          ]),
-        );
-
         const skillsRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/skills`, {
           headers: runtimeAuthorization(started.descriptor),
         });
@@ -337,6 +325,37 @@ describe("packaged pstdio — core default extensions", () => {
         });
         expect(metadataRes.status).toBe(200);
         const metadata = (await metadataRes.json()) as WorkbenchExtensionMetadata;
+        const reportType = metadata.templateTypes.find((type) => type.localId === "report");
+        expect(reportType?.commands).toEqual(
+          expect.objectContaining({
+            list: "pstdio.pstdio-reports.command.templates.list",
+            read: "pstdio.pstdio-reports.command.templates.read",
+            save: "pstdio.pstdio-reports.command.templates.save",
+            delete: "pstdio.pstdio-reports.command.templates.delete",
+          }),
+        );
+
+        const listTemplatesRes = await fetch(
+          `${started.baseUrl}/v1/projects/${project.id}/extensions/commands/${encodeURIComponent(reportType!.commands!.list)}/execute`,
+          {
+            method: "POST",
+            headers: { ...runtimeAuthorization(started.descriptor), "content-type": "application/json" },
+            body: JSON.stringify({ source: "api", params: {} }),
+          },
+        );
+        expect(listTemplatesRes.status).toBe(200);
+        const listTemplates = (await listTemplatesRes.json()) as {
+          outcome: { ok: boolean; value?: Array<{ name: string; type: string }> };
+        };
+        expect(listTemplates.outcome).toEqual(
+          expect.objectContaining({
+            ok: true,
+            value: expect.arrayContaining([
+              expect.objectContaining({ name: "review", type: "report" }),
+              expect.objectContaining({ name: "change-request", type: "report" }),
+            ]),
+          }),
+        );
         const settingsPanel = metadata.settingsPanels.find((panel) => panel.view);
         const settingsViewId = settingsPanel
           ? `${settingsPanel.view.extensionId}.view.${settingsPanel.view.id}`

@@ -1,9 +1,7 @@
 import type { ResourceRef, TreeNode, TreeViewSection, WorkbenchModuleContext } from "@pstdio/workbench";
 
-// Mode ids are an OPEN SET of strings: dashboard-owned ("project" | "sessions")
-// plus any extension-declared mode id (e.g. "ticket", contributed by the tickets extension
-// through extension-mode-layout). The registry never hardcodes a closed union — keying by mode
-// is what lets extension contexts compose for free.
+// Mode ids are an open set: dashboard-owned ids plus any extension-declared mode id.
+// Keying by mode lets extension contexts compose without a host-owned union.
 type SidenavModeId = string;
 
 type SidenavContributionRegion = "header" | "body" | "footer";
@@ -23,6 +21,7 @@ interface SidenavContribution {
   modes: SidenavModeId[];
   order?: number;
   region?: SidenavContributionRegion;
+  defaultExpandedSectionIds?: string[];
   getSections?: (
     ctx: WorkbenchModuleContext,
     input: SidenavContributionInput,
@@ -113,3 +112,6 @@ export const getSidenavContributionHeaderNodes = (
 
 export const getSidenavContributionFooterNodes = (ctx: WorkbenchModuleContext, mode: SidenavModeId) =>
   matchingContributions(ctx, mode, "footer").flatMap((contribution) => contribution.getFooterNodes?.(ctx) ?? []);
+
+export const getSidenavContributionDefaultExpandedSectionIds = (ctx: SidenavTreeContext, mode: SidenavModeId) =>
+  matchingContributions(ctx, mode, "body").flatMap((contribution) => contribution.defaultExpandedSectionIds ?? []);
