@@ -57,7 +57,42 @@ resources/
 
 `app.asar` contains the Electron application. The architecture-matched Bun executable stays outside ASAR with executable permissions. Its manifest records the schema, platform, architecture, application version, executable name, and SHA-256 checksum. Desktop validates the target, permissions, checksum, manifest version, and executable-reported version before spawning it. A corrupt or incompatible package opens recovery with reinstall guidance and is never launched.
 
-Supported package targets are macOS arm64/x64, Linux x64, and Windows x64. Forge produces ZIP and DMG artifacts on macOS, ZIP and DEB artifacts on Linux, and Squirrel artifacts on Windows. The package enables ASAR integrity and an explicit full Electron fuse policy that disables Node execution, Node options, CLI inspection, and privileged `file://` behavior.
+Active release targets are macOS arm64/x64 and Linux x64. Forge retains the
+Windows x64 Squirrel configuration for the later signed Windows release, but CI
+does not build or publish it. Forge produces ZIP and DMG artifacts on macOS and
+ZIP and DEB artifacts on Linux. The package enables ASAR integrity and an
+explicit full Electron fuse policy that disables Node execution, Node options,
+CLI inspection, and privileged `file://` behavior.
+
+## Native releases and updates
+
+Desktop artifacts ship on the matching `pstdio@<version>` GitHub release. The
+private desktop package version is synchronized from `packages/pstdio` by the
+Changesets version command. Native release preparation rejects any drift between
+the Electron application, compiled sidecar, installer, sidecar manifest, and
+update metadata.
+
+`.github/workflows/release-desktop.yml` runs this native matrix:
+
+| Target | Native output | Release verification | Update path |
+| --- | --- | --- | --- |
+| macOS arm64 | DMG and ZIP | Developer ID signature, notarization staple, Gatekeeper, clean-home launch | Electron updater through release-owned JSON metadata |
+| macOS x64 | DMG and ZIP | Developer ID signature, notarization staple, Gatekeeper, clean-home launch | Electron updater through release-owned JSON metadata |
+| Linux x64 | DEB and portable ZIP | DEB inspection and clean-home launch | Distribution package manager or GitHub release page |
+
+Every target audits the packaged Electron fuse wire and emits a target manifest
+plus SHA-256 checksums. The publish job requires the complete three-target set,
+revalidates every checksum and component version, uploads the artifacts to the
+existing draft release, and only then publishes it. Native jobs receive read-only
+repository access; only the final publisher receives `contents: write`.
+
+The active native updater is configured only in a packaged macOS app. It resolves
+the newest complete `pstdio@<version>` release and points Electron at that
+release's update metadata. This avoids depending on services that require plain
+SemVer Git tags, which do not match the monorepo tag format. Source builds and
+Linux open the release page instead. The deferred Windows updater code remains
+inactive until the signed Windows lane returns. Release assets keep explicit
+platform and architecture names.
 
 ## Development and tests
 
@@ -97,3 +132,9 @@ Package recovery distinguishes these failures before process launch:
 - `version_mismatch`: Electron, the manifest, and `pstdio --version` disagree.
 
 Rebuild with `bun run --cwd clients/desktop package`. If an installed package reports one of these failures, reinstall the matching package artifact; do not copy an arbitrary CLI into `resources/bin` or point source Electron at a production-home runtime.
+
+Release-only failures are fail closed. Missing signing credentials, an invalid
+native signature, a failed notarization staple, an incomplete artifact matrix,
+or version/checksum drift leaves the GitHub release in draft. See [Desktop
+distribution and updates](/product/platform/desktop-distribution) for credential
+names, verification commands, and operator recovery.
