@@ -1,5 +1,6 @@
 import { isAbsolute } from "node:path";
 import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from "electron";
+import type { DesktopWorkbenchState } from "../desktop-api";
 import { DESKTOP_CHANNELS } from "../desktop-api";
 import type { DesktopState } from "../lifecycle/lifecycle-machine";
 import { isAllowedIpcSender } from "../security/ipc-security";
@@ -11,6 +12,7 @@ type DesktopIpcOptions = {
   confirmQuit: () => Promise<void>;
   copyDiagnostics: () => void;
   getState: () => DesktopState;
+  getWorkbenchState: () => DesktopWorkbenchState;
   ipcMain: IpcMain;
   lifecycleUrl: string;
   openLogs: () => void;
@@ -18,6 +20,8 @@ type DesktopIpcOptions = {
   quitApp: () => Promise<void>;
   retryRuntime: () => Promise<void>;
   runtimeOrigin: () => string | null;
+  setLastResource: (projectId: string, value: string | null) => void;
+  setSelectedProjectId: (projectId: string | null) => void;
   window: BrowserWindow;
 };
 
@@ -59,6 +63,19 @@ export const registerDesktopIpc = (options: DesktopIpcOptions) => {
   handle(DESKTOP_CHANNELS.copyDiagnostics, options.copyDiagnostics);
   handle(DESKTOP_CHANNELS.checkForUpdates, options.checkForUpdates);
   handle(DESKTOP_CHANNELS.quitApp, options.quitApp);
+  handle(DESKTOP_CHANNELS.getWorkbenchState, options.getWorkbenchState);
+  handle(DESKTOP_CHANNELS.setLastResource, (projectId, value) => {
+    if (typeof projectId !== "string" || !projectId || (typeof value !== "string" && value !== null)) {
+      throw new Error("Invalid desktop last resource update");
+    }
+    options.setLastResource(projectId, value);
+  });
+  handle(DESKTOP_CHANNELS.setSelectedProjectId, (projectId) => {
+    if (typeof projectId !== "string" && projectId !== null) {
+      throw new Error("Invalid desktop project selection update");
+    }
+    options.setSelectedProjectId(projectId);
+  });
 
   return () => {
     for (const channel of Object.values(DESKTOP_CHANNELS)) options.ipcMain.removeHandler(channel);

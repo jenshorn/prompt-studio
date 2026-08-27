@@ -12,6 +12,11 @@ const desktopApi: PromptStudioDesktopApi = Object.freeze({
   copyDiagnostics: () => ipcRenderer.invoke(DESKTOP_CHANNELS.copyDiagnostics),
   checkForUpdates: () => ipcRenderer.invoke(DESKTOP_CHANNELS.checkForUpdates),
   quitApp: () => ipcRenderer.invoke(DESKTOP_CHANNELS.quitApp),
+  getWorkbenchState: () => ipcRenderer.invoke(DESKTOP_CHANNELS.getWorkbenchState),
+  setLastResource: (projectId: string, value: string | null) =>
+    ipcRenderer.invoke(DESKTOP_CHANNELS.setLastResource, projectId, value),
+  setSelectedProjectId: (projectId: string | null) =>
+    ipcRenderer.invoke(DESKTOP_CHANNELS.setSelectedProjectId, projectId),
 });
 
 contextBridge.exposeInMainWorld("promptStudioDesktop", desktopApi);

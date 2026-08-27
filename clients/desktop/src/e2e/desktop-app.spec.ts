@@ -105,14 +105,18 @@ test("loads the existing runtime in a sandboxed window and detaches on quit", as
       await window.evaluate(() => Object.keys((globalThis as unknown as Window).promptStudioDesktop).sort()),
     ).toEqual([
       "cancelQuit",
+      "checkForUpdates",
       "confirmQuit",
       "copyDiagnostics",
       "getAppInfo",
       "getStartupState",
+      "getWorkbenchState",
       "openLogs",
       "quitApp",
       "retryRuntime",
       "revealInFinder",
+      "setLastResource",
+      "setSelectedProjectId",
     ]);
     expect(
       await electronApp.evaluate(({ BrowserWindow }) =>
