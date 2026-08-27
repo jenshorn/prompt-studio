@@ -61,10 +61,9 @@ const resolveWorkspaceTerminalResource = (ctx: WorkbenchModuleContext, resource:
   };
 };
 
-// The board, selected-resource breadcrumb, and tree resource menus all run the same
-// action, so a workspace behaves identically wherever it is surfaced. The board
-// listens to synced rows, so an archived/deleted workspace disappears once the write
-// streams back — the action just fires the call.
+// The table, selected-resource breadcrumb, and tree resource menus all run the same
+// action, so a workspace behaves identically wherever it is surfaced. These views
+// listen to synced rows, so the action only needs to fire the write.
 export const archiveWorkspaceResource = async (ctx: WorkbenchModuleContext, resource: ResourceRef) => {
   if (!resource.id) return;
 
@@ -131,7 +130,13 @@ export const ensureWorkspaceTerminalResource = (ctx: WorkbenchModuleContext, res
     });
   }
 
-  if (existing) return existing;
+  if (existing) {
+    if (existing.resource?.metadata?.workspacePath === terminalResource.metadata?.workspacePath) return existing;
+    return ctx.layout.updatePanel(existing.widgetId, {
+      resource: terminalResource,
+      title: existing.title,
+    });
+  }
 
   autoOpenedUris.add(resource.uri);
   return openWorkbenchTerminal(ctx, { resource: terminalResource, reveal: false });
