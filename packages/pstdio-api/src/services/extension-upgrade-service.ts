@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import type { ExtensionRelease } from "../app-config";
 import {
   getMarketplaceExtension,
   isMarketplaceExtension,
@@ -31,10 +32,9 @@ type RepoService = Pick<ReturnType<typeof createRepoService>, "listByProject">;
 type ExtensionUpgradeServiceDeps = {
   extensionService: ExtensionService;
   installExtensionSource?: (input: InstallExtensionSourceInput) => ReturnType<typeof installExtensionSourceDefault>;
-  releaseRef?: string;
+  release: ExtensionRelease | null;
   resolveReleaseCommit?: (releaseRef: string) => Promise<string>;
   repoService: RepoService;
-  sourceRoot?: string;
 };
 
 type UpgradeSource = {
@@ -92,12 +92,12 @@ export const resolveExtensionReleaseCommit = async (releaseRef: string, run = ru
 
 export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps) => {
   const install = deps.installExtensionSource ?? installExtensionSourceDefault;
-  const enabled = Boolean(deps.releaseRef);
+  const enabled = deps.release !== null;
   let releaseCommit: Promise<string> | undefined;
   const previewSources = new Map<string, ReturnType<typeof install>>();
   const currentReleaseCommit = () => {
-    if (!deps.releaseRef) return Promise.reject(new Error("No extension release ref is configured"));
-    releaseCommit ??= (deps.resolveReleaseCommit ?? resolveExtensionReleaseCommit)(deps.releaseRef);
+    if (!deps.release) return Promise.reject(new Error("No extension release ref is configured"));
+    releaseCommit ??= (deps.resolveReleaseCommit ?? resolveExtensionReleaseCommit)(deps.release.ref);
     return releaseCommit;
   };
   // The marketplace catalog decides whether an install slot is release-managed. Stored install
@@ -118,7 +118,7 @@ export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps)
   };
 
   const assertMarketplaceInstall = (installName: string) => {
-    if (!deps.releaseRef) {
+    if (!deps.release) {
       throw new ExtensionUpgradeUnavailableError("This Prompt Studio host does not provide a release extension ref.");
     }
     if (!isMarketplaceExtension(installName)) {
@@ -151,14 +151,16 @@ export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps)
 
   const installForRelease = async (installName: string, repoPath?: string) => {
     assertMarketplaceInstall(installName);
-    const source = deps.sourceRoot
-      ? join(deps.sourceRoot, marketplaceExtensionRepositoryPath(installName))
-      : installName;
+    const release = deps.release!;
+    const source =
+      release.source === "workspace"
+        ? join(release.root, marketplaceExtensionRepositoryPath(installName))
+        : installName;
     const installed = await install({
       source,
       installName,
       force: true,
-      ...(deps.sourceRoot ? { skipInstall: true } : { ref: deps.releaseRef }),
+      ...(release.source === "workspace" ? { skipInstall: true } : { ref: release.ref }),
       ...(repoPath ? { repoPath } : {}),
       reuseInstalledDependencies: true,
     });
@@ -175,6 +177,7 @@ export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps)
 
   const prepareMarketplaceExtensionSource = (installName: string) => {
     assertMarketplaceInstall(installName);
+    const release = deps.release!;
     const existing = previewSources.get(installName);
     if (existing) return existing;
 
@@ -182,18 +185,19 @@ export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps)
       resolvePstdioHome({ env: process.env }),
       "cache",
       "extension-catalog",
-      encodeURIComponent(deps.releaseRef!),
+      encodeURIComponent(release.ref),
     );
     const extension = getMarketplaceExtension(installName);
-    const source = deps.sourceRoot
-      ? join(deps.sourceRoot, marketplaceExtensionRepositoryPath(installName))
-      : installName;
+    const source =
+      release.source === "workspace"
+        ? join(release.root, marketplaceExtensionRepositoryPath(installName))
+        : installName;
     const preview = install({
       env: { ...process.env, PSTDIO_HOME: previewHome },
       source,
       installName,
       force: true,
-      ...(deps.sourceRoot ? { skipInstall: true } : { ref: deps.releaseRef }),
+      ...(release.source === "workspace" ? { skipInstall: true } : { ref: release.ref }),
       ...(extension?.scope === "repo" ? { repoPath: join(previewHome, "repo") } : {}),
       reuseInstalledDependencies: true,
     }).catch((error) => {
@@ -261,16 +265,7 @@ export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps)
     }
 
     const repoPath = await repoForSource(deps, projectId, existing.installedSource.source_path);
-    const installed = repoPath
-      ? await install({
-          source: existing.installedSource.install_name,
-          installName: existing.installedSource.install_name,
-          force: true,
-          ref: deps.releaseRef,
-          reuseInstalledDependencies: true,
-          repoPath,
-        })
-      : await installForRelease(existing.installedSource.install_name);
+    const installed = await installForRelease(existing.installedSource.install_name, repoPath);
     const installedSource = await deps.extensionService.registerInstalledSource({
       installName: installed.installName,
       ...toExtensionEnableInput(installed),
@@ -290,7 +285,7 @@ export const createExtensionUpgradeService = (deps: ExtensionUpgradeServiceDeps)
     enabled,
     installMarketplaceExtension,
     prepareMarketplaceExtensionSource,
-    releaseRef: deps.releaseRef,
+    releaseRef: deps.release?.ref,
     upgrade,
   };
 };

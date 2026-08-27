@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionMessage } from "pstdio-api-contracts";
-import { createApp } from "../../../app";
+import { createTestApp } from "../../../test-utils/create-test-app";
 import {
   createTestHarnessRecord,
   createTestHarnessRegistry,
@@ -26,12 +26,10 @@ test("completed session replay does not use a host-wide harness disabled for the
     if (scope?.projectId && disabledProjects.has(scope.projectId)) return null;
     return baseRegistry.get(id, scope);
   });
-  const handle = await createApp({
-    dbPath: ":memory:",
-    extensionWebviewBuilds: false,
-    filesRoot: "",
+  const handle = await createTestApp({
+    databasePath: ":memory:",
     harnessRegistry: { ...baseRegistry, get },
-    storagePath: join(root, "storage"),
+    storageRoot: join(root, "storage"),
   });
 
   try {

@@ -75,7 +75,7 @@ describe("extension upgrade service", () => {
     const releaseCommit = "a".repeat(40);
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
-      releaseRef: releaseCommit,
+      release: { source: "git", ref: releaseCommit },
       repoService: emptyRepoService,
     });
 
@@ -92,7 +92,7 @@ describe("extension upgrade service", () => {
     const resolveReleaseCommit = mock(async () => releaseCommit);
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
-      releaseRef: "pstdio@0.27.0",
+      release: { source: "git", ref: "pstdio@0.27.0" },
       resolveReleaseCommit,
       repoService: emptyRepoService,
     });
@@ -109,7 +109,7 @@ describe("extension upgrade service", () => {
   test("offers an upgrade when the installed commit is older than the host release", async () => {
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
-      releaseRef: "c".repeat(40),
+      release: { source: "git", ref: "c".repeat(40) },
       repoService: emptyRepoService,
     });
 
@@ -124,7 +124,7 @@ describe("extension upgrade service", () => {
   test("offers an upgrade for an incompatible marketplace source adopted without provenance", async () => {
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
-      releaseRef: "c".repeat(40),
+      release: { source: "git", ref: "c".repeat(40) },
       repoService: emptyRepoService,
     });
 
@@ -142,7 +142,7 @@ describe("extension upgrade service", () => {
   test("leaves a healthy source without provenance under local control", async () => {
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
-      releaseRef: "c".repeat(40),
+      release: { source: "git", ref: "c".repeat(40) },
       repoService: emptyRepoService,
     });
 
@@ -158,7 +158,7 @@ describe("extension upgrade service", () => {
   test("does not offer an upgrade for an extension outside the marketplace", async () => {
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
-      releaseRef: "c".repeat(40),
+      release: { source: "git", ref: "c".repeat(40) },
       repoService: emptyRepoService,
     });
 
@@ -189,7 +189,7 @@ describe("extension upgrade service", () => {
         registerInstalledSource,
       },
       installExtensionSource,
-      releaseRef: "pstdio@0.27.0",
+      release: { source: "git", ref: "pstdio@0.27.0" },
       resolveReleaseCommit: async () => "e".repeat(40),
       repoService: emptyRepoService,
     });
@@ -226,7 +226,7 @@ describe("extension upgrade service", () => {
     const service = createExtensionUpgradeService({
       extensionService: idleExtensionService,
       installExtensionSource: installExtensionSource as never,
-      releaseRef: "pstdio@0.27.0",
+      release: { source: "git", ref: "pstdio@0.27.0" },
       repoService: emptyRepoService,
     });
 
@@ -270,7 +270,7 @@ describe("extension upgrade service", () => {
         registerInstalledSource,
       },
       installExtensionSource,
-      releaseRef: "pstdio@0.27.0",
+      release: { source: "git", ref: "pstdio@0.27.0" },
       repoService: emptyRepoService,
     });
 
@@ -300,7 +300,7 @@ describe("extension upgrade service", () => {
       installExtensionSource: async () => {
         throw new Error("should not install");
       },
-      releaseRef: "pstdio@0.27.0",
+      release: { source: "git", ref: "pstdio@0.27.0" },
       repoService: emptyRepoService,
     });
 

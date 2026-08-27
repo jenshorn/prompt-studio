@@ -2,6 +2,38 @@ import { describe, expect, mock, test } from "bun:test";
 import { createExtensionUpgradeService } from "./extension-upgrade-service";
 
 describe("marketplace extension installation", () => {
+  test("loads marketplace sources from the configured workspace release", async () => {
+    const sourceRoot = "/workspace/prompt-studio";
+    const installExtensionSource = mock(async () => ({}) as never);
+    const service = createExtensionUpgradeService({
+      extensionService: {
+        enableInstalledSourceForProject: async () => null as never,
+        getInstalledSource: async () => null as never,
+        getProjectExtensionInstance: async () => null as never,
+        listProjectExtensionInstances: async () => [],
+        registerInstalledSource: async () => null as never,
+      },
+      installExtensionSource,
+      release: { source: "workspace", ref: "workspace-ref", root: sourceRoot },
+      repoService: { listByProject: async () => [] },
+    });
+
+    await service.prepareMarketplaceExtensionSource("pstdio-planner");
+
+    expect(installExtensionSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          PSTDIO_HOME: expect.stringContaining("cache/extension-catalog/workspace-ref"),
+        }),
+        force: true,
+        installName: "pstdio-planner",
+        reuseInstalledDependencies: true,
+        skipInstall: true,
+        source: `${sourceRoot}/extensions/pstdio-planner`,
+      }),
+    );
+  });
+
   test("installs a repo-scoped marketplace extension from the current source checkout", async () => {
     const repoPath = "/repos/project";
     const sourceRoot = "/checkout/prompt-studio";
@@ -55,7 +87,7 @@ describe("marketplace extension installation", () => {
         },
       },
       installExtensionSource,
-      releaseRef: "pstdio@0.27.0",
+      release: { source: "workspace", ref: "workspace-ref", root: sourceRoot },
       repoService: {
         listByProject: async () => [
           {
@@ -68,7 +100,6 @@ describe("marketplace extension installation", () => {
           },
         ],
       },
-      sourceRoot,
     });
 
     expect(await service.installMarketplaceExtension("project-1", "pstdio-planner-loops")).toMatchObject({
