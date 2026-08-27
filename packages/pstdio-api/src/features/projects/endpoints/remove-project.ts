@@ -1,4 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
+import { apiLogger } from "../../../lib/logger";
 import type { AppRouteHandler } from "../../../types";
 import { cleanupProjectArtifacts } from "../cleanup-project";
 import type { ProjectsRouteDeps } from "../deps";
@@ -40,9 +41,18 @@ export const removeProjectHandler = (deps: ProjectsRouteDeps): AppRouteHandler<t
     await cleanupProjectArtifacts(deps, id, {
       removeProjectStorage: deps.fileService.removeProjectStorage,
     });
+    const removeConnectionSecrets = await deps.extensionConnectionService.prepareProjectRemoval(id);
     await deps.syncService.emitCascadeDeletes("projects", id);
 
     await deps.projectService.hardDelete(id);
+    try {
+      await removeConnectionSecrets();
+    } catch (error) {
+      apiLogger.error(
+        { err: error, event: "extension.project_secret_cleanup.deferred", projectId: id },
+        "Project connection secret cleanup will retry at startup",
+      );
+    }
     return c.body(null, 204);
   };
 };

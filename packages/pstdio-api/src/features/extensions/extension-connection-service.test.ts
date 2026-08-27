@@ -16,6 +16,7 @@ describe("extension connection service", () => {
         get: async () => "credential-canary",
         set: async () => "secret-1",
         delete: async () => {},
+        listRefs: async () => ["secret-1"],
       },
       getContribution: async () => contribution,
       fetch: (async () => Response.json({ error: "unauthorized" }, { status: 401 })) as unknown as typeof fetch,
@@ -68,7 +69,7 @@ describe("extension connection service", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  test("deletes host credentials before project metadata is removed", async () => {
+  test("captures project credentials and deletes them after project metadata is removed", async () => {
     const deleteSecret = mock(async () => {});
     const service = createExtensionConnectionService({
       connectionsDBService: {
@@ -78,18 +79,21 @@ describe("extension connection service", () => {
         get: async () => null,
         set: async () => "secret-1",
         delete: deleteSecret,
+        listRefs: async () => ["secret-1"],
       },
       getContribution: async () => contribution,
       fetch,
     });
 
-    await service.removeProject("project-1");
+    const removeSecrets = await service.prepareProjectRemoval("project-1");
 
+    expect(deleteSecret).not.toHaveBeenCalled();
+    await removeSecrets();
     expect(deleteSecret).toHaveBeenCalledTimes(1);
     expect(deleteSecret).toHaveBeenCalledWith("secret-1");
   });
 
-  test("keeps connection metadata when credential deletion fails", async () => {
+  test("commits connection metadata removal when credential cleanup must retry", async () => {
     const remove = mock(async () => connection);
     const service = createExtensionConnectionService({
       connectionsDBService: { get: async () => connection, remove } as never,
@@ -99,6 +103,7 @@ describe("extension connection service", () => {
         delete: async () => {
           throw new Error("secret backend unavailable");
         },
+        listRefs: async () => ["secret-1"],
       },
       getContribution: async () => contribution,
       fetch,
@@ -106,8 +111,8 @@ describe("extension connection service", () => {
 
     await expect(
       service.remove({ projectId: "project-1", extensionId: "pstdio.remote", connectionId: "control-plane" }),
-    ).rejects.toThrow("secret backend unavailable");
-    expect(remove).not.toHaveBeenCalled();
+    ).resolves.toBe(true);
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 
   test("removes extension connection secrets and rows with retry-safe ordering", async () => {
@@ -123,6 +128,7 @@ describe("extension connection service", () => {
         get: async () => "credential-canary",
         set: async () => "secret-1",
         delete: deleteSecret,
+        listRefs: async () => ["secret-1"],
       },
       getContribution: async () => contribution,
       fetch,
@@ -133,7 +139,9 @@ describe("extension connection service", () => {
     expect(deleteSecret).toHaveBeenCalledWith("secret-1");
     expect(remove).toHaveBeenCalledTimes(1);
   });
+});
 
+describe("extension connection credential ownership", () => {
   test("removes a newly written credential when connection configuration fails", async () => {
     const deleteSecret = mock(async () => {});
     const service = createExtensionConnectionService({
@@ -150,6 +158,7 @@ describe("extension connection service", () => {
           return "secret-new";
         },
         delete: deleteSecret,
+        listRefs: async () => ["secret-1", "secret-new"],
       },
       getContribution: async () => contribution,
       fetch,
@@ -167,8 +176,8 @@ describe("extension connection service", () => {
     expect(deleteSecret).toHaveBeenCalledWith("secret-new");
   });
 
-  test("restores a deleted credential when removing connection metadata fails", async () => {
-    const restoreSecret = mock(async (_secret: string, ref?: string) => ref ?? "unexpected-ref");
+  test("keeps a credential when removing its connection metadata fails", async () => {
+    const deleteSecret = mock(async () => {});
     const service = createExtensionConnectionService({
       connectionsDBService: {
         get: async () => connection,
@@ -178,8 +187,9 @@ describe("extension connection service", () => {
       } as never,
       secretStore: {
         get: async () => "credential-canary",
-        set: restoreSecret,
-        delete: async () => {},
+        set: async () => "secret-1",
+        delete: deleteSecret,
+        listRefs: async () => ["secret-1"],
       },
       getContribution: async () => contribution,
       fetch,
@@ -188,7 +198,37 @@ describe("extension connection service", () => {
     await expect(
       service.remove({ projectId: "project-1", extensionId: "pstdio.remote", connectionId: "control-plane" }),
     ).rejects.toThrow("database unavailable");
-    expect(restoreSecret).toHaveBeenCalledWith("credential-canary", "secret-1");
+    expect(deleteSecret).not.toHaveBeenCalled();
+  });
+
+  test("reconciles stale connection rows and unreferenced secret files", async () => {
+    const rows = [connection];
+    const secretRefs = new Set(["secret-1", "secret-orphan"]);
+    const deletedSecrets: string[] = [];
+    const service = createExtensionConnectionService({
+      connectionsDBService: {
+        get: async () => rows[0] ?? null,
+        listAll: async () => rows,
+        remove: async () => rows.shift() ?? null,
+      } as never,
+      secretStore: {
+        get: async () => "credential-canary",
+        set: async () => "secret-1",
+        delete: async (ref: string) => {
+          deletedSecrets.push(ref);
+          secretRefs.delete(ref);
+        },
+        listRefs: async () => [...secretRefs],
+      },
+      getContribution: async () => contribution,
+      isExtensionInstalled: async () => false,
+      fetch,
+    });
+
+    await service.reconcile();
+
+    expect(rows).toEqual([]);
+    expect(deletedSecrets).toEqual(["secret-1", "secret-orphan"]);
   });
 
   test("rolls connection metadata back when the previous credential cannot be removed", async () => {
@@ -208,6 +248,7 @@ describe("extension connection service", () => {
         get: async () => "credential-canary",
         set: async () => "secret-new",
         delete: deleteSecret,
+        listRefs: async () => ["secret-1", "secret-new"],
       },
       getContribution: async () => contribution,
       fetch,

@@ -34,6 +34,7 @@ const createDeps = (input: { skills?: unknown[] } = {}) => {
     deps: {
       eventBus: { emit: mock(() => {}) },
       extensionAutomationPreferencesService: { set: mock(async (row: unknown) => row) },
+      extensionConnectionService: { removeExtension: mock(async () => {}) },
       extensionRuntimeCatalog: {
         get: mock(async () => ({ runtime: { schedules: [] as Array<Record<string, unknown>> } })),
         getInstalledSourceRuntime: mock(async () => ({ hooks: [], skills: input.skills ?? [] })),
@@ -52,6 +53,9 @@ const createDeps = (input: { skills?: unknown[] } = {}) => {
         installMarketplaceExtension: mock(async () => ({ instance: extensionInstance(true), installedSource })),
       },
       provisionProjectWorkspaces,
+      workspaceService: {
+        listForProviderReconciliation: mock(async (): Promise<Array<{ id: string; provider_id: string }>> => []),
+      },
     },
     provisionProjectWorkspaces,
     setProjectExtensionEnabled,
@@ -155,5 +159,57 @@ describe("project extension lifecycle", () => {
     });
 
     expect(result).toBe("retained-disabled");
+  });
+
+  test("blocks uninstall while the extension owns provider-backed workspaces", async () => {
+    const { deps } = createDeps();
+    deps.workspaceService.listForProviderReconciliation.mockResolvedValue([
+      { id: "workspace-1", provider_id: "test.example.workspace-type.remote" },
+    ]);
+    const lifecycle = createProjectExtensionLifecycle(deps as never);
+
+    await expect(
+      lifecycle.uninstall({ projectId: "project-1", instanceId: "instance-1", deleteUserData: true }),
+    ).rejects.toThrow("provider-backed workspace");
+    expect(deps.extensionConnectionService.removeExtension).not.toHaveBeenCalled();
+    expect(deps.extensionService.uninstallProjectExtension).not.toHaveBeenCalled();
+  });
+
+  test("keeps connection credentials when extension uninstall fails", async () => {
+    const { deps } = createDeps();
+    deps.extensionService.uninstallProjectExtension.mockRejectedValue(new Error("extension uninstall failed"));
+    const lifecycle = createProjectExtensionLifecycle(deps as never);
+
+    await expect(
+      lifecycle.uninstall({ projectId: "project-1", instanceId: "instance-1", deleteUserData: true }),
+    ).rejects.toThrow("extension uninstall failed");
+    expect(deps.extensionConnectionService.removeExtension).not.toHaveBeenCalled();
+  });
+
+  test("removes named connection credentials after extension uninstall commits", async () => {
+    const { deps } = createDeps();
+    const order: string[] = [];
+    deps.extensionConnectionService.removeExtension.mockImplementation(async () => {
+      order.push("connections");
+    });
+    deps.extensionService.uninstallProjectExtension.mockImplementation(async () => {
+      order.push("extension");
+      return { instance: extensionInstance(true), installedSource, retainedData: false };
+    });
+    const lifecycle = createProjectExtensionLifecycle(deps as never);
+
+    await lifecycle.uninstall({ projectId: "project-1", instanceId: "instance-1", deleteUserData: true });
+
+    expect(order).toEqual(["extension", "connections"]);
+  });
+
+  test("keeps a committed extension uninstall successful when connection cleanup must retry", async () => {
+    const { deps } = createDeps();
+    deps.extensionConnectionService.removeExtension.mockRejectedValue(new Error("connection cleanup failed"));
+    const lifecycle = createProjectExtensionLifecycle(deps as never);
+
+    await expect(
+      lifecycle.uninstall({ projectId: "project-1", instanceId: "instance-1", deleteUserData: true }),
+    ).resolves.toBe("removed");
   });
 });

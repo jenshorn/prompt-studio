@@ -1,4 +1,5 @@
 import type { ProjectExtensionInstance, WorkbenchExtensionAutomationRecord } from "pstdio-api-contracts";
+import { apiLogger } from "../../lib/logger";
 import { ExtensionUpgradeUnavailableError } from "../../services/extension-upgrade-service";
 import { provisionProjectWorkspaces } from "../workspaces/provision-coordinator";
 import type { ExtensionsRouteDeps } from "./deps";
@@ -14,6 +15,8 @@ export type ProjectExtensionLifecycle = ReturnType<typeof createProjectExtension
 export type ProjectExtensionLifecycleRouteDeps = ExtensionsRouteDeps & {
   projectExtensionLifecycle: ProjectExtensionLifecycle;
 };
+
+export class ExtensionProviderInUseError extends Error {}
 
 export const createProjectExtensionLifecycle = (deps: LifecycleDeps) => {
   const changesWorkspaceProvisioning = (
@@ -98,9 +101,27 @@ export const createProjectExtensionLifecycle = (deps: LifecycleDeps) => {
     const existing = await deps.extensionService.getProjectExtensionInstance(input.projectId, input.instanceId);
     if (!existing) return null;
     const requiresProvisioning = await changesWorkspaceProvisioning(existing.installedSource);
-
+    const providerPrefix = `${existing.installedSource.extension_id}.workspace-type.`;
+    const providerWorkspaces = (await deps.workspaceService.listForProviderReconciliation(input.projectId)).filter(
+      (workspace) => workspace.provider_id.startsWith(providerPrefix),
+    );
+    if (providerWorkspaces.length > 0) {
+      throw new ExtensionProviderInUseError(
+        `Extension still owns ${providerWorkspaces.length} provider-backed workspace(s). Delete them before uninstalling.`,
+      );
+    }
     const result = await deps.extensionService.uninstallProjectExtension(input);
     if (!result) return null;
+    if (input.deleteUserData) {
+      try {
+        await deps.extensionConnectionService.removeExtension(input.projectId, existing.installedSource.extension_id);
+      } catch (error) {
+        apiLogger.error(
+          { err: error, event: "extension.connection_cleanup.deferred", projectId: input.projectId },
+          "Extension connection cleanup will retry at startup",
+        );
+      }
+    }
 
     await provisionWhenRequired(input.projectId, requiresProvisioning);
     return result.retainedData ? ("retained-disabled" as const) : ("removed" as const);
