@@ -43,7 +43,8 @@ type FileResult = { kind: "file" | "fallback"; filePath: string };
 export const resolveFilePath = (root: string, urlPath: string): FileResult | null => {
   const decoded = decodeURIComponent(urlPath);
   const normalized = normalize(decoded).replace(/^(\.\.[/\\])+/, "");
-  const safePath = normalized.startsWith("/") ? normalized.slice(1) : normalized;
+  // `normalize("/")` is "\" on Windows, so strip a leading slash of either kind.
+  const safePath = normalized.replace(/^[/\\]+/, "");
 
   const filePath = join(root, safePath);
 

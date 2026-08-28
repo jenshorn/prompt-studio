@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { resolveDefaultDbPath, resolveDefaultStoragePath } from "./state-paths";
 
 const DATA_DIR = join(homedir(), ".pstdio");
@@ -38,7 +38,8 @@ test("resolveDefaultStoragePath returns path inside ~/.pstdio", () => {
 
 test("default state paths derive from PSTDIO_HOME when set", () => {
   process.env.PSTDIO_HOME = "/tmp/pstdio-dev-home";
+  const devHome = resolve("/tmp/pstdio-dev-home");
 
-  expect(resolveDefaultDbPath()).toBe("/tmp/pstdio-dev-home/pstdio.db");
-  expect(resolveDefaultStoragePath()).toBe("/tmp/pstdio-dev-home/storage");
+  expect(resolveDefaultDbPath()).toBe(join(devHome, "pstdio.db"));
+  expect(resolveDefaultStoragePath()).toBe(join(devHome, "storage"));
 });
