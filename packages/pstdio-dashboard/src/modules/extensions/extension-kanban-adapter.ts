@@ -15,13 +15,22 @@ import type { ResolvedWorkbenchExtensionMetadata } from "@/shared/extensions/ext
 import { resolveLocalizableString } from "@/shared/extensions/extension-localization";
 import { buildDashboardExtensionMenuRegistrations } from "@/shared/extensions/workbench-extension-contributions";
 import type { ExecuteDashboardExtensionCommand } from "./extension-command-handler";
-import { createWorkspaceBadgeRenderer } from "./extension-workspace-badge-renderer";
+import { createBadgeListRenderer } from "./extension-workspace-badge-renderer";
 
 type KanbanRecord = Parameters<NonNullable<WorkbenchExtensionKanbanRendererAdapter["resolveRowResource"]>>[0];
 type MenuRegistration = ReturnType<typeof buildDashboardExtensionMenuRegistrations>["registrations"][number];
 
 const isWorkbenchResource = (resource: unknown): resource is ResourceRef =>
   Boolean(resource && typeof resource === "object" && typeof (resource as { kind?: unknown }).kind === "string");
+
+const hasOnlyWorkspaceBadgeResources = (value: unknown) =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const resource = (item as { resource?: unknown }).resource;
+    return Boolean(resource && typeof resource === "object" && (resource as { type?: unknown }).type === "workspace");
+  });
 
 export const toDashboardExtensionResource = (resource: unknown, projectId: string): ResourceRef | undefined => {
   if (!resource || typeof resource !== "object") return undefined;
@@ -75,14 +84,22 @@ const decorateAttribute = (
   projectId: string,
   attribute: AttributeDescriptor,
 ): AttributeDescriptor => {
-  if (attribute.display?.kind !== "workspace-badge") return attribute;
+  if (attribute.display?.kind !== "badge-list") return attribute;
+  const genericRender = attribute.render;
+  const itemsAttributeId = attribute.display.itemsAttributeId;
+  const workspaceRender = createBadgeListRenderer({
+    itemsAttributeId,
+    projectId,
+    openResource: (resource) => void ctx.resources.openResource(resource, { replaceActive: true }),
+  });
   return {
     ...attribute,
-    render: createWorkspaceBadgeRenderer({
-      itemsAttributeId: attribute.display.itemsAttributeId,
-      projectId,
-      openResource: (resource) => void ctx.resources.openResource(resource, { replaceActive: true }),
-    }),
+    render: (value, row) => {
+      const items = row.attributes[itemsAttributeId];
+      return hasOnlyWorkspaceBadgeResources(items)
+        ? workspaceRender(value, row)
+        : (genericRender?.(value, row) ?? null);
+    },
   };
 };
 

@@ -1,5 +1,6 @@
 import type { CommandExecuteRequest } from "@pstdio/sdk/api";
 import type { KanbanRendererBoardColumnConfig as WireBoardColumnConfig } from "@pstdio/sdk/extensions";
+import { renderBadgeListDisplay } from "@pstdio/ui/kanban-renderer";
 import type { WorkbenchExtensionKanbanRendererRecord } from "pstdio-api-contracts";
 import { text } from "pstdio-extensions/workbench";
 import { createElement } from "react";
@@ -15,6 +16,7 @@ import { WorkbenchIcon } from "../../react";
 import { toWorkbenchNavigationTargetResult } from "../host/extension-navigation-target";
 import type { InternalWorkbenchExtensionMetadata as WorkbenchExtensionMetadata } from "../host/internal-workbench-extension-metadata";
 import type { WorkbenchExtensionCommandContext } from "../host/workbench-extension-command";
+import { toWorkbenchResource } from "../host/workbench-extension-command";
 import {
   createMutableAttributeSource,
   defaultResolveRowActionResource,
@@ -162,30 +164,24 @@ const createStatusOptionsResolver = (
   };
 };
 
-const statusColumnConfig = (
+const statusColorConfig = (
   context: WorkbenchExtensionCommandContext,
   record: WorkbenchExtensionKanbanRendererRecord,
   attributes: WorkbenchExtensionKanbanRendererRecord["attributes"],
+  groupingAttributeId: string | undefined,
   groupKey: string,
 ): WireBoardColumnConfig | undefined => {
-  for (const attribute of attributes ?? []) {
-    if (attribute.type.kind !== "status") continue;
-    const id = statusSetId(record, attribute.type.statuses);
-    const status = context.workbench.statuses.getStatuses(id)?.find((candidate) => candidate.id === groupKey);
-    if (!status) continue;
-    const set = context.workbench.statuses.getStatusSet(id);
-    return {
-      color: status.color,
-      canCreate: status.board?.canCreate,
-      canDragIn: status.board?.canDragIn,
-      canDragOut: status.board?.canDragOut,
-      actions: status.board?.actions?.flatMap((actionId) => {
-        const action = set?.actions?.find((candidate) => candidate.id === actionId);
-        return action ? [{ id: action.id, label: action.label, icon: action.icon }] : [];
-      }),
-    };
-  }
-  return undefined;
+  const attribute = attributes?.find((candidate) => candidate.id === groupingAttributeId);
+  if (attribute?.type.kind !== "status") return undefined;
+  const id = statusSetId(record, attribute.type.statuses);
+  const status = context.workbench.statuses.getStatuses(id)?.find((candidate) => candidate.id === groupKey);
+  return status ? { color: status.color } : undefined;
+};
+
+const initialColumnGrouping = (record: WorkbenchExtensionKanbanRendererRecord) => {
+  if (record.defaultSettings?.columnGrouping) return record.defaultSettings.columnGrouping;
+  const statusAttributes = record.attributes?.filter((attribute) => attribute.type.kind === "status") ?? [];
+  return statusAttributes.length === 1 ? statusAttributes[0]?.id : undefined;
 };
 
 const createRowActionIcon = (icon: string | undefined) =>
@@ -300,7 +296,23 @@ export const registerWorkbenchExtensionKanbanRenderers = (
   const disposables: Disposable[] = [];
   const localize: Localizer =
     adapter.resolveLabel ?? ((value, fallback) => text(value as Parameters<typeof text>[0], fallback));
-  const decorate = adapter.decorateAttribute ?? ((_, attribute) => attribute);
+  const decorate = (record: WorkbenchExtensionKanbanRendererRecord, attribute: AttributeDescriptor) => {
+    const withBuiltInDisplay =
+      attribute.display?.kind === "badge-list"
+        ? {
+            ...attribute,
+            render: (value: unknown, row: KanbanRendererRow) =>
+              renderBadgeListDisplay(
+                attribute,
+                value,
+                row,
+                (resource) =>
+                  void context.workbench.resources.openResource(toWorkbenchResource(resource), { replaceActive: true }),
+              ),
+          }
+        : attribute;
+    return adapter.decorateAttribute?.(record, withBuiltInDisplay) ?? withBuiltInDisplay;
+  };
   const resolveRowResource = adapter.resolveRowResource ?? defaultResolveRowResource;
   const resolveRowActionResource = adapter.resolveRowActionResource ?? defaultResolveRowActionResource;
   const afterMutation = adapter.onAfterMutation ?? (() => {});
@@ -317,16 +329,26 @@ export const registerWorkbenchExtensionKanbanRenderers = (
 
   for (const record of records) {
     const resolveStatusOptions = createStatusOptionsResolver(context, record);
+    const reportUnknownDisplay = (attributeId: string, kind: string) =>
+      context.workbench.notifications.show({
+        id: `workbench.extension.${record.extensionId}.kanban.${record.id}.display.${attributeId}`,
+        level: "error",
+        title: "Extension display is not available",
+        message: `Attribute "${attributeId}" in renderer "${record.id}" uses unknown display kind "${kind}".`,
+      });
     const attributes = createMutableAttributeSource(
       record,
       record.attributes,
       localize,
       decorate,
       resolveStatusOptions,
+      reportUnknownDisplay,
     );
     let wireAttributes = record.attributes;
+    let columnGrouping = initialColumnGrouping(record);
     const originalRows = new WeakMap<KanbanRendererRow, KanbanRendererRow>();
     let columnConfigs: ColumnConfigRecord | undefined;
+    let latestQueryId = 0;
     const rowResource = (row: KanbanRendererRow) => resolveRowResource(record, row);
     const toActivatedRow = (row: KanbanRendererRow) => originalRows.get(row) ?? row;
 
@@ -351,35 +373,36 @@ export const registerWorkbenchExtensionKanbanRenderers = (
         createRow: toCreateRowConfig(record, localize),
         getBoardColumnConfig: (groupKey) =>
           toWorkbenchBoardColumnConfig(
-            columnConfigs?.[groupKey] ?? statusColumnConfig(context, record, wireAttributes, groupKey),
+            columnConfigs?.[groupKey] ?? statusColorConfig(context, record, wireAttributes, columnGrouping, groupKey),
             localize,
           ),
         onRowActivate: toRowClick(context, record, adapter, resolveRowResource, toActivatedRow),
         executeQuery: async (state: KanbanRendererQueryState) => {
+          latestQueryId += 1;
+          const queryId = latestQueryId;
           const value = await executeKanbanRendererCommand(context, record, record.queryHandlerId, {
             settings: state.settings,
             filters: state.filters,
           });
-          if (Array.isArray(value)) {
-            return value.map((row) => {
+          const mapRows = (rows: unknown[]) =>
+            rows.map((row) => {
               const mapped = toWorkbenchRow(row, rowResource);
               originalRows.set(mapped, row as KanbanRendererRow);
               return mapped;
             });
+          if (queryId !== latestQueryId) {
+            if (Array.isArray(value)) return mapRows(value);
+            return isQueryResult(value) ? mapRows(value.rows ?? []) : [];
           }
+
+          columnGrouping = state.settings.columnGrouping;
+          if (Array.isArray(value)) return mapRows(value);
           if (!isQueryResult(value)) return [];
           const nextAttributes = value.attributes ?? wireAttributes;
-          if (value.boardColumnConfigs && nextAttributes?.some((attribute) => attribute.type.kind === "status")) {
-            throw new Error(`Status-backed Kanban renderer "${record.id}" cannot return boardColumnConfigs`);
-          }
           wireAttributes = nextAttributes;
           attributes.set(nextAttributes);
           columnConfigs = value.boardColumnConfigs;
-          return (value.rows ?? []).map((row) => {
-            const mapped = toWorkbenchRow(row, rowResource);
-            originalRows.set(mapped, row as KanbanRendererRow);
-            return mapped;
-          });
+          return mapRows(value.rows ?? []);
         },
         onAttributeChange: record.attributeChangeHandlerId
           ? (rowId, attributeId, value) =>

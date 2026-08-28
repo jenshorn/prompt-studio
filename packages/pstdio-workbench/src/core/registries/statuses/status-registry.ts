@@ -7,13 +7,6 @@ import {
 import { createDisposable, type Disposable } from "../../shared/disposable";
 import { createWorkbenchStore, type WorkbenchStore } from "../../shared/store/workbench-store";
 
-export interface WorkflowStatusBoardRules {
-  canCreate?: boolean;
-  canDragIn?: boolean;
-  canDragOut?: boolean;
-  actions?: readonly string[];
-}
-
 export interface WorkflowStatus {
   id: string;
   label: string;
@@ -21,7 +14,7 @@ export interface WorkflowStatus {
   icon?: string | null;
   sortOrder: number;
   isDefault?: boolean;
-  board?: WorkflowStatusBoardRules;
+  actions?: readonly string[];
 }
 
 export interface WorkflowStatusAction {
@@ -61,7 +54,7 @@ const validateStatusActions = (
   status: WorkflowStatus,
   actionIds: ReadonlySet<string>,
 ) => {
-  for (const actionId of status.board?.actions ?? []) {
+  for (const actionId of status.actions ?? []) {
     if (!actionIds.has(actionId)) {
       throw new Error(`Status "${set.id}.${status.id}" references unknown action "${actionId}"`);
     }
@@ -80,8 +73,8 @@ const validateStatuses = (set: WorkbenchStatusSetContribution, statuses: readonl
     if (!status.label.trim()) throw new Error(`Status "${set.id}.${status.id}" must have a label`);
     if (!status.color.trim()) throw new Error(`Status "${set.id}.${status.id}" must have a color`);
     if (!Number.isFinite(status.sortOrder)) throw new Error(`Status "${set.id}.${status.id}" must have a finite order`);
-    if (status.isDefault) defaultCount += 1;
     validateStatusActions(set, status, actionIds);
+    if (status.isDefault) defaultCount += 1;
   }
 
   if (defaultCount > 1) throw new Error(`Status set "${set.id}" has more than one default status`);

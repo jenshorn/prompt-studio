@@ -10,14 +10,13 @@ const ticketStatuses: WorkflowStatus[] = [
     color: "gray",
     sortOrder: 100,
     isDefault: true,
-    board: { canCreate: true, canDragIn: true, canDragOut: true },
   },
   {
     id: "done",
     label: "Done",
     color: "green",
     sortOrder: 200,
-    board: { canDragIn: true, canDragOut: true },
+    actions: ["archive_all"],
   },
 ];
 
@@ -25,6 +24,7 @@ const severalProvidersWorkbench = createWorkbenchCore();
 severalProvidersWorkbench.statuses.registerStatusSet({
   id: "planner.ticket",
   title: "Ticket statuses",
+  actions: [{ id: "archive_all", label: "Archive all", icon: "archive" }],
   query: async () => ticketStatuses,
   save: async (statuses) => statuses,
 });

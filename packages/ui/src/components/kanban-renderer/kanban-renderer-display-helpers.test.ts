@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { isValidElement } from "react";
 
-import { WorkspaceBadge } from "@/components/primitives/workspace-badge";
+import { CollectionBadge } from "./collection-badge";
 import {
   collectDisplayBadges,
   collectDisplayCustomSlots,
   getAttributeBadgeColorPalette,
+  renderBadgeListDisplay,
 } from "./kanban-renderer-helpers";
 import type { AttributeDescriptor, KanbanRendererRow } from "./types";
 
@@ -36,13 +37,13 @@ const attributes: AttributeDescriptor[] = [
   },
 ];
 
-const workspaceAttributes: AttributeDescriptor[] = [
+const badgeListAttributes: AttributeDescriptor[] = [
   {
     id: "workspace",
     label: "Workspace",
     type: { kind: "string" },
     displayable: true,
-    display: { kind: "workspace-badge", itemsAttributeId: "workspaceItems" },
+    display: { kind: "badge-list", itemsAttributeId: "workspaceItems" },
   },
 ];
 
@@ -98,7 +99,7 @@ describe("collectDisplayBadges", () => {
       },
     };
 
-    expect(collectDisplayBadges(row, workspaceAttributes, ["workspace"])).toEqual([]);
+    expect(collectDisplayBadges(row, badgeListAttributes, ["workspace"])).toEqual([]);
   });
 });
 
@@ -151,29 +152,42 @@ describe("collectDisplayCustomSlots", () => {
     expect(collectDisplayCustomSlots(row, renderedAttributes, ["diffOverview"])).toEqual([]);
   });
 
-  it("emits workspace badge display properties as custom slots", () => {
+  it("exposes every badge list resource", () => {
     const row: KanbanRendererRow = {
       id: "1",
       title: "A",
       attributes: {
         workspace: "workspace-2",
         workspaceItems: [
-          { id: "workspace-1", name: "First attempt", shorthand: "T-1_A1", type: "worktree" },
-          { id: "workspace-2", name: "Latest attempt", shorthand: "T-1_A2", type: "current_branch" },
+          {
+            id: "workspace-1",
+            label: "T-1_A1",
+            icon: "GitBranch",
+            resource: { type: "workspace", id: "workspace-1" },
+          },
+          {
+            id: "workspace-2",
+            label: "T-1_A2",
+            icon: "GitCommit",
+            resource: { type: "workspace", id: "workspace-2" },
+          },
         ],
       },
     };
 
-    const [slot] = collectDisplayCustomSlots(row, workspaceAttributes, ["workspace"]);
+    const opened: string[] = [];
+    const slot = renderBadgeListDisplay(badgeListAttributes[0]!, "workspace-2", row, (resource) =>
+      opened.push(resource.id),
+    );
 
-    expect(isValidElement(slot)).toBe(true);
-    if (!isValidElement(slot)) throw new Error("Expected a workspace badge element");
-    expect(slot.type).toBe(WorkspaceBadge);
-    expect(slot.props).toMatchObject({
-      workspaceType: "current_branch",
-      shorthand: "T-1_A2",
-      hasMultipleWorkspaces: true,
-      showLeadingSessionIndicator: false,
-    });
+    expect(Array.isArray(slot)).toBe(true);
+    if (!Array.isArray(slot)) throw new Error("Expected a badge element for each item");
+    expect(slot).toHaveLength(2);
+    for (const badge of slot) expect(isValidElement(badge) && badge.type).toBe(CollectionBadge);
+    expect(slot.map((badge) => badge.props.label)).toEqual(["T-1_A2", "T-1_A1"]);
+
+    slot[0].props.onClick();
+    slot[1].props.onClick();
+    expect(opened).toEqual(["workspace-2", "workspace-1"]);
   });
 });
