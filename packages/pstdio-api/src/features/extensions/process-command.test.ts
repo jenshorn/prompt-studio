@@ -29,6 +29,33 @@ describe("resolveProcessCommand", () => {
     ]);
   });
 
+  test("switches a Windows .ps1 shim to its sibling .cmd", () => {
+    const ps1 = "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.ps1";
+    const cmd = "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd";
+    const command = resolveProcessCommand(
+      ["codex", "--version"],
+      (name) => (name === "codex" ? ps1 : null),
+      "win32",
+      "cmd.exe",
+      (path) => path === cmd,
+    );
+
+    expect(command).toEqual(["cmd.exe", "/d", "/s", "/c", "call", cmd, "--version"]);
+  });
+
+  test("runs a lone Windows .ps1 shim through powershell", () => {
+    const ps1 = "C:\\Tools\\only.ps1";
+    const command = resolveProcessCommand(
+      ["only", "--version"],
+      (name) => (name === "only" ? ps1 : null),
+      "win32",
+      "cmd.exe",
+      () => false,
+    );
+
+    expect(command).toEqual(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, "--version"]);
+  });
+
   test("leaves path commands unchanged", () => {
     const command = resolveProcessCommand([".\\tools\\codex.cmd", "--version"], () => "ignored");
 

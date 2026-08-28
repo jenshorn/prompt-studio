@@ -121,6 +121,19 @@ const isWindowsShim = (command: string) => {
   return lower.endsWith(".cmd") || lower.endsWith(".bat");
 };
 
+// `Bun.which` can land on `codex.ps1` when PATHEXT lists `.PS1` before `.CMD`,
+// and neither `spawn` nor `cmd.exe` can run a `.ps1`. npm always writes the
+// sibling `.cmd`/`.exe` next to it, so switch to that.
+const preferSpawnableSibling = (command: string, exists: (command: string) => boolean) => {
+  if (!command.toLowerCase().endsWith(".ps1")) return command;
+
+  const base = command.slice(0, -".ps1".length);
+  for (const extension of [".cmd", ".bat", ".exe"]) {
+    if (exists(base + extension)) return base + extension;
+  }
+  return command;
+};
+
 export const resolveCodexCommand = (
   input: {
     exists?: (command: string) => boolean;
@@ -134,7 +147,8 @@ export const resolveCodexCommand = (
   const resolved = which("codex");
 
   if (platform === "win32" && resolved) {
-    return resolveNativeCodex(resolved, exists) ?? resolved;
+    const target = preferSpawnableSibling(resolved, exists);
+    return resolveNativeCodex(target, exists) ?? target;
   }
 
   return resolved ?? "codex";

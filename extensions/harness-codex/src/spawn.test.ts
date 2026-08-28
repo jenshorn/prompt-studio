@@ -108,6 +108,18 @@ describe("resolveCodexCommand", () => {
 
     expect(command).toBe(native);
   });
+
+  test("switches a Windows .ps1 shim to its sibling .cmd", () => {
+    const cmd = "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd";
+
+    const command = resolveCodexCommand({
+      platform: "win32",
+      which: () => "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.ps1",
+      exists: (candidate) => candidate === cmd,
+    });
+
+    expect(command).toBe(cmd);
+  });
 });
 
 describe("startCodexSession", () => {
