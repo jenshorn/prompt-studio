@@ -87,6 +87,11 @@ export type SpawnDeps = {
   spawnProcess: (args: string[], options?: { cwd?: string; env?: Record<string, string> }) => SpawnedChild;
 };
 
+// On Windows, `npm i -g @openai/codex` only puts a `codex.cmd` shim on PATH.
+// This harness pipes stdio for a long-lived JSON protocol, so we want the real
+// executable rather than an extra `cmd.exe` layer between us and the process.
+// The vendored layout below is best-effort and tracks @openai/codex's current
+// packaging; if it moves, we fall back to running the shim through a shell.
 const resolveNativeCodex = (command: string, exists: (command: string) => boolean) => {
   if (win32.basename(command).toLowerCase() !== "codex.cmd") return null;
 
@@ -109,6 +114,11 @@ const resolveNativeCodex = (command: string, exists: (command: string) => boolea
   ];
 
   return candidates.find(exists) ?? null;
+};
+
+const isWindowsShim = (command: string) => {
+  const lower = command.toLowerCase();
+  return lower.endsWith(".cmd") || lower.endsWith(".bat");
 };
 
 export const resolveCodexCommand = (
@@ -134,11 +144,16 @@ const defaultSpawnProcess = (
   args: string[],
   options?: { cwd?: string; env?: Record<string, string> },
 ): SpawnedChild => {
-  const child = spawn(resolveCodexCommand(), args, {
+  const command = resolveCodexCommand();
+  // `child_process.spawn` can't launch a `.cmd`/`.bat` directly on Windows;
+  // fall back to a shell only when we couldn't resolve the native binary.
+  const useShell = process.platform === "win32" && isWindowsShim(command);
+  const child = spawn(command, args, {
     stdio: ["pipe", "pipe", "pipe"],
     cwd: options?.cwd,
     env: { ...process.env, ...options?.env },
     windowsHide: true,
+    shell: useShell,
   }) as ChildProcess;
 
   child.on("error", (err) => {

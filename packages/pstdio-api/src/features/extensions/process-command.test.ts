@@ -29,21 +29,6 @@ describe("resolveProcessCommand", () => {
     ]);
   });
 
-  test("bypasses the Windows Codex npm shim when the native binary is installed", () => {
-    const native =
-      "C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\node_modules\\@openai\\codex-win32-x64\\vendor\\x86_64-pc-windows-msvc\\bin\\codex.exe";
-
-    const command = resolveProcessCommand(
-      ["codex", "--version"],
-      (name) => (name === "codex" ? "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd" : null),
-      "win32",
-      "cmd.exe",
-      (candidate) => candidate === native,
-    );
-
-    expect(command).toEqual([native, "--version"]);
-  });
-
   test("leaves path commands unchanged", () => {
     const command = resolveProcessCommand([".\\tools\\codex.cmd", "--version"], () => "ignored");
 

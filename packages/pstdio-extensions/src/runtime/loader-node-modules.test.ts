@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { EXTENSION_API_VERSION } from "pstdio-api-contracts/extension-kernel";
 import type { ExtensionDiagnostic } from "../types/runtime";
 import { loadExtensionPackage } from "./loader";
 
@@ -29,7 +30,7 @@ const writePackage = (dir: string) => {
         version: "1.0.0",
         publisher: "pstdio",
         main: "./extension.ts",
-        engines: { pstdio: "^1.0.0" },
+        engines: { pstdio: EXTENSION_API_VERSION },
       },
       null,
       2,

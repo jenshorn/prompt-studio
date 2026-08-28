@@ -1,15 +1,7 @@
 import { createHash } from "node:crypto";
-import {
-  copyFileSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  symlinkSync,
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
+import { mirrorPackageChild } from "./mirror-package-child";
 
 const moduleExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"];
 const executableExtensions = new Set(moduleExtensions.filter((extension) => extension !== ".json"));
@@ -82,11 +74,6 @@ export const hashRuntimeModulePaths = (packagePath: string, modulePaths: Set<str
   return hash.digest("hex").slice(0, 16);
 };
 
-const symlinkPackageChild = (sourcePath: string, targetPath: string) => {
-  const stats = lstatSync(sourcePath);
-  symlinkSync(sourcePath, targetPath, stats.isDirectory() ? "junction" : "file");
-};
-
 const containsRuntimeModule = (relativePath: string, modulePaths: Set<string>) =>
   [...modulePaths].some((modulePath) => modulePath.startsWith(`${relativePath}/`));
 
@@ -108,7 +95,7 @@ export const mirrorRuntimeSourceSnapshot = (packagePath: string, targetPath: str
       } else if (dirent.isFile() && modulePaths.has(relativePath)) {
         copyFileSync(sourceChild, targetChild);
       } else {
-        symlinkPackageChild(sourceChild, targetChild);
+        mirrorPackageChild(sourceChild, targetChild);
       }
     }
   };

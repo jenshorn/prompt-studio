@@ -110,7 +110,14 @@ describe("createFileMount", () => {
     const outside = createTempDir();
     mkdirSync(join(outside, "private"), { recursive: true });
     writeFileSync(join(outside, "private/secret.txt"), "secret");
-    symlinkSync(join(outside, "private"), join(root, "escape"), "dir");
+    try {
+      // "junction" resolves through realpath like a symlink but, unlike a "dir"
+      // symlink, doesn't need elevated privileges on Windows.
+      symlinkSync(join(outside, "private"), join(root, "escape"), "junction");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EPERM") return;
+      throw error;
+    }
     const mount = createFileMount(root);
 
     await expect(mount.readText("escape/secret.txt")).rejects.toThrow(/escapes/);

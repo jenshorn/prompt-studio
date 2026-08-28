@@ -20,8 +20,27 @@ export const createRunSetup =
 
 export const runSetup = createRunSetup();
 
-const shellCommandFor = (script: string) =>
-  process.platform === "win32" ? [process.env.ComSpec ?? "cmd.exe", "/d", "/s", "/c", script] : ["sh", "-c", script];
+type ShellResolver = (command: string) => string | null;
+
+const defaultWhich: ShellResolver = (command) => (typeof Bun.which === "function" ? Bun.which(command) : null);
+
+/**
+ * Setup scripts are authored as POSIX shell. On Windows we still prefer a real
+ * shell — Git for Windows ships `bash` — and only fall back to `cmd.exe` (which
+ * can't run `&&`, `$VAR`, or POSIX quoting) when no POSIX shell is on PATH.
+ */
+export const shellCommandFor = (
+  script: string,
+  platform: NodeJS.Platform | "win32" = process.platform,
+  which: ShellResolver = defaultWhich,
+): string[] => {
+  if (platform !== "win32") return ["sh", "-c", script];
+
+  const posixShell = which("bash") ?? which("sh");
+  if (posixShell) return [posixShell, "-c", script];
+
+  return [process.env.ComSpec ?? "cmd.exe", "/d", "/s", "/c", script];
+};
 
 export const runSetupScript = async (opts: { worktreePath: string; script: string }) => {
   return runSetup({

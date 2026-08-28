@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createRunSetup, runSetup, runSetupScript } from "./setup";
+import { createRunSetup, runSetup, runSetupScript, shellCommandFor } from "./setup";
 
 let worktreePath: string;
 
@@ -75,13 +75,27 @@ describe("runSetup", () => {
   });
 });
 
+describe("shellCommandFor", () => {
+  test("uses sh -c off Windows", () => {
+    expect(shellCommandFor("echo hi", "linux")).toEqual(["sh", "-c", "echo hi"]);
+  });
+
+  test("prefers a POSIX shell on Windows", () => {
+    const command = shellCommandFor("echo hi", "win32", (name) => (name === "bash" ? "C:\\Git\\bin\\bash.exe" : null));
+    expect(command).toEqual(["C:\\Git\\bin\\bash.exe", "-c", "echo hi"]);
+  });
+
+  test("falls back to cmd.exe when no POSIX shell is on PATH", () => {
+    const command = shellCommandFor("echo hi", "win32", () => null);
+    expect(command).toEqual([process.env.ComSpec ?? "cmd.exe", "/d", "/s", "/c", "echo hi"]);
+  });
+});
+
 describe("runSetupScript", () => {
-  test("runs a shell script string", async () => {
-    const script =
-      process.platform === "win32" ? "echo from script && dir /b README.md" : "echo 'from script' && ls README.md";
+  test("runs a POSIX shell script string", async () => {
     const result = await runSetupScript({
       worktreePath,
-      script,
+      script: "echo 'from script' && ls README.md",
     });
 
     expect(result.exitCode).toBe(0);
