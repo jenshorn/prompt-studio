@@ -95,11 +95,11 @@ bun run pstdio:local:add  # put `pst` and `pstdio` on your PATH, pointing at thi
 pst                       # start the API and dashboard, then open the browser
 ```
 
-`pstdio:local:add` installs thin wrappers that run the CLI from source (`bun --conditions=source`), so changes to CLI or API code take effect on the next run with no rebuild. Only the dashboard needs `bun run build` again. Remove the wrappers with `bun run pstdio:local:remove`.
+`pstdio:local:add` installs a thin `#!/bin/sh` wrapper that runs `bun packages/pstdio/src/index.ts` from this checkout (no `--conditions` flag), so edits to CLI or API source take effect on the next `pst` run with no rebuild. What `pst serve` still loads from disk has to be built first, though: rerun `bun run build` after changing the dashboard (served from `packages/pstdio-dashboard/dist`), and regenerate Drizzle migrations after a schema change (see [Database Development](#database-development) below). The initial `bun run build` above also vendors the PGlite runtime assets and writes `packages/pstdio/src/_embed-manifest.generated.ts`, which the CLI entry imports on startup. Remove the wrapper with `bun run pstdio:local:remove`.
 
 `pst` runs against the real `~/.pstdio` home, unlike `bun run dev:isolated` (Docker, isolated) or `bun run dev` (`~/.pstdio-dev`).
 
-For a one-off invocation without installing the wrappers:
+For a one-off invocation without installing the wrapper:
 
 ```bash
 bun run --cwd packages/pstdio pstdio -- --help
