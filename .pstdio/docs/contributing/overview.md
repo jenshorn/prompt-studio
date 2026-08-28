@@ -84,7 +84,22 @@ The installed executable is available as either `pst` or `pstdio`. Discover the 
 pst --help
 ```
 
-To run the CLI directly from a source checkout:
+### Run `pst` from this checkout
+
+To use the `pst` / `pstdio` commands directly, backed by your working tree:
+
+```bash
+bun install               # install dependencies
+bun run build             # build packages, including the dashboard assets `pst serve` serves
+bun run pstdio:local:add  # put `pst` and `pstdio` on your PATH, pointing at this checkout
+pst                       # start the API and dashboard, then open the browser
+```
+
+`pstdio:local:add` installs thin wrappers that run the CLI from source (`bun --conditions=source`), so changes to CLI or API code take effect on the next run with no rebuild. Only the dashboard needs `bun run build` again. Remove the wrappers with `bun run pstdio:local:remove`.
+
+`pst` runs against the real `~/.pstdio` home, unlike `bun run dev:isolated` (Docker, isolated) or `bun run dev` (`~/.pstdio-dev`).
+
+For a one-off invocation without installing the wrappers:
 
 ```bash
 bun run --cwd packages/pstdio pstdio -- --help
