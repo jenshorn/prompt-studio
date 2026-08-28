@@ -62,7 +62,7 @@ export const parseCodexModels = (input: unknown): AgentModel[] => {
 
 export const discoverCodexModels = () =>
   new Promise<AgentModel[]>((resolve, reject) => {
-    const child = spawn("codex", ["app-server", "--stdio"], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("codex", ["app-server", "--stdio"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     let buffer = "";
     let settled = false;
     const timer = setTimeout(() => finish(new Error("Codex model discovery timed out.")), 10_000);
