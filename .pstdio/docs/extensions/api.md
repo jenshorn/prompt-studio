@@ -576,10 +576,144 @@ export default defineExtensionView({
   for png, jpeg, webp, or gif, usable in `<img src>`; request a fresh URL when one
   expires. Undeclared mounts are denied by the capability gate with the exact missing
   declaration, such as `artifacts.read:runs`.
+- The `files` render helper picks local files and stores extension-owned files. See
+  [Webview files](#webview-files).
+- `resource.open` opens an SDK resource in the workbench. See
+  [Open a resource from a webview](#open-a-resource-from-a-webview).
 - Author commands with `defineCommand`. Commands written as inline literals inside
   `defineExtension` keep untyped results (see ADR 0012 in the repository docs).
 - Pass `{ extensionId }` as the second argument only in tests, where no host bridge
   provides one.
+
+### Webview files
+
+`defineExtensionView` passes a `files` client to `render`. `pick` opens the browser's
+file picker and does not contact the host. Upload, list, and delete cross the webview
+bridge, so the view must declare each method it calls.
+
+```ts
+const imports = defineView({
+  id: "imports",
+  title: "Imports",
+  body: {
+    kind: "webview",
+    entry: packageAsset("./webviews/imports.ts", import.meta.url),
+    capabilities: ["files.upload", "files.list", "files.delete"],
+  },
+});
+```
+
+| Method | Declaration | Input | Result |
+| --- | --- | --- | --- |
+| `files.pick(options?)` | None | `{ accept?, multiple? }` | Browser `File[]`; an empty array means the user cancelled. |
+| `files.upload(input)` | `files.upload` | `{ name, data, mimeType?, scope? }` | The stored `ExtensionBlobRef`. `data` accepts `Uint8Array` or `ArrayBuffer`. |
+| `files.list(input?)` | `files.list` | `{ scope? }` | `ExtensionBlobRef[]` for the exact scope. |
+| `files.delete(id)` | `files.delete` | A file id returned by upload or list. | Resolves after the host deletes the owned file. |
+
+```ts
+import { defineExtensionView } from "@pstdio/sdk/extensions";
+
+export default defineExtensionView({
+  async render({ files, mount }) {
+    const [selected] = await files.pick({ accept: ".csv,text/csv" });
+    if (!selected) return;
+
+    const uploaded = await files.upload({
+      name: selected.name,
+      data: await selected.arrayBuffer(),
+      mimeType: selected.type || "text/csv",
+    });
+
+    const projectFiles = await files.list();
+    mount.textContent = `${uploaded.name} is one of ${projectFiles.length} stored files.`;
+
+    // Delete the file when the extension no longer needs it.
+    // await files.delete(uploaded.id);
+  },
+});
+```
+
+The host, not the guest, selects the active project and extension instance. A webview
+cannot use a request field to read or write another extension's files. The optional
+scope only groups files inside that owner boundary:
+
+| Scope | Webview value | Meaning |
+| --- | --- | --- |
+| Project | Omit `scope` or use `{ type: "project" }` | Files shared by this extension across the active project. |
+| Repository | `{ type: "repo", id: repoId }` | Files grouped under one repository id. |
+| Resource | `{ type: "resource", id: resourceId }` | Files grouped under one resource id. |
+| Extension-defined | `{ type: "import", id: importId }` | Files grouped by a type and id chosen by the extension. Include the id when a command must access the scope. |
+
+Upload and list must use the same scope to find the same files. The default project
+scope matches `ctx.storage.files` in commands. A command can read the bytes without a
+second upload:
+
+```ts
+const contents = await ctx.storage.files.getBytes(params.fileId);
+```
+
+The command storage API names the same scopes with runtime objects, not the webview
+`{ type, id }` shape:
+
+| Webview scope | Matching command storage |
+| --- | --- |
+| Omitted or `{ type: "project" }` | `ctx.storage.files` |
+| `{ type: "repo", id: repoId }` | `ctx.storage.scope({ type: "repo", repoId }).files` |
+| `{ type: "resource", id: resource.id }` | `ctx.storage.scope({ type: "resource", resource }).files`, where `resource` is the full `{ type, id, ... }` resource reference. |
+| `{ type: "import", id: importId }` | `ctx.storage.scope({ type: "import", id: importId }).files` |
+
+Repository scopes use `repoId`, resource scopes use a full resource reference, and
+extension-defined command scopes require an id. The upload limit is 25 MiB. The
+returned `ExtensionBlobRef` contains `id`, `name`, `mimeType`, `size`, `hash`, `url`,
+`createdAt`, and `updatedAt`.
+
+Host-backed file methods need a project extension instance. They are available to
+declared project routes, panels, resource views, and project settings views. A global
+settings view has no project file owner, so it does not receive these methods. Keep
+`files.pick` available there only when selecting a local file without uploading it.
+
+The declaration gate still applies. If the view omits a declaration, the bridge rejects
+the call before it reaches the file host.
+
+### Open a resource from a webview
+
+Add `resource.open` to the view and pass the SDK resource shape to the host:
+
+```ts
+const details = defineView({
+  id: "details",
+  title: "Details",
+  body: {
+    kind: "webview",
+    entry: packageAsset("./webviews/details.ts", import.meta.url),
+    capabilities: ["resource.open"],
+  },
+});
+```
+
+```ts
+await host.call("resource.open", {
+  resource: {
+    type: "ticket",
+    id: "PS-260",
+    label: "Dashboard webview capabilities",
+    metadata: { status: "in-review" },
+  },
+  input: { strategy: "replace-active" },
+});
+```
+
+`type` identifies the resource kind and `id` identifies the resource. `label` and
+`metadata` are optional. The dashboard creates the stable workbench URI from `type` and
+`id`; guests do not need to build that URI. The extension must already have registered
+the resource kind and a presenter that can open it. The `ticket` value above is an
+example of such a registered kind.
+
+The default `persistent` strategy opens a normal workbench resource. Use
+`replace-active` to replace the active resource instead. The capability works in a
+dashboard webview wherever the workbench is available, including project and global
+settings. The bridge rejects the call if the view did not declare `resource.open` or if
+the request omits `resource`.
 
 `@pstdio/sdk/extensions/react` ships react-query hooks built on the client. `react` and
 `@tanstack/react-query` are optional peer dependencies used only by this entry.

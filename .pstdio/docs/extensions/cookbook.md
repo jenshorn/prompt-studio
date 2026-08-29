@@ -324,6 +324,119 @@ export default defineExtensionView({
 Wrong param shapes, wrong result uses, and unknown command keys fail to compile. Pass
 the settings contribution type as the second type argument for typed `client.settings`.
 
+## Store files from a webview
+
+Declare the file operations on the webview body. `pick` stays inside the browser, but
+upload, list, and delete call the host and each needs its own declaration.
+
+```ts
+const imports = defineView({
+  id: "imports",
+  title: "Imports",
+  body: {
+    kind: "webview",
+    entry: packageAsset("./webviews/imports.ts", import.meta.url),
+    capabilities: ["files.upload", "files.list", "files.delete"],
+  },
+});
+```
+
+Use the `files` helper passed to `defineExtensionView`:
+
+```ts
+// src/webviews/imports.ts
+import { defineExtensionView } from "@pstdio/sdk/extensions";
+
+export default defineExtensionView({
+  render({ files, mount }) {
+    const button = document.createElement("button");
+    button.textContent = "Import CSV";
+    button.addEventListener("click", async () => {
+      const [selected] = await files.pick({ accept: ".csv,text/csv" });
+      if (!selected) return;
+
+      const uploaded = await files.upload({
+        name: selected.name,
+        data: await selected.arrayBuffer(),
+        mimeType: selected.type || "text/csv",
+      });
+      const stored = await files.list();
+      button.textContent = `Stored ${uploaded.name}; ${stored.length} project files`;
+    });
+    mount.append(button);
+    return () => button.remove();
+  },
+});
+```
+
+The default scope is the active project. Pass the same scope to upload and list when a
+file belongs to a repository, resource, or extension-defined group:
+
+```ts
+const scope = { type: "resource", id: "PS-260" };
+const uploaded = await files.upload({ name, data, mimeType, scope });
+const resourceFiles = await files.list({ scope });
+await files.delete(uploaded.id);
+```
+
+The host fixes ownership to the active project extension instance. The webview cannot
+name a different owner. Project routes, panels, resource views, and project settings
+views can use host-backed files. Global settings views cannot because they have no
+project extension instance. Uploads larger than 25 MiB fail.
+
+A command sees files from the same default project scope through `ctx.storage.files`:
+
+```ts
+const bytes = await ctx.storage.files.getBytes(params.fileId);
+const text = new TextDecoder().decode(bytes);
+```
+
+Command scopes use runtime objects instead of the webview `{ type, id }` shape:
+
+```ts
+const repoFiles = ctx.storage.scope({ type: "repo", repoId }).files;
+const resourceFiles = ctx.storage.scope({ type: "resource", resource }).files;
+const importFiles = ctx.storage.scope({ type: "import", id: importId }).files;
+```
+
+`resource` must be the full resource reference with at least `type` and `id`, not only
+the resource id. Extension-defined command scopes require an id. Read from the same
+scope that the webview used for upload and list.
+
+## Open a resource from a webview
+
+Declare `resource.open`, then pass a resource reference to the host. The resource type
+must match a resource kind that the workbench can render.
+
+```ts
+const results = defineView({
+  id: "results",
+  title: "Results",
+  body: {
+    kind: "webview",
+    entry: packageAsset("./webviews/results.ts", import.meta.url),
+    capabilities: ["resource.open"],
+  },
+});
+```
+
+```ts
+await host.call("resource.open", {
+  resource: {
+    type: "ticket",
+    id: "PS-260",
+    label: "Dashboard webview capabilities",
+    metadata: { status: "in-review" },
+  },
+  input: { strategy: "replace-active" },
+});
+```
+
+Omit `input` for a persistent resource. Use `replace-active` when the new resource
+should take the current resource's place. The host converts the SDK fields into the
+workbench resource and creates its URI. Do not build a workbench URI in guest code. The
+kind and one of its presenters must already be registered before the call.
+
 ## Read Artifacts From A Webview
 
 Declare an artifact mount and grant the webview read access to it. Each `artifactsRead` declaration grants
