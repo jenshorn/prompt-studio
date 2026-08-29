@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EXTENSION_API_VERSION } from "pstdio-api-contracts/extension-kernel";
@@ -21,7 +21,10 @@ afterAll(() => {
   api?.stop();
 });
 
-const writeExtension = (extensionRoot: string, input: { dependency?: boolean; command?: boolean } = {}) => {
+const writeExtension = (
+  extensionRoot: string,
+  input: { dependency?: boolean; command?: boolean; scope?: "repo" } = {},
+) => {
   const dependencies = input.dependency ? { "missing-dev-dependency": "file:./missing-dev-dependency" } : {};
   writeFileSync(
     join(extensionRoot, "package.json"),
@@ -34,6 +37,7 @@ const writeExtension = (extensionRoot: string, input: { dependency?: boolean; co
         main: "./extension.ts",
         engines: { pstdio: EXTENSION_API_VERSION },
         dependencies,
+        pstdio: input.scope ? { scope: input.scope } : undefined,
         type: "module",
       },
       null,
@@ -101,6 +105,43 @@ const extensionState = async (projectId: string) => {
 };
 
 describe("extensions dev", () => {
+  test(
+    "refreshes a repo-scoped source from its canonical directory",
+    async () => {
+      const repo = createGitRepo();
+      const extensionRoot = join(repo, ".pstdio", "extensions", "dev-smoke");
+      const project = await createProjectViaApi(api.url, "Repo extension dev e2e");
+      mkdirSync(extensionRoot, { recursive: true });
+      writeFileSync(join(repo, ".pstdio", "config.json"), JSON.stringify({ project_id: project.id }));
+      writeExtension(extensionRoot, { command: true, scope: "repo" });
+      // Only a copy-and-replace refresh drops an ignored working file, so this proves the
+      // developer's own directory was validated where it is.
+      writeFileSync(join(extensionRoot, ".gitignore"), "scratch/\n");
+      mkdirSync(join(extensionRoot, "scratch"), { recursive: true });
+      writeFileSync(join(extensionRoot, "scratch", "keep.txt"), "keep");
+      const dev = startDev(repo, extensionRoot);
+
+      try {
+        await waitFor(
+          () => dev.stdout().includes("registered pstdio.dev-smoke.command.ping"),
+          dev.child,
+          () => `${dev.stdout()}\n${dev.stderr()}`,
+        );
+        expect(await extensionState(project.id)).toMatchObject({
+          sourcePath: realpathSync(extensionRoot),
+          status: "loaded",
+        });
+        expect(dev.stderr()).not.toContain("Refusing to copy an extension into itself");
+        expect(readFileSync(join(extensionRoot, "scratch", "keep.txt"), "utf8")).toBe("keep");
+        expect(await stop(dev.child)).toBe(0);
+      } finally {
+        await stop(dev.child);
+        rmSync(repo, { recursive: true, force: true });
+      }
+    },
+    TEST_TIMEOUT,
+  );
+
   test(
     "refreshes edits and recovers after a dependency install failure",
     async () => {

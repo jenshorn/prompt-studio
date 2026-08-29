@@ -184,28 +184,52 @@ describe("project extension runtime catalog with real sources", () => {
     );
   });
 
-  // Writing to a source file leaves it briefly not "loaded". Dropping it from the
+  // Replacing an install renames the directory away for an instant. Dropping it from the
   // snapshot tells every consumer the extension is gone, and the views it owns are torn
   // down instead of refreshed.
-  test("keeps the last healthy contributions of a source that is reloading", async () => {
+  test("keeps the last healthy contributions while a source is being replaced", async () => {
     const root = createTempDir();
     const path = join(root, "reloading");
     writeRuntimeExtension(path, "healthy");
-    let status = "loaded";
 
     const catalog = createCatalog({
-      sources: () => [sourceRow({ id: "reloading-source", extensionId: "pstdio.hello", path, status })],
+      sources: () => [sourceRow({ id: "reloading-source", extensionId: "pstdio.hello", path })],
     });
 
     expect((await catalog.get("p1")).runtime.commands.map((command) => command.id)).toEqual([
       "pstdio.hello.command.healthy",
     ]);
 
-    status = "loading";
+    rmSync(join(path, "package.json"));
     catalog.invalidate({ sourcePath: path, reason: "source_changed" });
 
     expect((await catalog.get("p1")).runtime.commands.map((command) => command.id)).toEqual([
       "pstdio.hello.command.healthy",
+    ]);
+  });
+
+  // A source whose last refresh failed still has exactly one version on disk. Serving the
+  // commands it used to declare made the runtime and the repository disagree.
+  test("serves the commands a source declares now, not the ones a failed refresh recorded", async () => {
+    const root = createTempDir();
+    const path = join(root, "renamed-command");
+    writeRuntimeExtension(path, "getConfig");
+    let status = "loaded";
+
+    const catalog = createCatalog({
+      sources: () => [sourceRow({ id: "renamed-source", extensionId: "pstdio.hello", path, status })],
+    });
+
+    expect((await catalog.get("p1")).runtime.commands.map((command) => command.id)).toEqual([
+      "pstdio.hello.command.getConfig",
+    ]);
+
+    writeRuntimeExtension(path, "config.get");
+    status = "error";
+    catalog.invalidate({ sourcePath: path, reason: "source_changed" });
+
+    expect((await catalog.get("p1")).runtime.commands.map((command) => command.id)).toEqual([
+      "pstdio.hello.command.config.get",
     ]);
   });
 
