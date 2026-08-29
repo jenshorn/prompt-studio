@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { legacyTemplateOwnerSourcePath } from "pstdio-db";
+import { installExtensionSource } from "../features/extensions/install-extension-source";
 import { createTestApp } from "../test-utils/create-test-app";
 import { repairLegacyTemplateOwners, runStartupTasks } from ".";
 
@@ -63,6 +64,40 @@ const waitFor = async (predicate: () => boolean) => {
   while (!predicate()) {
     if (Date.now() >= deadline) throw new Error("Timed out waiting for startup background work");
     await Bun.sleep(10);
+  }
+};
+
+const assertExistingProjectSourceRefresh = async (tempRoot: string) => {
+  const root = join(tempRoot, "existing-project-source-refresh");
+  const pstdioHome = join(root, "home");
+  const databasePath = join(root, "database");
+  const storageRoot = join(root, "storage");
+  const source = resolve(REPO_ROOT, "extensions/extension-lab");
+  const installed = join(pstdioHome, "extensions/extension-lab");
+
+  await installExtensionSource({
+    source,
+    installName: "extension-lab",
+    env: { ...process.env, PSTDIO_HOME: pstdioHome },
+  });
+  expect(existsSync(join(installed, "node_modules/@pstdio/sdk/package.json"))).toBe(true);
+
+  process.env.PSTDIO_HOME = pstdioHome;
+  process.env.PSTDIO_DEFAULT_EXTENSIONS = "[]";
+  const initial = await createTestApp({ databasePath, storageRoot });
+  await initial.deps.projectService.create({ name: "Existing project" });
+  await initial.close();
+
+  writeFileSync(join(installed, "README.md"), "stale extension lab");
+  process.env.PSTDIO_DISABLE_EMBED_MANIFEST = "1";
+  process.env.PSTDIO_DEFAULT_EXTENSIONS = JSON.stringify([{ source, installName: "extension-lab", force: true }]);
+
+  const restarted = await createTestApp({ databasePath, storageRoot });
+  try {
+    await waitFor(() => readFileSync(join(installed, "README.md"), "utf8") !== "stale extension lab");
+    expect(readFileSync(join(installed, "README.md"), "utf8")).toBe(readFileSync(join(source, "README.md"), "utf8"));
+  } finally {
+    await restarted.close();
   }
 };
 
@@ -146,6 +181,10 @@ describe("startup default extensions", () => {
     await close();
 
     expect(readFileSync(join(installed, "README.md"), "utf8")).toBe(readFileSync(join(source, "README.md"), "utf8"));
+  }, 40_000);
+
+  test("refreshes local default extensions when an existing project starts in source mode", async () => {
+    await assertExistingProjectSourceRefresh(tempRoot);
   }, 40_000);
 
   test("tracks default extension preparation without blocking runtime readiness", async () => {
