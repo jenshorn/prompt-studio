@@ -3,6 +3,15 @@ import { existsSync } from "node:fs";
 type WhichCommand = (command: string) => string | null;
 type ExistsCommand = (path: string) => boolean;
 
+export type ResolvedProcessCommand = {
+  argv: string[];
+  /**
+   * Set when `argv` is already fully escaped for `cmd.exe`. The spawner must
+   * pass this straight through so it does not re-quote and undo the escaping.
+   */
+  windowsVerbatimArguments?: true;
+};
+
 const hasPathSeparator = (command: string) => command.includes("/") || command.includes("\\");
 
 const endsWithAny = (value: string, suffixes: string[]) => {
@@ -29,12 +38,29 @@ const whichCommand: WhichCommand = (command) => {
   return Bun.which(command);
 };
 
+// cmd.exe re-parses its command line, so a batch argument containing `&`, `"`,
+// `%`, `^`, ... would be reinterpreted (or inject a second command) unless it is
+// escaped. Escaping ported from cross-spawn (MIT): quote the token, fix up
+// backslash/quote runs, then prefix cmd metacharacters with `^`. npm-style
+// shims re-parse `%*` a second time, so those need the metacharacters escaped
+// twice.
+const CMD_METACHARS = /([()\][%!^"`<>&|;, *?])/g;
+
+const isNpmStyleShim = (path: string) => /[\\/](?:\.bin|npm)[\\/][^\\/]+\.(?:cmd|bat)$/i.test(path);
+
+export const escapeForCmd = (arg: string, doubleEscapeMetachars: boolean) => {
+  let out = `${arg}`.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"').replace(/(?=(\\+?)?)\1$/, "$1$1");
+  out = `"${out}"`.replace(CMD_METACHARS, "^$1");
+  return doubleEscapeMetachars ? out.replace(CMD_METACHARS, "^$1") : out;
+};
+
 /**
  * Resolve a bare command name to a spawnable argv.
  *
  * `Bun.spawn` needs an absolute path on Windows and, for npm-installed CLIs,
- * finds a `.cmd`/`.bat`/`.ps1` shim it can't execute directly. `.cmd`/`.bat` run
- * through `cmd.exe /c call`; a `.ps1` falls back to its sibling shim, or
+ * finds a `.cmd`/`.bat`/`.ps1` shim it can't execute directly. `.cmd`/`.bat`
+ * run through `cmd.exe /c` with every argument escaped for cmd (and the result
+ * marked verbatim); a `.ps1` falls back to its sibling shim, or
  * `powershell -File` when it stands alone. Commands that already contain a path
  * separator, or that can't be resolved, are passed through untouched.
  */
@@ -44,20 +70,26 @@ export const resolveProcessCommand = (
   platform = process.platform,
   comspec = process.env.ComSpec,
   exists: ExistsCommand = existsSync,
-): string[] => {
+): ResolvedProcessCommand => {
   const [executable, ...args] = command;
-  if (!executable || hasPathSeparator(executable)) return [...command];
+  if (!executable || hasPathSeparator(executable)) return { argv: [...command] };
 
   const resolved = which(executable);
-  if (!resolved) return [...command];
-  if (platform !== "win32") return [resolved, ...args];
+  if (!resolved) return { argv: [...command] };
+  if (platform !== "win32") return { argv: [resolved, ...args] };
 
   const target = preferSpawnableSibling(resolved, exists);
+
   if (endsWithAny(target, [".cmd", ".bat"])) {
-    return [comspec ?? "cmd.exe", "/d", "/s", "/c", "call", target, ...args];
+    const doubleEscape = isNpmStyleShim(target);
+    const line = [target, ...args].map((part) => escapeForCmd(part, doubleEscape)).join(" ");
+    return {
+      argv: [comspec ?? "cmd.exe", "/d", "/s", "/c", `"${line}"`],
+      windowsVerbatimArguments: true,
+    };
   }
   if (target.toLowerCase().endsWith(".ps1")) {
-    return ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", target, ...args];
+    return { argv: ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", target, ...args] };
   }
-  return [target, ...args];
+  return { argv: [target, ...args] };
 };

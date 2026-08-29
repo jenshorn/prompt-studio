@@ -31,13 +31,15 @@ export type DependencyInstallInput = {
 
 export const runCommand = (command: string, args: string[], options: CommandOptions) =>
   new Promise<CommandResult>((resolveResult) => {
-    const [resolvedCommand, ...resolvedArgs] = resolveProcessCommand([command, ...args]);
-    const child = spawn(resolvedCommand, resolvedArgs, {
+    const resolved = resolveProcessCommand([command, ...args]);
+    const [resolvedCommand, ...resolvedArgs] = resolved.argv;
+    const child = spawn(resolvedCommand as string, resolvedArgs, {
       cwd: options.cwd,
       env: options.env,
       signal: options.signal,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
+      windowsVerbatimArguments: resolved.windowsVerbatimArguments,
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];

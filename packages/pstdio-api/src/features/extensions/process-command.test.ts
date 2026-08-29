@@ -1,38 +1,42 @@
 import { describe, expect, test } from "bun:test";
-import { resolveProcessCommand } from "./process-command";
+import { escapeForCmd, resolveProcessCommand } from "./process-command";
 
 describe("resolveProcessCommand", () => {
   test("resolves bare executable commands before spawning", () => {
-    const command = resolveProcessCommand(["codex", "--version"], (name) =>
+    const resolved = resolveProcessCommand(["codex", "--version"], (name) =>
       name === "codex" ? "C:\\Tools\\codex.exe" : null,
     );
 
-    expect(command).toEqual(["C:\\Tools\\codex.exe", "--version"]);
+    expect(resolved).toEqual({ argv: ["C:\\Tools\\codex.exe", "--version"] });
   });
 
-  test("wraps Windows command shims through cmd.exe", () => {
-    const command = resolveProcessCommand(
-      ["tool", "--version"],
-      (name) => (name === "tool" ? "C:\\Users\\me\\AppData\\Roaming\\npm\\tool.cmd" : null),
+  test("wraps Windows command shims through cmd.exe with escaped, verbatim args", () => {
+    const shim = "C:\\Users\\me\\AppData\\Roaming\\npm\\tool.cmd";
+    const resolved = resolveProcessCommand(
+      ["tool", "a & b", 'q"x'],
+      (name) => (name === "tool" ? shim : null),
       "win32",
       "cmd.exe",
     );
 
-    expect(command).toEqual([
-      "cmd.exe",
-      "/d",
-      "/s",
-      "/c",
-      "call",
-      "C:\\Users\\me\\AppData\\Roaming\\npm\\tool.cmd",
-      "--version",
-    ]);
+    expect(resolved.windowsVerbatimArguments).toBe(true);
+    expect(resolved.argv.slice(0, 4)).toEqual(["cmd.exe", "/d", "/s", "/c"]);
+
+    const line = resolved.argv[4] ?? "";
+    // The whole command line is wrapped for `cmd /c`.
+    expect(line.startsWith('"')).toBe(true);
+    expect(line.endsWith('"')).toBe(true);
+    // npm shim -> double meta-escaped; no bare metacharacter reaches cmd.
+    expect(line).toContain(escapeForCmd(shim, true));
+    expect(line).toContain(escapeForCmd("a & b", true));
+    expect(line).toContain(escapeForCmd('q"x', true));
+    expect(line).not.toMatch(/[^^]&(?!amp)/); // no unescaped `&`
   });
 
   test("switches a Windows .ps1 shim to its sibling .cmd", () => {
     const ps1 = "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.ps1";
     const cmd = "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd";
-    const command = resolveProcessCommand(
+    const resolved = resolveProcessCommand(
       ["codex", "--version"],
       (name) => (name === "codex" ? ps1 : null),
       "win32",
@@ -40,12 +44,14 @@ describe("resolveProcessCommand", () => {
       (path) => path === cmd,
     );
 
-    expect(command).toEqual(["cmd.exe", "/d", "/s", "/c", "call", cmd, "--version"]);
+    expect(resolved.argv.slice(0, 4)).toEqual(["cmd.exe", "/d", "/s", "/c"]);
+    expect(resolved.windowsVerbatimArguments).toBe(true);
+    expect(resolved.argv[4]).toContain(escapeForCmd(cmd, true));
   });
 
   test("runs a lone Windows .ps1 shim through powershell", () => {
     const ps1 = "C:\\Tools\\only.ps1";
-    const command = resolveProcessCommand(
+    const resolved = resolveProcessCommand(
       ["only", "--version"],
       (name) => (name === "only" ? ps1 : null),
       "win32",
@@ -53,18 +59,39 @@ describe("resolveProcessCommand", () => {
       () => false,
     );
 
-    expect(command).toEqual(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, "--version"]);
+    expect(resolved).toEqual({
+      argv: ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, "--version"],
+    });
   });
 
   test("leaves path commands unchanged", () => {
-    const command = resolveProcessCommand([".\\tools\\codex.cmd", "--version"], () => "ignored");
+    const resolved = resolveProcessCommand([".\\tools\\codex.cmd", "--version"], () => "ignored");
 
-    expect(command).toEqual([".\\tools\\codex.cmd", "--version"]);
+    expect(resolved).toEqual({ argv: [".\\tools\\codex.cmd", "--version"] });
   });
 
   test("keeps the original command when resolution fails", () => {
-    const command = resolveProcessCommand(["missing", "--version"], () => null);
+    const resolved = resolveProcessCommand(["missing", "--version"], () => null);
 
-    expect(command).toEqual(["missing", "--version"]);
+    expect(resolved).toEqual({ argv: ["missing", "--version"] });
+  });
+});
+
+describe("escapeForCmd", () => {
+  test("leaves a plain token quoted only", () => {
+    expect(escapeForCmd("hello", false)).toBe('^"hello^"');
+  });
+
+  test("escapes cmd metacharacters so they cannot inject a command", () => {
+    expect(escapeForCmd("a & b", false)).toBe('^"a^ ^&^ b^"');
+    expect(escapeForCmd("%PATH%", false)).toBe('^"^%PATH^%^"');
+  });
+
+  test("doubles the metacharacter escape for shims that re-parse %*", () => {
+    expect(escapeForCmd("a&b", true)).toBe('^^^"a^^^&b^^^"');
+  });
+
+  test("doubles backslashes before an embedded quote", () => {
+    expect(escapeForCmd('a\\"b', false)).toBe('^"a\\\\\\^"b^"');
   });
 });
