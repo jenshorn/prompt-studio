@@ -64,6 +64,9 @@ export default defineConfig({
   ],
   webServer: [
     {
+      // One process now boots the API, the dashboard, and the extension runtime,
+      // so it keeps the 30s budget the previous dashboard-boot server already
+      // used (the API-only server it replaced needed less).
       command: `bun run --cwd ../../packages/pstdio pstdio -- serve --foreground --host localhost --port ${apiPort}`,
       port: apiPort,
       reuseExistingServer: false,
