@@ -1,5 +1,5 @@
 import { getImagePreviewMimeType, isImagePreviewPath } from "pstdio-file-types";
-import { git } from "./git";
+import { git, spawnGit } from "./git";
 
 type FileChange = "added" | "deleted" | "modified" | "renamed" | "copied" | "permissionChange";
 
@@ -130,7 +130,7 @@ const getFileContent = async (cwd: string, ref: string, filePath: string) => {
     const isImage = isImagePreviewPath(filePath);
     if (isImage && (await getGitObjectSize(cwd, ref, filePath)) > MAX_IMAGE_PREVIEW_BYTES) return "";
 
-    const proc = Bun.spawn(["git", "show", `${ref}:${filePath}`], { cwd, stdout: "pipe", stderr: "pipe" });
+    const proc = spawnGit(cwd, ["show", `${ref}:${filePath}`]);
     const bytes = new Uint8Array(await new Response(proc.stdout).arrayBuffer());
     const exitCode = await proc.exited;
     if (exitCode !== 0) return "";

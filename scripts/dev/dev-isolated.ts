@@ -25,6 +25,8 @@ const SEEDED_RELEASE_EXTENSIONS = [
   "pstdio-planner-loops",
   "pstdio-skills",
 ];
+const WINDOWS_CONTAINER_WORKTREE = "/workspace/prompt-studio";
+const WINDOWS_CONTAINER_GIT_COMMON_DIR = "/workspace/git-common";
 
 const usage = `Usage:
   bun run dev:isolated                          # build + up; prints dashboard URL
@@ -117,11 +119,27 @@ export const resolveIsolatedExtensionReleaseRef = (
   }
   return `pstdio@${manifest.version}`;
 };
-
+export const composeMountPaths = ({
+  gitCommonDir,
+  platform = process.platform,
+  repoRoot,
+}: {
+  gitCommonDir: string;
+  platform?: NodeJS.Platform;
+  repoRoot: string;
+}) => ({
+  CONTAINER_GIT_COMMON_DIR: platform === "win32" ? WINDOWS_CONTAINER_GIT_COMMON_DIR : gitCommonDir,
+  CONTAINER_WORKTREE: platform === "win32" ? WINDOWS_CONTAINER_WORKTREE : repoRoot,
+  HOST_GIT_COMMON_DIR: gitCommonDir,
+  HOST_WORKTREE: repoRoot,
+});
 const composeEnv = (repoRoot: string, projectName: string, hostPorts?: HostPorts, desktopMode = false) => ({
   ...process.env,
-  HOST_WORKTREE: repoRoot,
-  HOST_GIT_COMMON_DIR: resolveGitCommonDir(repoRoot),
+  HOME: process.env.HOME ?? process.env.USERPROFILE,
+  ...composeMountPaths({
+    gitCommonDir: resolveGitCommonDir(repoRoot),
+    repoRoot,
+  }),
   HOST_PSTDIO_HOME: resolveIsolatedHome(repoRoot, projectName),
   PSTDIO_DEFAULT_EXTENSIONS: resolveIsolatedDefaultExtensions(repoRoot),
   PSTDIO_EXTENSION_RELEASE_REF: resolveIsolatedExtensionReleaseRef(repoRoot),

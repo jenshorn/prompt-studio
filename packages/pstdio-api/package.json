@@ -12,14 +12,14 @@
     "./runtime": "./src/features/runtime/routes.ts"
   },
   "scripts": {
-    "start": "bun run src/server.ts",
-    "dev": "bun run --hot src/index.ts",
+    "start": "bun --conditions=source run src/server.ts",
+    "dev": "bun --conditions=source run --hot src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "analyze-bundle": "bun build ./src/index.ts --outdir ./dist --target bun --metafile=./dist/bundle-meta.json --metafile-md=./dist/bundle-meta.md",
     "typecheck": "tsc --noEmit",
     "lint": "bun run typecheck && biome check .",
     "format": "biome check --write .",
-    "test": "PSTDIO_DEFAULT_EXTENSIONS='[]' PSTDIO_EXTENSION_WEBVIEW_BUILDS='0' bun test get-workspace-diff.test.ts --timeout 30000 --silent && PSTDIO_DEFAULT_EXTENSIONS='[]' PSTDIO_EXTENSION_WEBVIEW_BUILDS='0' bun test --timeout 30000 --silent --path-ignore-patterns='**/get-workspace-diff.test.ts'",
+    "test": "PSTDIO_DEFAULT_EXTENSIONS='[]' PSTDIO_EXTENSION_WEBVIEW_BUILDS='0' bun --conditions=source test get-workspace-diff.test.ts --timeout 30000 --silent && PSTDIO_DEFAULT_EXTENSIONS='[]' PSTDIO_EXTENSION_WEBVIEW_BUILDS='0' bun --conditions=source test --timeout 30000 --silent --path-ignore-patterns='**/get-workspace-diff.test.ts'",
     "test:coverage": "bun test --coverage"
   },
   "dependencies": {

@@ -1,14 +1,5 @@
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExtensionDefinition, ExtensionSourceKind } from "@pstdio/sdk/extensions";
@@ -18,6 +9,7 @@ import type { ExtensionDiagnostic } from "../types/runtime";
 import { bundleEntry } from "./bundle-entry";
 import { createDiagnostic } from "./diagnostics";
 import { discoverExtensionPackages } from "./discovery";
+import { mirrorPackageChild } from "./mirror-package-child";
 import { type PackageManifest, readPackageManifest } from "./package-manifest";
 import {
   collectRuntimeModulePaths,
@@ -83,11 +75,6 @@ const safeCacheSegment = (value: string) => value.replace(/[^a-zA-Z0-9._-]/g, "_
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 16);
 
-const symlinkPackageChild = (sourcePath: string, targetPath: string) => {
-  const stats = lstatSync(sourcePath);
-  symlinkSync(sourcePath, targetPath, stats.isDirectory() ? "junction" : "file");
-};
-
 const mirrorNodeModules = (sourceNodeModulesPath: string, targetNodeModulesPath: string) => {
   if (!existsSync(sourceNodeModulesPath)) return;
 
@@ -96,7 +83,7 @@ const mirrorNodeModules = (sourceNodeModulesPath: string, targetNodeModulesPath:
     const sourceChild = join(sourceNodeModulesPath, dirent.name);
     const targetChild = join(targetNodeModulesPath, dirent.name);
 
-    symlinkPackageChild(sourceChild, targetChild);
+    mirrorPackageChild(sourceChild, targetChild);
   }
 };
 

@@ -15,18 +15,22 @@
   "exports": {
     "./resources": {
       "types": "./dist/resources/index.d.ts",
+      "source": "./src/resources/index.ts",
       "import": "./dist/resources/index.js"
     },
     "./api": {
       "types": "./dist/api/index.d.ts",
+      "source": "./src/api/index.ts",
       "import": "./dist/api/index.js"
     },
     "./client": {
       "types": "./dist/client/index.d.ts",
+      "source": "./src/client/index.ts",
       "import": "./dist/client/index.js"
     },
     "./extensions": {
       "types": "./dist/extensions/index.d.ts",
+      "source": "./src/extensions/index.ts",
       "import": "./dist/extensions/index.js"
     },
     "./extensions/react": {
@@ -35,10 +39,12 @@
     },
     "./prompts": {
       "types": "./dist/prompts/index.d.ts",
+      "source": "./src/prompts/index.ts",
       "import": "./dist/prompts/index.js"
     },
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
+      "source": "./src/hooks/index.ts",
       "import": "./dist/hooks/index.js"
     }
   },

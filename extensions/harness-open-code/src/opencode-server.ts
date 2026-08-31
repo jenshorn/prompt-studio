@@ -122,6 +122,7 @@ const waitForServerUrl = async (stdout: NodeJS.ReadableStream, stderr: NodeJS.Re
 export const defaultStartServer: OpencodeServerStarter = async ({ host, port }) => {
   const child = spawn("opencode", ["serve", "--hostname", host, "--port", String(port)], {
     stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
   });
 
   try {

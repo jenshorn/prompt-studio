@@ -67,7 +67,7 @@ export const discoverClaudeModels = () =>
         "--print",
         "--no-session-persistence",
       ],
-      { env: { ...process.env, CLAUDECODE: "" }, stdio: ["pipe", "pipe", "pipe"] },
+      { env: { ...process.env, CLAUDECODE: "" }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
     );
     let buffer = "";
     let settled = false;

@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { resolve } from "node:path";
 import type { InstalledExtensionSource } from "pstdio-api/extensions/install-extension-source";
 import type { Arguments } from "yargs";
 import { createHandler, type ExtensionsDevArgs } from "./dev";
@@ -210,7 +211,7 @@ describe("extensions dev", () => {
     expect(target.logs).toContain("validated pstdio.dev-test");
     expect(target.logs).toContain("registered dev-test.run");
     expect(target.logs).toContain("webview pstdio.dev-test.view.overview rebuilt");
-    expect(target.logs).toContain("watching /repo/dev-test");
+    expect(target.logs).toContain(`watching ${resolve("/repo", "./dev-test")}`);
 
     target.signals.emit("SIGINT");
     await running;

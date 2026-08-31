@@ -74,11 +74,18 @@ export const resolvePstdioHome = (input: {
 }) => resolveRuntimePstdioHome(input);
 
 const expandsHome = (path: string, homedir: () => string) => {
+  if (path.startsWith("~\\")) return join(homedir(), path.slice(2));
   return expandHomePath(path, homedir());
 };
 
 const isLocalSource = (source: string) =>
-  source.startsWith("./") || source.startsWith("../") || source.startsWith("~/") || isAbsolute(source);
+  source.startsWith("./") ||
+  source.startsWith(".\\") ||
+  source.startsWith("../") ||
+  source.startsWith("..\\") ||
+  source.startsWith("~/") ||
+  source.startsWith("~\\") ||
+  isAbsolute(source);
 
 const validateInstallName = (installName: string) => {
   if (!installName.trim() || basename(installName) !== installName) {
@@ -110,6 +117,7 @@ const copyExtensionSource = (sourcePath: string, targetPath: string) => {
       const rel = relative(sourcePath, path).replaceAll("\\", "/");
       if (!rel) return true;
       if (rel === ".git" || rel.startsWith(".git/")) return true;
+      if (rel === "node_modules" || rel.startsWith("node_modules/")) return false;
       if (matcher.ignores(rel)) return false;
       return true;
     },

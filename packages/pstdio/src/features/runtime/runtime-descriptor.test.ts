@@ -93,7 +93,11 @@ describe("runtime descriptor persistence", () => {
     writeRuntimeDescriptor(path, descriptor());
 
     expect(JSON.parse(readFileSync(path, "utf8"))).toEqual(descriptor());
-    expect(statSync(path).mode & 0o777).toBe(0o600);
+    // Unix mode bits: Windows can't express 0o600. There the current-user
+    // restriction comes from the descriptor living under the user profile.
+    if (process.platform !== "win32") {
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    }
   });
 
   test("only removes the descriptor still owned by the matching process instance", () => {

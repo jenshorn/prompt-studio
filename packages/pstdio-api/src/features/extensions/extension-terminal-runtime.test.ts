@@ -22,6 +22,18 @@ const decode = (events: TerminalEvent[]) =>
     .map((event) => new TextDecoder().decode(event.chunk))
     .join("");
 
+const shellCommand = () => (process.platform === "win32" ? [process.env.ComSpec ?? "cmd.exe"] : ["/bin/sh"]);
+const line = (command: string) => `${command}${process.platform === "win32" ? "\r" : "\n"}`;
+const posixOnlyTest = process.platform === "win32" ? test.skip : test;
+
+const waitForInitialOutput = async (events: TerminalEvent[]) => {
+  if (process.platform !== "win32") return;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (events.some((event) => event.kind === "data")) return;
+    await Bun.sleep(10);
+  }
+};
+
 describe("terminal supervisor", () => {
   test("reports a missing working directory before spawning the shell", () => {
     const { logger } = createRecordingLogger();
@@ -33,7 +45,7 @@ describe("terminal supervisor", () => {
     ).toThrow(`Terminal working directory does not exist: ${missingDirectory}`);
   });
 
-  test("provides terminal metadata when the host environment omits it", async () => {
+  posixOnlyTest("provides terminal metadata when the host environment omits it", async () => {
     const { logger } = createRecordingLogger();
     const supervisor = createTerminalSupervisor({ logger });
     const previousTerm = process.env.TERM;
@@ -71,21 +83,24 @@ describe("terminal supervisor", () => {
   test("opens a session, echoes input, and exits cleanly", async () => {
     const { logger, records } = createRecordingLogger();
     const supervisor = createTerminalSupervisor({ logger });
-    const handle = supervisor.api.openSession({ command: ["/bin/sh"], cols: 80, rows: 24 });
+    const handle = supervisor.api.openSession({ command: shellCommand(), cols: 80, rows: 24 });
 
     const events: TerminalEvent[] = [];
     const consumed = (async () => {
       for await (const event of handle.events()) events.push(event);
     })();
 
-    handle.write("echo hi-marker\n");
-    handle.write("exit\n");
+    await waitForInitialOutput(events);
+    handle.write(line("echo hi-marker"));
+    await Bun.sleep(25);
+    handle.write(line("exit"));
     await consumed;
 
     expect(decode(events)).toContain("hi-marker");
     // On open the session reports its launched process name (deterministic across
     // platforms) so the UI can title the tab; the live foreground is tracked after.
-    expect(events.some((event) => event.kind === "title" && event.title === "sh")).toBe(true);
+    const expectedTitle = process.platform === "win32" ? "cmd.exe" : "sh";
+    expect(events.some((event) => event.kind === "title" && event.title === expectedTitle)).toBe(true);
     const last = events.at(-1);
     expect(last?.kind).toBe("exit");
     expect(last).toMatchObject({ kind: "exit", code: 0 });
@@ -95,7 +110,7 @@ describe("terminal supervisor", () => {
     expect(JSON.stringify(records)).not.toContain("hi-marker");
   });
 
-  test("opens interactive bash with job control", async () => {
+  posixOnlyTest("opens interactive bash with job control", async () => {
     const { logger } = createRecordingLogger();
     const supervisor = createTerminalSupervisor({ logger });
     const handle = supervisor.api.openSession({ command: ["/bin/bash"], cols: 80, rows: 24 });
@@ -113,10 +128,10 @@ describe("terminal supervisor", () => {
     expect(output).not.toContain("no job control in this shell");
   });
 
-  test("propagates resize to the child PTY geometry", async () => {
+  posixOnlyTest("propagates resize to the child PTY geometry", async () => {
     const { logger } = createRecordingLogger();
     const supervisor = createTerminalSupervisor({ logger });
-    const handle = supervisor.api.openSession({ command: ["/bin/sh"], cols: 80, rows: 24 });
+    const handle = supervisor.api.openSession({ command: shellCommand(), cols: 80, rows: 24 });
 
     const events: TerminalEvent[] = [];
     const consumed = (async () => {
@@ -135,7 +150,7 @@ describe("terminal supervisor", () => {
   test("dispose force-kills live session children", async () => {
     const { logger, records } = createRecordingLogger();
     const supervisor = createTerminalSupervisor({ logger });
-    const handle = supervisor.api.openSession({ command: ["/bin/sh"], cols: 80, rows: 24 });
+    const handle = supervisor.api.openSession({ command: shellCommand(), cols: 80, rows: 24 });
     // Drain events so the exit settles cleanly after the kill.
     void (async () => {
       for await (const _event of handle.events()) void _event;

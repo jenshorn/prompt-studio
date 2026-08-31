@@ -1,17 +1,23 @@
 import { createServer } from "node:net";
 import { type CommandRunnerEnvironment, createExtensionProcessEnvironment } from "pstdio-extensions";
+import { resolveProcessCommand } from "./process-command";
+
+type ProcessSpawner = typeof Bun.spawn;
 
 const processOutput = (result: { stdout: string; stderr: string }) =>
   [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
 
-export const createProcessApi = (): CommandRunnerEnvironment["process"] => {
+export const createProcessApi = (spawner: ProcessSpawner = Bun.spawn): CommandRunnerEnvironment["process"] => {
   const api: CommandRunnerEnvironment["process"] = {
     async run(input) {
-      const proc = Bun.spawn(input.command, {
+      const resolved = resolveProcessCommand(input.command);
+      const proc = spawner(resolved.argv, {
         cwd: input.cwd,
         env: createExtensionProcessEnvironment(process.env, input.env),
         stderr: "pipe",
         stdout: "pipe",
+        windowsHide: true,
+        windowsVerbatimArguments: resolved.windowsVerbatimArguments,
       });
       const [stdout, stderr, exitCode] = await Promise.all([
         new Response(proc.stdout).text(),
@@ -27,11 +33,14 @@ export const createProcessApi = (): CommandRunnerEnvironment["process"] => {
       throw new Error(processOutput(result) || `Command failed: ${input.command.join(" ")}`);
     },
     async spawnDetached(input) {
-      const proc = Bun.spawn(input.command, {
+      const resolved = resolveProcessCommand(input.command);
+      const proc = spawner(resolved.argv, {
         cwd: input.cwd,
         env: createExtensionProcessEnvironment(process.env, input.env),
         stderr: "ignore",
         stdout: "ignore",
+        windowsHide: true,
+        windowsVerbatimArguments: resolved.windowsVerbatimArguments,
       });
       return { pid: proc.pid };
     },

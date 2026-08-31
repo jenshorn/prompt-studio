@@ -7,7 +7,13 @@ import { buildCompiledApiCommand, resolveApiRoot, resolveBundledApiEntry, runApi
 type SpawnCall = {
   command: string;
   args: string[];
-  options: { cwd?: string; stdio: "inherit" | "ignore"; detached?: boolean; env?: NodeJS.ProcessEnv };
+  options: {
+    cwd?: string;
+    stdio: "inherit" | "ignore";
+    detached?: boolean;
+    env?: NodeJS.ProcessEnv;
+    windowsHide?: boolean;
+  };
 };
 
 const createSpawnRecorder = () => {
@@ -17,7 +23,13 @@ const createSpawnRecorder = () => {
   const spawner = (
     command: string,
     args: readonly string[],
-    options: { cwd?: string; stdio: "inherit" | "ignore"; detached?: boolean; env?: NodeJS.ProcessEnv },
+    options: {
+      cwd?: string;
+      stdio: "inherit" | "ignore";
+      detached?: boolean;
+      env?: NodeJS.ProcessEnv;
+      windowsHide?: boolean;
+    },
   ) => {
     calls.push({ command, args: [...args], options });
     const child = {
@@ -40,6 +52,7 @@ const writeApiPackage = (root: string) => {
 };
 
 const runtimeArgs = (port = "0") => [
+  "--conditions=source",
   "./src/index.ts",
   "serve",
   "--foreground",
@@ -77,9 +90,9 @@ test("runApi spawns the combined runtime in the pstdio workspace", () => {
 
   expect(calls).toEqual([
     {
-      command: "bun",
+      command: process.execPath,
       args: runtimeArgs(),
-      options: { cwd: apiRoot, stdio: "ignore", detached: true, env: withApiRuntimeEnv(env) },
+      options: { cwd: apiRoot, stdio: "ignore", detached: true, env: withApiRuntimeEnv(env), windowsHide: true },
     },
   ]);
   expect(unrefCalled()).toBe(true);
@@ -102,9 +115,9 @@ test("runApi finds the runtime workspace relative to the source CLI entry when c
 
   expect(calls).toEqual([
     {
-      command: "bun",
+      command: process.execPath,
       args: runtimeArgs(),
-      options: { cwd: apiRoot, stdio: "ignore", detached: true, env: withApiRuntimeEnv(env) },
+      options: { cwd: apiRoot, stdio: "ignore", detached: true, env: withApiRuntimeEnv(env), windowsHide: true },
     },
   ]);
 });
@@ -122,9 +135,9 @@ test("runApi keeps child attached when detached is false", () => {
 
   expect(calls).toEqual([
     {
-      command: "bun",
+      command: process.execPath,
       args: runtimeArgs(),
-      options: { cwd: apiRoot, stdio: "inherit", detached: false, env: withApiRuntimeEnv(env) },
+      options: { cwd: apiRoot, stdio: "inherit", detached: false, env: withApiRuntimeEnv(env), windowsHide: true },
     },
   ]);
   expect(unrefCalled()).toBe(false);
@@ -143,9 +156,9 @@ test("runApi uses stdio override when provided", () => {
 
   expect(calls).toEqual([
     {
-      command: "bun",
+      command: process.execPath,
       args: runtimeArgs(),
-      options: { cwd: apiRoot, stdio: "inherit", detached: true, env: withApiRuntimeEnv(env) },
+      options: { cwd: apiRoot, stdio: "inherit", detached: true, env: withApiRuntimeEnv(env), windowsHide: true },
     },
   ]);
 });
@@ -163,13 +176,14 @@ test("runApi forwards PSTDIO_API_PORT to the runtime serve command", () => {
 
   expect(calls).toEqual([
     {
-      command: "bun",
+      command: process.execPath,
       args: runtimeArgs("4511"),
       options: {
         cwd: apiRoot,
         stdio: "ignore",
         detached: true,
         env: withApiRuntimeEnv(env),
+        windowsHide: true,
       },
     },
   ]);
@@ -178,8 +192,8 @@ test("runApi forwards PSTDIO_API_PORT to the runtime serve command", () => {
 test("compiled auto-start passes the configured port to the serve command", () => {
   expect(buildCompiledApiCommand("4511")).toEqual({
     command: process.execPath,
-    args: runtimeArgs("4511").slice(1),
-    options: { cwd: undefined, stdio: "ignore", detached: true },
+    args: runtimeArgs("4511").slice(2),
+    options: { cwd: undefined, stdio: "ignore", detached: true, windowsHide: true },
   });
 });
 
@@ -230,6 +244,7 @@ test("runApi falls back to bundled api when no workspace found", () => {
   expect(calls[0]!.options.cwd).toBeUndefined();
   expect(calls[0]!.options.stdio).toBe("ignore");
   expect(calls[0]!.options.detached).toBe(true);
+  expect(calls[0]!.options.windowsHide).toBe(true);
   expect(unrefCalled()).toBe(true);
 });
 

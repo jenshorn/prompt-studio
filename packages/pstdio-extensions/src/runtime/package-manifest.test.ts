@@ -275,22 +275,31 @@ describe("readPackageManifest validation", () => {
   });
 
   test("rejects symlinked main targets outside the package", () => {
+    const main = process.platform === "win32" ? "./linked/entry.ts" : "./linked.ts";
     const dir = createPackage({
       name: "symlink-main",
       version: "1.0.0",
       publisher: "pstdio",
-      main: "./linked.ts",
+      main,
       engines: { pstdio: EXTENSION_API_VERSION },
     });
-    const outside = join(dir, "..", "outside-linked.ts");
-    writeFileSync(outside, "export default {};\n");
-    symlinkSync(outside, join(dir, "linked.ts"));
+    const outsideRoot = mkdtempSync(join(tmpdir(), "pstdio-manifest-outside-"));
+    tempDirs.push(outsideRoot);
+
+    if (process.platform === "win32") {
+      writeFileSync(join(outsideRoot, "entry.ts"), "export default {};\n");
+      symlinkSync(outsideRoot, join(dir, "linked"), "junction");
+    } else {
+      const outside = join(outsideRoot, "linked.ts");
+      writeFileSync(outside, "export default {};\n");
+      symlinkSync(outside, join(dir, "linked.ts"));
+    }
 
     const result = readPackageManifest(dir);
 
     expect(result.manifest).toBeNull();
     expect(result.diagnostics.map((diagnostic) => diagnostic.message)).toContain(
-      'main "./linked.ts" resolves outside the package directory',
+      `main "${main}" resolves outside the package directory`,
     );
   });
 });

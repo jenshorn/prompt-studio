@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { existsSync, lstatSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EXTENSION_API_VERSION } from "pstdio-api-contracts/extension-kernel";
@@ -28,6 +28,18 @@ const writeExtension = (dir: string) => {
   writeFileSync(join(dir, "extension.ts"), "export default {};\n");
 };
 
+const writeWorkspaceSdk = (workspaceRoot: string) => {
+  const sdkPath = join(workspaceRoot, "node_modules", "@pstdio", "sdk");
+  mkdirSync(sdkPath, { recursive: true });
+  writeFileSync(
+    join(sdkPath, "package.json"),
+    JSON.stringify({ name: "@pstdio/sdk", type: "module", exports: { "./extensions": "./extensions.js" } }),
+  );
+  writeFileSync(join(sdkPath, "extensions.js"), "export const defineExtension = (extension) => extension;\n");
+};
+
+const sdkExtensionsImport = JSON.stringify("@pstdio/sdk/extensions");
+
 let root: string;
 let pstdioHome: string;
 
@@ -48,7 +60,7 @@ describe("installExtensionSource dependency health", () => {
     writeExtension(source);
     writeFileSync(
       join(source, "extension.ts"),
-      `import { defineExtension } from "@pstdio/sdk/extensions";
+      `import { defineExtension } from ${sdkExtensionsImport};
 
 export default defineExtension({
   commands: [
@@ -65,13 +77,35 @@ export default defineExtension({
 `,
     );
 
-    const sdkPath = join(workspaceRoot, "node_modules", "@pstdio", "sdk");
-    mkdirSync(sdkPath, { recursive: true });
+    writeWorkspaceSdk(workspaceRoot);
+
+    const result = await installExtensionSource({
+      source,
+      skipInstall: true,
+      env: { PSTDIO_HOME: pstdioHome },
+      homedir: () => "/unused",
+    });
+
+    const targetNodeModules = join(result.targetPath, "node_modules");
+    expect(result.check.errorCount).toBe(0);
+    expect(existsSync(targetNodeModules)).toBe(true);
+    expect(lstatSync(targetNodeModules).isSymbolicLink()).toBe(true);
+  });
+
+  test("does not copy partial source node_modules before linking workspace dependencies", async () => {
+    const workspaceRoot = join(root, "workspace");
+    const source = join(workspaceRoot, "extensions", "source-extension");
+    writeExtension(source);
     writeFileSync(
-      join(sdkPath, "package.json"),
-      JSON.stringify({ name: "@pstdio/sdk", type: "module", exports: { "./extensions": "./extensions.js" } }),
+      join(source, "extension.ts"),
+      `import { defineExtension } from ${sdkExtensionsImport};
+
+export default defineExtension({});
+`,
     );
-    writeFileSync(join(sdkPath, "extensions.js"), "export const defineExtension = (extension) => extension;\n");
+    mkdirSync(join(source, "node_modules", "@types", "bun"), { recursive: true });
+    writeFileSync(join(source, "node_modules", "@types", "bun", "package.json"), "{}");
+    writeWorkspaceSdk(workspaceRoot);
 
     const result = await installExtensionSource({
       source,
@@ -99,7 +133,6 @@ export default defineExtension({
 
     const target = join(pstdioHome, "extensions", "source-extension");
     mkdirSync(join(target, "node_modules", "@pstdio"), { recursive: true });
-    symlinkSync(join(root, "missing-sdk"), join(target, "node_modules", "@pstdio", "sdk"), "dir");
 
     const runCommand = mock(async (_file: string, _args: readonly string[], options: { cwd: string }) => {
       rmSync(join(options.cwd, "node_modules", "@pstdio", "sdk"), { force: true });

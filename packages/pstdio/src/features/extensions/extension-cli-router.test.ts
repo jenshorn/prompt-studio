@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { resolve } from "node:path";
 import type { CommandExecuteResponse, ExtensionCommandRecord } from "@pstdio/sdk/api";
 import {
   buildExtensionCommandTable,
@@ -221,7 +222,7 @@ describe("extension CLI router dispatch", () => {
     expect(execute).toHaveBeenCalledWith("lab.counter.bump", {
       projectId: "project-1",
       params: { amount: 2 },
-      repo: { projectId: "project-1", repoId: "repo-1", path: "/repo" },
+      repo: { projectId: "project-1", repoId: "repo-1", path: resolve("/repo") },
       source: "cli",
     });
     expect(log).toHaveBeenCalledWith(JSON.stringify({ counter: 2 }));
@@ -423,7 +424,7 @@ describe("extension CLI router repo context", () => {
     expect(execute).toHaveBeenCalledWith("lab.counter.bump", {
       projectId: "project-1",
       params: { amount: 2 },
-      repo: { projectId: "project-1", repoId: "repo-1", path: worktree },
+      repo: { projectId: "project-1", repoId: "repo-1", path: resolve(worktree) },
       source: "cli",
     });
   });

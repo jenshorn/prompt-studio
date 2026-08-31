@@ -61,15 +61,17 @@ describe("extensions check", () => {
 
     await handler({ json: true } as never);
 
-    expect(roots).toEqual(["/home/user/.pstdio/extensions", join("/repo", ".pstdio", "extensions")]);
+    const homeRoot = join("/home/user/.pstdio", "extensions");
+    const repoRoot = join("/repo", ".pstdio", "extensions");
+    expect(roots).toEqual([homeRoot, repoRoot]);
     expect(JSON.parse(logs[0] ?? "{}")).toMatchObject({
       checks: [
         {
-          extensionsRoot: "/home/user/.pstdio/extensions",
+          extensionsRoot: homeRoot,
           hostCompatibility: { status: "verified", host: { host: "dashboard" } },
         },
         {
-          extensionsRoot: "/repo/.pstdio/extensions",
+          extensionsRoot: repoRoot,
           hostCompatibility: { status: "verified", host: { host: "dashboard" } },
         },
       ],
@@ -78,7 +80,9 @@ describe("extensions check", () => {
 
   test("fails when any checked root has errors", async () => {
     const handler = createHandler({
-      checkExtensionsRoot: mock(async (root: string) => makeCheck(root, root.includes("/repo/") ? 1 : 0)),
+      checkExtensionsRoot: mock(async (root: string) =>
+        makeCheck(root, root.replaceAll("\\", "/").includes("/repo/") ? 1 : 0),
+      ),
       cwd: () => "/repo",
       findGitRoot: () => "/repo",
       log: () => {},

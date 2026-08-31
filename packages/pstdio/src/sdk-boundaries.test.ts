@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const featureApiRoot = join(packageRoot, "src", "features");
 
+// Compare against "/"-separated paths on every platform.
+const rel = (from: string, to: string) => relative(from, to).replaceAll("\\", "/");
+
 const getProductionFiles = (directory: string): string[] =>
   readdirSync(directory).flatMap((entry) => {
     if (entry === "node_modules" || entry === "dist") {
@@ -30,16 +33,16 @@ describe("sdk boundaries", () => {
   test("cli production source imports API contract types through the sdk", () => {
     const offenders = getProductionFiles(packageRoot)
       .filter((file) => readFileSync(file, "utf8").includes("pstdio-api-contracts"))
-      .map((file) => relative(packageRoot, file));
+      .map((file) => rel(packageRoot, file));
 
     expect(offenders).toEqual([]);
   });
 
   test("cli feature api adapters use the sdk client instead of direct fetch", () => {
     const offenders = getProductionFiles(featureApiRoot)
-      .filter((file) => relative(featureApiRoot, file).split("/").includes("api"))
+      .filter((file) => rel(featureApiRoot, file).split("/").includes("api"))
       .filter((file) => readFileSync(file, "utf8").includes("fetch("))
-      .map((file) => relative(packageRoot, file));
+      .map((file) => rel(packageRoot, file));
 
     expect(offenders).toEqual([]);
   });
@@ -47,7 +50,7 @@ describe("sdk boundaries", () => {
   test("cli app-facing source uses sdk transports instead of raw fetch", () => {
     const rawFetchAllowed = new Set(["src/adapters/cli/commands/serve/serve-app.ts"]);
     const offenders = getProductionFiles(packageRoot)
-      .map((file) => relative(packageRoot, file))
+      .map((file) => rel(packageRoot, file))
       .filter((file) => !rawFetchAllowed.has(file))
       .filter((file) => /\bfetch\s*\(/.test(readFileSync(join(packageRoot, file), "utf8")));
 

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 import { GitError, git } from "./git";
 import type { WorktreeInfo } from "./types";
 
@@ -10,6 +10,10 @@ type ListEntry = {
   prunable: boolean;
 };
 
+const normalizeGitPath = (path: string) => (process.platform === "win32" ? win32.normalize(path) : path);
+
+const isWindowsPath = (path: string) => path.includes("\\") || /^[A-Za-z]:[\\/]/.test(path);
+
 export const listWorktrees = async (repoRoot: string) => {
   const output = await git(repoRoot, ["worktree", "list", "--porcelain"]);
   const entries: ListEntry[] = [];
@@ -17,7 +21,7 @@ export const listWorktrees = async (repoRoot: string) => {
 
   for (const line of output.split("\n")) {
     if (line.startsWith("worktree ")) {
-      current = { worktree: line.slice("worktree ".length) };
+      current = { worktree: normalizeGitPath(line.slice("worktree ".length)) };
     } else if (line.startsWith("HEAD ")) {
       current.HEAD = line.slice("HEAD ".length);
     } else if (line.startsWith("branch ")) {
@@ -122,5 +126,6 @@ export const branchExists = async (repoRoot: string, branch: string) => {
 
 export const worktreePath = (baseDir: string, branch: string) => {
   const safeName = branch.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return join(baseDir, safeName);
+  const pathApi = isWindowsPath(baseDir) || (process.platform === "win32" && !baseDir.startsWith("/")) ? win32 : posix;
+  return pathApi.join(baseDir, safeName);
 };
