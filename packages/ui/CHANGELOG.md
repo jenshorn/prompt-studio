@@ -1,5 +1,17 @@
 # @pstdio/ui
 
+## 0.22.0
+
+_2026-08-31_
+
+### Minor Changes
+
+- 19ee208: Make grouped collection displays and board rules extension-owned instead of workspace and status special cases.
+
+### Patch Changes
+
+- c84459e: Keep the workbench visible when a stored extension theme is unavailable
+
 ## 0.21.0
 
 _2026-08-27_
