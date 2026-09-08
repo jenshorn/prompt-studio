@@ -121,9 +121,9 @@ const finishQuit = () => {
 
 const startRuntime = async () => {
   setState(initialDesktopState);
-  await windowController?.showLifecycle();
+  const lifecycleReady = windowController?.showLifecycle();
   try {
-    const runtime = await runtimeManager.start();
+    const [runtime] = await Promise.all([runtimeManager.start(), lifecycleReady]);
     setState(
       transitionDesktopState(state, {
         type: "runtime_ready",
@@ -136,6 +136,7 @@ const startRuntime = async () => {
     );
     await windowController?.showWorkbench(runtime.descriptor);
   } catch (error) {
+    await lifecycleReady;
     logger.error(
       { event: "desktop.runtime.start.failed", message: recoveryError(error).message },
       "Runtime start failed",
@@ -158,12 +159,19 @@ const requestQuit = async () => {
   const result = await runtimeManager.requestShutdown(false);
   if (result.state === "active") {
     setState(
-      transitionDesktopState(state, {
-        type: "quit_requested",
-        activity: result.activity,
-      }),
+      transitionDesktopState(
+        {
+          kind: "workbench",
+          runtime: {
+            instanceId: runtime.descriptor.instanceId,
+            origin: runtime.descriptor.origin,
+            ownerType: runtime.descriptor.ownerType,
+          },
+        },
+        { type: "quit_requested", activity: result.activity },
+      ),
     );
-    await windowController?.showLifecycle();
+    await windowController?.showQuitConfirmation();
     return;
   }
   if (result.state === "accepted") {
@@ -184,12 +192,9 @@ const requestQuit = async () => {
 
 const cancelQuit = async () => {
   if (state.kind !== "confirming_active_work") return;
-  const runtime = runtimeManager.runtime;
-  if (!runtime) return;
-
   setState(transitionDesktopState(state, { type: "quit_cancelled" }));
   quitting = false;
-  await windowController?.showWorkbench(runtime.descriptor);
+  windowController?.dismissQuitConfirmation();
 };
 
 const confirmQuit = async () => {
@@ -199,6 +204,7 @@ const confirmQuit = async () => {
   const result = await runtimeManager.requestShutdown(true);
   if (result.state !== "accepted") {
     setState({ kind: "recovery", error: recoveryError(new Error("Runtime refused graceful shutdown")) });
+    await windowController?.showLifecycle();
     quitting = false;
     return;
   }
@@ -225,7 +231,7 @@ const bootstrap = async () => {
   });
   registerDesktopIpc({
     ipcMain,
-    window: windowController.window,
+    webContents: () => windowController?.webContents() ?? [],
     lifecycleUrl: windowController.lifecycleUrl,
     runtimeOrigin: () => windowController?.runtimeOrigin() ?? null,
     appInfo: () => ({ platform: process.platform, version: app.getVersion() }),

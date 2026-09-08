@@ -2,29 +2,18 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { type Browser, chromium, type Page } from "@playwright/test";
+import { type Browser, chromium, type Page, test } from "@playwright/test";
 import type { RuntimeDescriptor } from "pstdio/runtime";
+import { redactSensitiveText } from "pstdio-logging";
+import { resolvePackagedLayout } from "../packaging/package-layout";
+import { startElectronTrace } from "./electron-trace";
+import { waitForVisibleElement } from "./visible-element-timing";
 
 const desktopRoot = resolve(import.meta.dirname, "../..");
 
 export const desktopVersion = JSON.parse(readFileSync(join(desktopRoot, "package.json"), "utf8")).version as string;
 
-const outputRoot = () => join(desktopRoot, "out", `Prompt Studio-${process.platform}-${process.arch}`);
-
-const executablePath = () => {
-  if (process.platform === "darwin") {
-    return join(outputRoot(), "Prompt Studio.app", "Contents", "MacOS", "Prompt Studio");
-  }
-  if (process.platform === "win32") return join(outputRoot(), "Prompt Studio.exe");
-  return join(outputRoot(), "Prompt Studio");
-};
-
-const sidecarPath = () => {
-  if (process.platform === "darwin") {
-    return join(outputRoot(), "Prompt Studio.app", "Contents", "Resources", "bin", "pstdio");
-  }
-  return join(outputRoot(), "resources", "bin", process.platform === "win32" ? "pstdio.exe" : "pstdio");
-};
+const packageLayout = resolvePackagedLayout(desktopRoot, process.platform, process.arch);
 
 const packagedEnvironment = (home: string) => {
   const env = Object.fromEntries(
@@ -74,34 +63,52 @@ const waitForDevTools = (child: ChildProcess) =>
       clearTimeout(timeout);
       rejectConnection(new Error(`Packaged app exited with code ${code}\n${stderr}`));
     });
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      rejectConnection(error);
+    });
   });
 
 export type PackagedApp = {
+  home: string;
   browser: Browser;
   child: ChildProcess;
   page: Page;
   readyInMs: number;
   runtime: RuntimeDescriptor;
+  finishTrace: () => Promise<void>;
 };
 
-export const launchPackagedApp = async (home: string): Promise<PackagedApp> => {
+export const launchPackagedApp = async (home: string, runtimeEnvironment: Record<string, string> = {}) => {
   const startedAt = Date.now();
   const child = spawn(
-    executablePath(),
+    packageLayout.executable,
     ["--remote-debugging-port=0", `--user-data-dir=${join(home, "electron-user-data")}`],
     {
       cwd: home,
-      env: packagedEnvironment(home),
+      env: { ...packagedEnvironment(home), ...runtimeEnvironment },
       stdio: "pipe",
     },
   );
-  const browser = await chromium.connectOverCDP(await waitForDevTools(child));
-  const page = browser.contexts()[0]?.pages()[0];
-  if (!page) throw new Error("Packaged app did not create a renderer page");
-  const runtime = await waitForDescriptor(home);
-  await page.waitForURL(`${runtime.origin}/`);
-  await page.locator("#root").waitFor({ state: "visible" });
-  return { browser, child, page, readyInMs: Date.now() - startedAt, runtime };
+  child.stdout.resume();
+  let browser: Browser | null = null;
+  try {
+    const endpoint = await waitForDevTools(child);
+    // Keep the debugging connection out of the spawned runtime. See ADR 0020.
+    const runtime = await waitForDescriptor(home);
+    browser = await chromium.connectOverCDP(endpoint);
+    const context = browser.contexts()[0];
+    const page = context?.pages()[0];
+    if (!page || !context) throw new Error("Packaged app did not create a renderer page");
+    const finishTrace = await startElectronTrace(context, `packaged-${child.pid}`);
+    await page.waitForURL(`${runtime.origin}/`, { waitUntil: "commit" });
+    const visibleAt = await waitForVisibleElement(page, "#root");
+    return { home, browser, child, page, readyInMs: visibleAt - startedAt, runtime, finishTrace };
+  } catch (error) {
+    await browser?.close().catch(() => {});
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    throw error;
+  }
 };
 
 export const waitForExit = (child: ChildProcess) =>
@@ -119,7 +126,7 @@ export const waitForExit = (child: ChildProcess) =>
 
 export const runPackagedCli = (home: string, args: string[]) =>
   new Promise<{ exitCode: number | null; stderr: string; stdout: string }>((resolveExit) => {
-    const child = spawn(sidecarPath(), args, {
+    const child = spawn(packageLayout.sidecar, args, {
       cwd: home,
       env: packagedEnvironment(home),
       stdio: "pipe",
@@ -137,6 +144,13 @@ export const runPackagedCli = (home: string, args: string[]) =>
 
 export const disposePackagedApp = async (app: PackagedApp | null) => {
   if (!app) return;
+  await app.finishTrace();
+  const logPath = join(app.home, "logs.jsonl");
+  const log = existsSync(logPath) ? readFileSync(logPath, "utf8").slice(-32_000) : "No runtime log was written.";
+  await test.info().attach("runtime-log", {
+    body: redactSensitiveText(log, [app.runtime.token]),
+    contentType: "text/plain",
+  });
   await app.browser.close().catch(() => {});
   if (app.child.exitCode === null && app.child.signalCode === null) app.child.kill("SIGKILL");
 };

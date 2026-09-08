@@ -11,7 +11,18 @@ Prompt Studio desktop is a private Electron client in `clients/desktop`. Electro
 
 The lifecycle state machine distinguishes discovery, spawn, readiness, workbench, active-work confirmation, closing, recovery, retry, and persistent detach. Electron creates the runtime instance ID before spawn and accepts only a descriptor with that exact ID, so a competing process cannot replace the child during readiness. A runtime control event marks an exit as intentional; a desktop-started child exit without that event opens recovery instead of leaving a blank dashboard.
 
-Active-work confirmation stays inside the bundled lifecycle renderer instead of using a native message box. The renderer receives the backend-authoritative session, terminal, and job labels through the lifecycle state. Its narrow `cancelQuit` and `confirmQuit` preload actions are sender-checked like every other desktop capability. Cancel reloads the existing workbench; confirm asks Electron main to cancel activity, then Electron waits without a timeout for the owned runtime to exit.
+Runtime discovery starts while the lifecycle document loads. Workbench navigation waits for both, so startup does not serialize those independent tasks. The lifecycle renderer reads its current state before mounting React. Recovery and confirmation therefore render their current state immediately without first mounting the startup view.
+
+The 15-second startup budget also cancels pending health requests during discovery and external-runtime verification. A runtime that accepts a connection without answering cannot leave the startup window waiting indefinitely. Cancellation preserves the existing descriptor and does not start a competing runtime.
+
+Active-work confirmation uses a sandboxed `WebContentsView` inside the existing window. The workbench stays mounted underneath, preserving its terminal connections, open resources, and unsaved input. The confirmation receives the backend-authoritative session, terminal, and job labels through the lifecycle state. Its narrow `cancelQuit` and `confirmQuit` preload actions are sender-checked like every other desktop capability. Cancel closes the confirmation and returns focus to the workbench. Confirm asks Electron main to cancel activity, then Electron waits without a timeout for the owned runtime to exit.
+
+If the runtime refuses confirmed shutdown, Electron removes the confirmation and shows recovery. A new quit attempt reads current runtime ownership and activity before offering confirmation again. The window owns at most one confirmation view.
+
+Extension processes started through `ctx.process.spawnDetached` are independent
+of that managed activity. They survive desktop Quit and API shutdown through
+`pst close`. The extension owns their cleanup. Packaged Electron tests execute a
+real extension command and verify its heartbeat continues after each shutdown.
 
 ## Runtime ownership
 
@@ -33,7 +44,7 @@ BrowserWindow enables sandboxing, context isolation, web security, and disables 
 - applies a restrictive content security policy;
 - validates the expected WebContents, main frame, and exact renderer origin for every IPC handler.
 
-The confirmation view uses an alert-dialog role, focuses the safe action first, supports keyboard-only choice, and uses the shared destructive button variant for cancellation. Startup and closing progress indicators are omitted when the operating system requests reduced motion.
+The confirmation view uses the same hardened web preferences and session as the workbench, but only allows navigation to the lifecycle document. Its WebContents is trusted for IPC only while the view exists. It uses an alert-dialog role, focuses the safe action first, supports keyboard-only choice, and uses the shared destructive button variant for cancellation. Startup and closing progress indicators are omitted when the operating system requests reduced motion.
 
 ## Recovery and diagnostics
 
@@ -104,6 +115,8 @@ bun run dev:desktop
 
 This builds the Electron client, starts the Docker-isolated unified runtime, seeds its project, and attaches Electron to that authenticated external runtime. Its home is repository-local under `__test-tmp__/dev-isolated/pstdio-desktop/`; it never defaults to `~/.pstdio`. Closing Electron detaches from the externally owned runtime and tears down the Compose project and its isolated state.
 
+Cold dependency installation and compilation can take longer than 90 seconds. The host waits while that setup container runs. After setup starts the API process, the container allows 90 seconds for API health and the desktop descriptor, aborts stalled health requests, and exits on failure. The host then reports the container logs instead of waiting indefinitely for a failed runtime.
+
 Use `bun run dev` for the source API plus Vite dashboard, or `bun run dev:isolated` for the browser-oriented Docker flow. Only `dev:desktop` starts Electron.
 
 Run focused desktop validation with:
@@ -117,7 +130,26 @@ bun run --cwd clients/desktop make -- --skip-package
 bun run --cwd clients/desktop verify:fuses
 ```
 
+Use Node 24, the same version as CI, for Electron Forge packaging.
+
 The source Electron suite starts isolated temporary homes and a real Electron process. It checks authenticated attachment, the sandboxed/frozen preload boundary, ephemeral cookie storage, denied popups and permissions, single-instance focus, persistent-runtime detach, and actionable recovery. The packaged suite launches the produced application itself over the Chromium debugging protocol without enabling Electron's disabled Node inspector. It measures the cold-start, warm-attach, and crash-recovery budgets; creates and lists a project through the HttpOnly browser session and descriptor-bearer CLI; promotes ownership without restarting the runtime; proves persistent detach plus project and workbench-state restoration; exercises intentional `pst close`; and retries an unexpected sidecar exit without relaunching Electron.
+
+Startup and recovery measurements sample element visibility on animation frames and return the timestamp from the renderer. Assertion polling, protocol replies, and trace snapshots must not add time after the UI is visible. The strict limits remain 8 seconds for cold startup, 3 seconds for warm attach, and 500 milliseconds for crash recovery.
+
+Pull-request CI requires both Electron suites on Linux before downstream Docker
+builds can run. It configures the SUID sandbox for the source and packaged
+executables, verifies the packaged fuse policy, and uploads readiness results
+and browser traces. Trace export removes runtime cookies and bearer
+credentials from every text entry before artifacts are uploaded.
+
+The secured compiled-runtime browser suite runs Chromium, Firefox, and WebKit.
+`bun run --cwd packages/e2e test:packaged` runs the compiled CLI checks with Bun and the browser checks with the Playwright runner.
+It proves opaque iframe command and project-setting persistence across reloads.
+Chromium also sends a terminal sentinel through the runtime's ephemeral,
+cookie-authenticated WebSocket endpoint and closes the terminal. CI requires
+the browser binaries and fails instead of skipping missing engines. These
+checks complement the Vite browser suite, which covers the development
+transport, and signed native release tests, which cover distribution trust.
 
 Run `bun run --cwd scripts verify:packages` whenever packaged defaults change. It verifies the compiled runtime's embedded dashboard, migrations, built-in extensions, and host-platform runtime behavior.
 
