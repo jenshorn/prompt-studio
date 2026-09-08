@@ -1,6 +1,23 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 import { DESKTOP_CHANNELS, type DesktopProjectTabsState, type PromptStudioDesktopApi } from "./desktop-api";
 import type { DesktopState } from "./lifecycle/lifecycle-machine";
+import { observeTitleBarAppearance } from "./windows/observe-title-bar-appearance";
+
+if (process.platform !== "darwin") {
+  window.addEventListener(
+    "DOMContentLoaded",
+    () => {
+      const stop = observeTitleBarAppearance((appearance) => {
+        void ipcRenderer.invoke(DESKTOP_CHANNELS.titleBarAppearance, {
+          ...appearance,
+          height: Math.round(appearance.height * webFrame.getZoomFactor()),
+        });
+      });
+      window.addEventListener("unload", stop, { once: true });
+    },
+    { once: true },
+  );
+}
 
 const desktopApi: PromptStudioDesktopApi = Object.freeze({
   cancelQuit: () => ipcRenderer.invoke(DESKTOP_CHANNELS.cancelQuit),
