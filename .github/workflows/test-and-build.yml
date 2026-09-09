@@ -94,7 +94,7 @@ jobs:
         run: bun run lint
 
       - name: Test monorepo (non-e2e)
-        run: bunx lerna run test --ignore e2e
+        run: bunx lerna run test --ignore e2e --stream
 
   e2e:
     runs-on: ubuntu-latest
