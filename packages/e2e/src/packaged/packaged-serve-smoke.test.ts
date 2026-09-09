@@ -10,6 +10,7 @@ import { expectPackagedArtifacts } from "./packaged-artifacts-smoke";
 import { registerCoreDefaultExtensionSmokeTests } from "./packaged-core-extensions-smoke";
 import { expectExamplePages } from "./packaged-example-metadata";
 import { buildBinary, PACKAGED_BINARY_PATH } from "./packaged-helpers";
+import { registerRemoteExecutionSmokeTests } from "./packaged-remote-execution-smoke";
 import { runtimeAuthorization, startPackagedServe, stopProcess } from "./packaged-serve-helpers";
 
 const BUILD_TIMEOUT = 180_000;
@@ -306,6 +307,7 @@ describe("packaged pstdio — self-hosted serve", () => {
 });
 
 registerCoreDefaultExtensionSmokeTests();
+registerRemoteExecutionSmokeTests();
 
 test("packaged CLI includes automation and machine authentication", () => {
   const result = spawnSync(PACKAGED_BINARY_PATH, ["--help"], { encoding: "utf8" });
