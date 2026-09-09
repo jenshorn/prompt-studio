@@ -100,6 +100,17 @@ export {
   type PropsStore,
   type WebviewFilesClient,
 } from "./define-extension-view";
+export { resolveEventReferenceId } from "./event-reference";
+export { defaultPageResourceCodec } from "./page-resource-codec";
+export {
+  isWorkbenchProjectUrl,
+  type PageUrlDefinition,
+  type ParsedWorkbenchPageUrl,
+  parsePageUrl,
+  parseWorkbenchPageUrl,
+  serializePageUrl,
+  serializeWorkbenchPageUrl,
+} from "./page-url";
 export { params } from "./params";
 export { type QualifiedRef, qualifyRef } from "./qualify-ref";
 export { commandEvent, commandRef, eventRef } from "./refs";
@@ -119,4 +130,5 @@ export {
   type WebviewCommandsClient,
   type WebviewSettingsClient,
 } from "./webview-client";
+export { EXTENSION_EVENTS_SCOPE, type WebviewEventsClient, type WebviewExtensionEvent } from "./webview-events";
 export { matchesResourceWhen } from "./when";
