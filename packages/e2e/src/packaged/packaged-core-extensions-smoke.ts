@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WorkbenchExtensionMetadata } from "pstdio-api-contracts";
 import { startLocalWorkspaceRegistry } from "../local-workspace-registry";
+import { expectPlannerIdentities } from "./packaged-planner-identities-smoke";
 import { expectPlannerProperties } from "./packaged-planner-properties-smoke";
 import { runtimeAuthorization, startPackagedServe, stopProcess } from "./packaged-serve-helpers";
 
@@ -58,6 +59,11 @@ export const registerCoreDefaultExtensionSmokeTests = () => {
 
           const project = (await createRes.json()) as { extension_warnings?: unknown[]; id: string };
           expect(project.extension_warnings).toBeUndefined();
+          await expectPlannerIdentities({
+            baseUrl: started.baseUrl,
+            projectId: project.id,
+            headers: runtimeAuthorization(started.descriptor),
+          });
           const extensionsRes = await fetch(`${started.baseUrl}/v1/projects/${project.id}/extensions`, {
             headers: runtimeAuthorization(started.descriptor),
           });

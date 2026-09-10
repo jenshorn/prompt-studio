@@ -82,6 +82,10 @@ type ExtensionServiceDeps = {
   onInstalledSourcesChanged?: (sourcePath?: string, validatedSource?: LoadedExtension) => Promise<void> | void;
   checkExtension?: typeof checkExtensionSource;
   projectService: ReturnType<typeof createProjectService>;
+  validateResourcePrefixes?: (
+    projectId: string,
+    source: { extension_id: string; source_kind: SourceKind; source_path: string },
+  ) => Promise<void>;
 };
 
 export const createExtensionService = (deps: ExtensionServiceDeps) => {
@@ -205,6 +209,13 @@ export const createExtensionService = (deps: ExtensionServiceDeps) => {
   };
 
   const enableInstalledSourceForProject = async (input: EnableInstalledSourceInput) => {
+    // Prefix ownership is checked before the source and instance rows exist, so a
+    // rejected enable leaves nothing behind to clean up.
+    await deps.validateResourcePrefixes?.(input.projectId, {
+      extension_id: input.extensionId,
+      source_kind: input.sourceKind ?? "local_path",
+      source_path: input.sourcePath,
+    });
     const { existing, installedSource } = await resolveProjectInstalledSource(input, registerInstalledSource);
 
     const candidate = existing ?? (await createProjectInstance(input, installedSource));
@@ -258,6 +269,7 @@ export const createExtensionService = (deps: ExtensionServiceDeps) => {
 
     const installedSource = await deps.installedExtensionSourcesService.get(instance.installed_extension_id);
     if (!installedSource) return null;
+    await deps.validateResourcePrefixes?.(instance.scope_id, installedSource);
     return claimExtensionId(instance, installedSource);
   };
 
