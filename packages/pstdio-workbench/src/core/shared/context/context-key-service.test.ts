@@ -40,4 +40,30 @@ describe("createContextKeyService", () => {
       reviewVisible: true,
     });
   });
+
+  test("keeps other scopes alive when scopes share an owner", () => {
+    const context = createContextKeyService();
+    const parent = context.createScope("extensions");
+    parent.set("templates.editable", true);
+    const child = context.createScope("extensions");
+    child.set("extension.ready", true);
+
+    child.dispose();
+
+    expect(context.get("templates.editable")).toBe(true);
+    expect(context.get("extension.ready")).toBeUndefined();
+    parent.dispose();
+    expect(context.snapshot()).toEqual({});
+  });
+
+  test("removes every scope for an owner without clearing other owners", () => {
+    const context = createContextKeyService();
+    context.createScope("extensions").set("templates.editable", true);
+    context.createScope("extensions").set("extension.ready", true);
+    context.createScope("settings").set("settings.visible", true);
+
+    context.deleteOwner("extensions");
+
+    expect(context.snapshot()).toEqual({ "settings.visible": true });
+  });
 });

@@ -19,6 +19,7 @@ export interface ContextKeyService {
   set(key: string, value: ContextKeyValue): void;
   get(key: string): ContextKeyValue;
   delete(key: string): void;
+  /** Each scope has its own lifetime, including scopes with the same owner. */
   createScope(ownerId: string): ContextKeyScope;
   deleteOwner(ownerId: string): void;
   snapshot(): Record<string, ContextKeyValue>;
@@ -56,11 +57,11 @@ export const createContextKeyService = (): ContextKeyService => {
   });
 
   let globalValues: Record<string, ContextKeyValue> = {};
-  const ownerValues = new Map<string, Record<string, ContextKeyValue>>();
+  const scopes = new Set<{ ownerId: string; values: Record<string, ContextKeyValue> }>();
 
   const buildValues = () => {
     const values = { ...globalValues };
-    for (const scopedValues of ownerValues.values()) Object.assign(values, scopedValues);
+    for (const scope of scopes) Object.assign(values, scope.values);
     return values;
   };
 
@@ -89,7 +90,8 @@ export const createContextKeyService = (): ContextKeyService => {
     },
 
     createScope(ownerId) {
-      ownerValues.set(ownerId, ownerValues.get(ownerId) ?? {});
+      const scope = { ownerId, values: {} as Record<string, ContextKeyValue> };
+      scopes.add(scope);
       let disposed = false;
 
       const assertActive = () => {
@@ -101,37 +103,43 @@ export const createContextKeyService = (): ContextKeyService => {
 
         set(key, value) {
           assertActive();
-          const values = ownerValues.get(ownerId) ?? {};
+          const values = scope.values;
           if (values[key] === value) return;
-          ownerValues.set(ownerId, { ...values, [key]: value });
+          scope.values = { ...values, [key]: value };
+          scopes.add(scope);
           publish("setScopedContextKey");
         },
 
         get(key) {
           assertActive();
-          return ownerValues.get(ownerId)?.[key];
+          return scope.values[key];
         },
 
         delete(key) {
           assertActive();
-          const values = ownerValues.get(ownerId);
-          if (!values || !(key in values)) return;
+          const values = scope.values;
+          if (!(key in values)) return;
           const { [key]: _removed, ...rest } = values;
-          ownerValues.set(ownerId, rest);
+          scope.values = rest;
           publish("deleteScopedContextKey");
         },
 
         dispose() {
           if (disposed) return;
           disposed = true;
-          if (!ownerValues.delete(ownerId)) return;
+          if (!scopes.delete(scope)) return;
           publish("disposeContextKeyScope");
         },
       };
     },
 
     deleteOwner(ownerId) {
-      if (!ownerValues.delete(ownerId)) return;
+      const ownedScopes = [...scopes].filter((scope) => scope.ownerId === ownerId);
+      if (ownedScopes.length === 0) return;
+      for (const scope of ownedScopes) {
+        scope.values = {};
+        scopes.delete(scope);
+      }
       publish("deleteContextKeyOwner");
     },
 
