@@ -78,9 +78,10 @@ const digest = (value: string) => createHash("sha256").update(value).digest("hex
 const mirrorNodeModules = (sourceNodeModulesPath: string, targetNodeModulesPath: string) => {
   if (!existsSync(sourceNodeModulesPath)) return;
 
+  const sourceRoot = realpathSync(sourceNodeModulesPath);
   mkdirSync(targetNodeModulesPath, { recursive: true });
-  for (const dirent of readdirSync(sourceNodeModulesPath, { withFileTypes: true })) {
-    const sourceChild = join(sourceNodeModulesPath, dirent.name);
+  for (const dirent of readdirSync(sourceRoot, { withFileTypes: true })) {
+    const sourceChild = join(sourceRoot, dirent.name);
     const targetChild = join(targetNodeModulesPath, dirent.name);
 
     // Scopes contain packages; mirror each package so relative links resolve at

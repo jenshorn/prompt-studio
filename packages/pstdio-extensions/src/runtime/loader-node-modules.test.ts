@@ -47,7 +47,12 @@ afterEach(() => {
   tempDirs.length = 0;
 });
 
-test.each(["e2e", "@workspace/e2e"])("loads workspace dependency %s from the runtime cache", async (name) => {
+test.each([
+  ["e2e", false],
+  ["@workspace/e2e", false],
+  ["e2e", true],
+  ["@workspace/e2e", true],
+] as const)("loads workspace dependency %s with linked node_modules %s", async (name, linkedNodeModules) => {
   isolateRuntimeCache();
   const repoDir = createTempDir();
   const extensionDir = join(repoDir, "extensions", "loader-test");
@@ -78,6 +83,9 @@ export default {
   const linkedDependency = join(repoDir, "node_modules", name);
   mkdirSync(dirname(linkedDependency), { recursive: true });
   symlinkSync(relative(dirname(linkedDependency), dependencyDir), linkedDependency, "dir");
+  if (linkedNodeModules) {
+    symlinkSync(join(repoDir, "node_modules"), join(extensionDir, "node_modules"), "junction");
+  }
 
   const diagnostics: ExtensionDiagnostic[] = [];
   const loaded = await loadExtensionPackage({ path: extensionDir }, diagnostics);
