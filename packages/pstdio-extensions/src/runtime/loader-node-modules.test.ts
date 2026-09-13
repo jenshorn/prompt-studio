@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { EXTENSION_API_VERSION } from "pstdio-api-contracts/extension-kernel";
 import type { ExtensionDiagnostic } from "../types/runtime";
 import { loadExtensionPackage } from "./loader";
@@ -77,7 +77,7 @@ export default {
 
   const linkedDependency = join(repoDir, "node_modules", name);
   mkdirSync(dirname(linkedDependency), { recursive: true });
-  symlinkSync(dependencyDir, linkedDependency, process.platform === "win32" ? "junction" : "dir");
+  symlinkSync(relative(dirname(linkedDependency), dependencyDir), linkedDependency, "dir");
 
   const diagnostics: ExtensionDiagnostic[] = [];
   const loaded = await loadExtensionPackage({ path: extensionDir }, diagnostics);
