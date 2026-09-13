@@ -1,12 +1,11 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 test("native dependency scripts use the workspace node-gyp version with isolated installs", async () => {
   const manifest = await Bun.file(new URL("../../package.json", import.meta.url)).json();
-  // Windows temp paths may use a short-name alias; workspace links need one canonical root.
-  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "pstdio-native-install-")));
+  const cwd = mkdtempSync(join(tmpdir(), "pstdio-native-install-"));
   try {
     await Bun.write(
       join(cwd, "package.json"),
