@@ -83,6 +83,13 @@ const mirrorNodeModules = (sourceNodeModulesPath: string, targetNodeModulesPath:
     const sourceChild = join(sourceNodeModulesPath, dirent.name);
     const targetChild = join(targetNodeModulesPath, dirent.name);
 
+    // Scopes contain packages; mirror each package so relative links resolve at
+    // their source instead of through a relocated scope directory.
+    if (dirent.name.startsWith("@")) {
+      mirrorNodeModules(sourceChild, targetChild);
+      continue;
+    }
+
     mirrorPackageChild(sourceChild, targetChild);
   }
 };
