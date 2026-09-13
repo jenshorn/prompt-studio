@@ -32,14 +32,28 @@ export const toSessionAttachment = (projectId: string, file: FileRow): SessionAt
 // treat an image as raw text instead of loading it as an image. Expose the bytes
 // through a path that keeps the original filename (and therefore its extension)
 // so images load as images and other binaries are typed correctly.
-const readableAttachmentPath = async (file: FileRow) => {
-  const dir = join(tmpdir(), "pstdio-session-attachments", file.id);
+const copyReadableAttachment = async (file: FileRow, dir: string, readablePath: string) => {
   await mkdir(dir, { recursive: true });
-
-  const readablePath = join(dir, basename(file.file_name));
-  await copyFile(file.storage_path, readablePath);
+  if (!(await Bun.file(readablePath).exists())) await copyFile(file.storage_path, readablePath);
 
   return readablePath;
+};
+
+const pendingAttachmentCopies = new Map<string, Promise<string>>();
+
+const readableAttachmentPath = (file: FileRow) => {
+  const dir = join(tmpdir(), "pstdio-session-attachments", file.id);
+  const readablePath = join(dir, basename(file.file_name));
+  const pending = pendingAttachmentCopies.get(readablePath);
+  if (pending) return pending;
+
+  // Attachment bytes are immutable. Share their initial copy, then reuse it so
+  // another submission cannot overwrite a file an agent is already reading.
+  const copy = copyReadableAttachment(file, dir, readablePath).finally(() => {
+    pendingAttachmentCopies.delete(readablePath);
+  });
+  pendingAttachmentCopies.set(readablePath, copy);
+  return copy;
 };
 
 export const resolveSessionAttachments = async (

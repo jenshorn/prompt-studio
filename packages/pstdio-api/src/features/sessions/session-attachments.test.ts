@@ -53,12 +53,15 @@ describe("resolveSessionAttachments", () => {
     };
 
     const results = await Promise.all(
-      Array.from({ length: 20 }, () => resolveSessionAttachments(depsWith(file), "project-1", refs)),
+      Array.from({ length: 20 }, async () => {
+        const [attachment] = await resolveSessionAttachments(depsWith(file), "project-1", refs);
+        return { attachment, contents: await readFile(attachment.localPath) };
+      }),
     );
 
-    for (const [attachment] of results) {
+    for (const { attachment, contents } of results) {
       expect(basename(attachment.localPath) === "shared.txt").toBe(true);
-      expect(await readFile(attachment.localPath)).toEqual(bytes);
+      expect(contents).toEqual(bytes);
     }
   });
 });

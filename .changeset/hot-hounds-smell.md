@@ -2,4 +2,4 @@
 "pstdio": patch
 ---
 
-Resolve scoped workspace dependencies correctly in the Windows extension runtime cache.
+Resolve scoped workspace dependencies and concurrent session attachments correctly on Windows.

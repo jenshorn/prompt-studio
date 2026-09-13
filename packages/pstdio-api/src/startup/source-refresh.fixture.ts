@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { checkExtensionSource } from "../features/extensions/extension-runtime";
 import { installExtensionSource } from "../features/extensions/install-extension-source";
 import { createTestApp } from "../test-utils/create-test-app";
 
@@ -28,7 +29,8 @@ const assertExistingProjectSourceRefresh = async (tempRoot: string) => {
     env: { ...process.env, PSTDIO_HOME: pstdioHome },
     skipInstall: true,
   });
-  assert.equal(existsSync(join(installed, "node_modules/@pstdio/sdk/package.json")), true);
+  const validation = await checkExtensionSource(installed, dirname(installed));
+  assert.equal(validation.check.errorCount, 0);
 
   process.env.PSTDIO_HOME = pstdioHome;
   process.env.PSTDIO_DEFAULT_EXTENSIONS = "[]";
