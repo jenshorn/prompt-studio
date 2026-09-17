@@ -56,6 +56,7 @@ void app.whenReady().then(async () => {
     JSON.stringify({
       visible: controller.window.isVisible(),
       workbenchVisible: controller.window.contentView.children.some((view) => view.getVisible()),
+      workbenchCreated: controller.window.contentView.children.length > 0,
     }),
   );
 });

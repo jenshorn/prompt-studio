@@ -123,11 +123,12 @@ export class DesktopWindowController {
 
   async showWorkbench(descriptor: RuntimeDescriptor) {
     this.#runtimeOrigin = descriptor.origin;
+    // Creating a second renderer must not compete with showing the startup window.
+    // Its remaining resources can continue loading alongside the workbench.
+    await this.#shown;
     const view = this.#workbench ?? this.createWorkbench();
     await provisionRuntimeSession(view.webContents.session, descriptor);
     await view.webContents.loadURL(descriptor.origin);
-    // Load in parallel, but never cover the startup renderer before the native window shows.
-    await this.#shown;
     view.setVisible(true);
     view.webContents.focus();
   }

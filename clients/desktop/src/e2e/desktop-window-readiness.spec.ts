@@ -10,7 +10,7 @@ import { expect, test } from "@playwright/test";
 
 const require = createRequire(import.meta.url);
 
-test("loads the workbench early without covering the startup window", async () => {
+test("loads the workbench after the startup window shows while lifecycle resources are still loading", async () => {
   const root = mkdtempSync(join(tmpdir(), "desktop-window-readiness-"));
   let workbenchRequests = 0;
   const server = createServer((request, response) => {
@@ -59,11 +59,11 @@ test("loads the workbench early without covering the startup window", async () =
     const lines = createInterface({ input: application.stdout! })[Symbol.asyncIterator]();
     try {
       const beforeStartup = JSON.parse((await lines.next()).value!);
-      expect(beforeStartup).toEqual({ visible: false, workbenchVisible: false });
-      await expect.poll(() => workbenchRequests).toBe(1);
+      expect(beforeStartup).toEqual({ visible: false, workbenchVisible: false, workbenchCreated: false });
       application.stdin!.write("show\n");
       const documentReady = JSON.parse((await lines.next()).value!);
       expect(documentReady).toEqual({ documentReadyVisible: true });
+      await expect.poll(() => workbenchRequests).toBe(1);
       const lifecycleShown = JSON.parse((await lines.next()).value!);
       expect(lifecycleShown).toEqual({ lifecycleVisible: true });
       const afterStartup = JSON.parse((await lines.next()).value!);
