@@ -202,7 +202,7 @@ export const createExtensionSourceWatcher = async (
   const handleDirectoryEvent = (
     registration: WatchedRegistration,
     directoryPath: string,
-    _eventType: string,
+    eventType: string,
     filename: string | Buffer | null,
   ) => {
     const eventPath = toEventPath(directoryPath, filename);
@@ -210,7 +210,8 @@ export const createExtensionSourceWatcher = async (
     const segments = relativePath.split(sep);
     if (segments[0] === "node_modules") {
       const packageDepth = segments[1]?.startsWith("@") ? 3 : 2;
-      if (!watchDependencies || segments.length > packageDepth) return;
+      // Windows also reports parent directory metadata when package contents change.
+      if (!watchDependencies || eventType !== "rename" || segments.length > packageDepth) return;
       watchDependencyRoot(registration);
       scheduleReload(registration);
       return;

@@ -4,6 +4,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createExtensionSourceWatcher } from "./extension-source-watcher";
 
+test("ignores package directory metadata changes from recursive watchers", async () => {
+  const source = mkdtempSync(join(tmpdir(), "extension-dependency-events-"));
+  mkdirSync(join(source, "node_modules", "@scope", "package"), { recursive: true });
+  const listeners = new Map<string, (type: string, filename: string | Buffer | null) => void>();
+  let changes = 0;
+  const watcher = await createExtensionSourceWatcher({
+    debounceMs: 5,
+    listInstalledSources: async () => [{ install_name: "source", source_path: source }],
+    onSourceChanged: async () => {
+      changes += 1;
+    },
+    watch: (path, listener) => {
+      listeners.set(path, listener);
+      return { close() {} };
+    },
+  });
+  try {
+    listeners.get(source)?.("change", join("node_modules", "@scope", "package"));
+    await Bun.sleep(20);
+    expect(changes).toBe(0);
+    listeners.get(source)?.("rename", join("node_modules", "@scope", "package"));
+    await Bun.sleep(20);
+    expect(changes).toBe(1);
+  } finally {
+    watcher.dispose();
+    rmSync(source, { recursive: true, force: true });
+  }
+});
+
 test.each([true, false])("refreshes scoped package availability with an existing scope: %s", async (existingScope) => {
   const source = mkdtempSync(join(tmpdir(), "extension-dependency-watcher-"));
   const scope = join(source, "node_modules", "@scope");
