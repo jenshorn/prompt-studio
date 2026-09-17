@@ -10,7 +10,6 @@ protocol.registerSchemesAsPrivileged([
 
 void app.whenReady().then(async () => {
   const controller = await DesktopWindowController.create(join(import.meta.dirname, "preload.cjs"));
-  const focused = new Promise<void>((resolve) => controller.window.once("focus", () => resolve()));
   const descriptor: RuntimeDescriptor = {
     schemaVersion: 1,
     protocolVersion: 1,
@@ -34,16 +33,17 @@ void app.whenReady().then(async () => {
     return readLifecycleAsset(request.url, join(import.meta.dirname, "renderer"));
   });
   controller.window.webContents.once("dom-ready", () => {
-    app.focus({ steal: true });
     console.log(JSON.stringify({ documentReadyVisible: controller.window.isVisible() }));
   });
   process.stdin.once("data", async () => {
     await controller.showLifecycle();
     console.log(JSON.stringify({ lifecycleVisible: controller.window.isVisible() }));
     await workbenchReady;
-    await focused;
+    app.focus({ steal: true });
+    controller.window.focus();
+    const workbenchFocused = await controller.webContents()[1]?.executeJavaScript("document.hasFocus()");
     process.stdout.write(
-      `${JSON.stringify({ visible: controller.window.isVisible(), workbenchVisible: controller.window.contentView.children.some((view) => view.getVisible()), workbenchFocused: controller.webContents()[1]?.isFocused() })}\n`,
+      `${JSON.stringify({ visible: controller.window.isVisible(), workbenchVisible: controller.window.contentView.children.some((view) => view.getVisible()), workbenchFocused })}\n`,
       () => app.exit(0),
     );
   });
