@@ -32,7 +32,10 @@ test("loads the workbench early without covering the startup window", async () =
 
   try {
     mkdirSync(join(root, "renderer"));
-    writeFileSync(join(root, "renderer/index.html"), "<!doctype html><main>Startup progress</main>");
+    writeFileSync(
+      join(root, "renderer/index.html"),
+      '<!doctype html><main>Startup progress</main><img src="pending.png">',
+    );
     writeFileSync(join(root, "preload.cjs"), "");
     const entry = join(root, "main.mjs");
     const build = spawnSync("bun", [
@@ -64,7 +67,7 @@ test("loads the workbench early without covering the startup window", async () =
       const lifecycleShown = JSON.parse((await lines.next()).value!);
       expect(lifecycleShown).toEqual({ lifecycleVisible: true });
       const afterStartup = JSON.parse((await lines.next()).value!);
-      expect(afterStartup).toEqual({ visible: true, workbenchVisible: true });
+      expect(afterStartup).toEqual({ visible: true, workbenchVisible: true, workbenchFocused: true });
     } finally {
       if (application.exitCode === null && application.signalCode === null) {
         const exited = once(application, "exit");

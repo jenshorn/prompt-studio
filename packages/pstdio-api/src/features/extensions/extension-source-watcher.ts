@@ -88,6 +88,16 @@ const toEventPath = (directoryPath: string, filename: string | Buffer | null) =>
   return isAbsolute(value) ? value : join(directoryPath, value);
 };
 
+const dependencyWatchDirectories = (dependencyRoot: string) => {
+  const directories = new Set<string>();
+  if (!lstatSync(dependencyRoot, { throwIfNoEntry: false })?.isDirectory()) return directories;
+  directories.add(dependencyRoot);
+  for (const entry of readdirSync(dependencyRoot, { withFileTypes: true })) {
+    if (entry.name.startsWith("@") && entry.isDirectory()) directories.add(join(dependencyRoot, entry.name));
+  }
+  return directories;
+};
+
 export const createExtensionSourceWatcher = async (
   input: CreateExtensionSourceWatcherInput,
 ): Promise<ExtensionSourceWatcher> => {
@@ -169,21 +179,17 @@ export const createExtensionSourceWatcher = async (
   const watchDependencyRoot = (registration: WatchedRegistration) => {
     if (nativeRecursive) return;
     const dependencyRoot = join(registration.sourcePath, "node_modules");
-    const existingWatcher = registration.watchers.get(dependencyRoot);
-    const stats = lstatSync(dependencyRoot, { throwIfNoEntry: false });
-    if (!stats?.isDirectory()) {
-      existingWatcher?.close();
-      registration.watchers.delete(dependencyRoot);
-      return;
+    const directories = dependencyWatchDirectories(dependencyRoot);
+    for (const [path, watcher] of registration.watchers) {
+      if (path !== dependencyRoot && !path.startsWith(dependencyRoot + sep)) continue;
+      if (directories.has(path)) continue;
+      watcher.close();
+      registration.watchers.delete(path);
     }
-    if (!existingWatcher) watchDirectory(registration, dependencyRoot);
+    for (const path of directories) watchDirectory(registration, path);
   };
 
   const watchCreatedDirectory = (registration: WatchedRegistration, eventPath: string) => {
-    if (eventPath === join(registration.sourcePath, "node_modules")) {
-      if (watchDependencies) watchDependencyRoot(registration);
-      return;
-    }
     if (registration.watchers.has(eventPath)) return;
     if (skippedDirectoryNames.has(basename(eventPath))) return;
 
@@ -201,16 +207,18 @@ export const createExtensionSourceWatcher = async (
   ) => {
     const eventPath = toEventPath(directoryPath, filename);
     const relativePath = relative(registration.sourcePath, eventPath);
-    const dependencyRoot = join(registration.sourcePath, "node_modules");
     const segments = relativePath.split(sep);
-    const nativeDependencyEvent = nativeRecursive && segments[0] === "node_modules";
-    if (nativeDependencyEvent && (!watchDependencies || segments.length > 2)) return;
-    const isDependencyEvent = nativeDependencyEvent || directoryPath === dependencyRoot || eventPath === dependencyRoot;
-    const includedIgnoredPath = relativePath && input.includeIgnoredPath?.(relativePath);
-    if (!isDependencyEvent && relativePath && registration.matcher.ignores(relativePath) && !includedIgnoredPath)
+    if (segments[0] === "node_modules") {
+      const packageDepth = segments[1]?.startsWith("@") ? 3 : 2;
+      if (!watchDependencies || segments.length > packageDepth) return;
+      watchDependencyRoot(registration);
+      scheduleReload(registration);
       return;
+    }
+    const includedIgnoredPath = relativePath && input.includeIgnoredPath?.(relativePath);
+    if (relativePath && registration.matcher.ignores(relativePath) && !includedIgnoredPath) return;
 
-    if (!nativeRecursive && directoryPath !== dependencyRoot) watchCreatedDirectory(registration, eventPath);
+    if (!nativeRecursive) watchCreatedDirectory(registration, eventPath);
     scheduleReload(registration);
   };
 

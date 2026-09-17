@@ -1,0 +1,40 @@
+import { expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createExtensionSourceWatcher } from "./extension-source-watcher";
+
+test.each([true, false])("refreshes scoped package availability with an existing scope: %s", async (existingScope) => {
+  const source = mkdtempSync(join(tmpdir(), "extension-dependency-watcher-"));
+  const scope = join(source, "node_modules", "@scope");
+  mkdirSync(existingScope ? scope : join(source, "node_modules"), { recursive: true });
+  let changes = 0;
+  const watcher = await createExtensionSourceWatcher({
+    debounceMs: 5,
+    listInstalledSources: async () => [{ install_name: "source", source_path: source }],
+    onSourceChanged: async () => {
+      changes += 1;
+    },
+  });
+  const expectChange = async (operation: () => void) => {
+    const before = changes;
+    operation();
+    const deadline = Date.now() + 1000;
+    while (changes === before && Date.now() < deadline) await Bun.sleep(10);
+    expect(changes).toBeGreaterThan(before);
+    await Bun.sleep(30);
+  };
+  try {
+    if (!existingScope) await expectChange(() => mkdirSync(scope));
+    const pkg = join(scope, "package");
+    await expectChange(() => mkdirSync(pkg));
+    const before = changes;
+    writeFileSync(join(pkg, "index.js"), "export default 1;");
+    await Bun.sleep(50);
+    expect(changes).toBe(before);
+    await expectChange(() => rmSync(pkg, { recursive: true }));
+  } finally {
+    watcher.dispose();
+    rmSync(source, { recursive: true, force: true });
+  }
+});

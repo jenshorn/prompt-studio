@@ -84,8 +84,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Test dependency installs, workspace links, and attachment copies
-        run: bun test scripts/ci/install-native-dependencies.test.ts packages/pstdio-extensions/src/runtime/loader-node-modules.test.ts packages/pstdio-api/src/features/sessions/session-attachments.test.ts
+      - name: Test dependency installs, workspace links, watchers, and attachments
+        run: bun test scripts/ci/install-native-dependencies.test.ts packages/pstdio-extensions/src/runtime/loader-node-modules.test.ts packages/pstdio-api/src/features/extensions/extension-source-watcher-dependencies.test.ts packages/pstdio-api/src/features/sessions/session-attachments.test.ts
 
       - name: Check formatting
         run: bun run format:check

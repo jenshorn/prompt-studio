@@ -117,7 +117,8 @@ export class DesktopWindowController {
     // Recovery must not wait for a new renderer, JavaScript bundle, or theme initialization.
     this.#workbench?.setVisible(false);
     if (this.window.webContents.getURL() !== this.lifecycleUrl) await this.window.loadURL(this.lifecycleUrl);
-    this.window.webContents.focus();
+    const contents = this.#workbench?.getVisible() ? this.#workbench.webContents : this.window.webContents;
+    contents.focus();
   }
 
   async showWorkbench(descriptor: RuntimeDescriptor) {

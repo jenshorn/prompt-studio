@@ -2,4 +2,4 @@
 "pstdio": patch
 ---
 
-Resolve scoped workspace dependencies and concurrent session attachments correctly on Windows.
+Resolve and watch scoped workspace dependencies on Windows and manage readable session attachments with their stored files.
