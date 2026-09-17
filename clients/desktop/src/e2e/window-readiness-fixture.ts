@@ -41,11 +41,16 @@ void app.whenReady().then(async () => {
     await workbenchReady;
     app.focus({ steal: true });
     controller.window.focus();
-    const workbenchFocused = await controller.webContents()[1]?.executeJavaScript("document.hasFocus()");
-    process.stdout.write(
-      `${JSON.stringify({ visible: controller.window.isVisible(), workbenchVisible: controller.window.contentView.children.some((view) => view.getVisible()), workbenchFocused })}\n`,
-      () => app.exit(0),
+    console.log(
+      JSON.stringify({
+        visible: controller.window.isVisible(),
+        workbenchVisible: controller.window.contentView.children.some((view) => view.getVisible()),
+      }),
     );
+    process.stdin.on("data", async () => {
+      const workbenchFocused = await controller.webContents()[1]?.executeJavaScript("document.hasFocus()");
+      console.log(JSON.stringify({ workbenchFocused }));
+    });
   });
   console.log(
     JSON.stringify({

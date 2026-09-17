@@ -67,7 +67,13 @@ test("loads the workbench early without covering the startup window", async () =
       const lifecycleShown = JSON.parse((await lines.next()).value!);
       expect(lifecycleShown).toEqual({ lifecycleVisible: true });
       const afterStartup = JSON.parse((await lines.next()).value!);
-      expect(afterStartup).toEqual({ visible: true, workbenchVisible: true, workbenchFocused: true });
+      expect(afterStartup).toEqual({ visible: true, workbenchVisible: true });
+      await expect
+        .poll(async () => {
+          application.stdin!.write("focus\n");
+          return JSON.parse((await lines.next()).value!);
+        })
+        .toEqual({ workbenchFocused: true });
     } finally {
       if (application.exitCode === null && application.signalCode === null) {
         const exited = once(application, "exit");
