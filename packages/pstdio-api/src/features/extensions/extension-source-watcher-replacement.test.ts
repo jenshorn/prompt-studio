@@ -25,9 +25,12 @@ test("allows source replacement while watching nested directories and observes t
     writeSource();
     await watcher.refresh();
     const beforeEdit = changes;
-    writeFileSync(join(source, "nested", "entry.ts"), "export default 2;");
     const deadline = Date.now() + 1000;
-    while (changes === beforeEdit && Date.now() < deadline) await Bun.sleep(10);
+    // Native watch registration can complete after refresh returns on macOS.
+    while (changes === beforeEdit && Date.now() < deadline) {
+      writeFileSync(join(source, "nested", "entry.ts"), `export default ${Date.now()};`);
+      await Bun.sleep(10);
+    }
     expect(changes).toBeGreaterThan(beforeEdit);
   } finally {
     watcher.dispose();
