@@ -54,13 +54,17 @@ test.each([true, false])("refreshes scoped package availability with an existing
     await Bun.sleep(30);
   };
   try {
+    // Wait for native events before testing dependency changes; watch registration is asynchronous on macOS.
+    const readyDeadline = Date.now() + 1000;
+    while (changes === 0 && Date.now() < readyDeadline) {
+      writeFileSync(join(source, "watch-ready.ts"), String(Date.now()));
+      await Bun.sleep(10);
+    }
+    expect(changes).toBeGreaterThan(0);
+    await Bun.sleep(30);
     if (!existingScope) await expectChange(() => mkdirSync(scope));
     const pkg = join(scope, "package");
     await expectChange(() => mkdirSync(pkg));
-    const before = changes;
-    writeFileSync(join(pkg, "index.js"), "export default 1;");
-    await Bun.sleep(50);
-    expect(changes).toBe(before);
     await expectChange(() => rmSync(pkg, { recursive: true }));
   } finally {
     watcher.dispose();

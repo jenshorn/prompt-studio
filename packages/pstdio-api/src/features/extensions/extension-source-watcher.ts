@@ -90,10 +90,16 @@ const toEventPath = (directoryPath: string, filename: string | Buffer | null) =>
 
 const dependencyWatchDirectories = (dependencyRoot: string) => {
   const directories = new Set<string>();
-  if (!lstatSync(dependencyRoot, { throwIfNoEntry: false })?.isDirectory()) return directories;
-  directories.add(dependencyRoot);
-  for (const entry of readdirSync(dependencyRoot, { withFileTypes: true })) {
-    if (entry.name.startsWith("@") && entry.isDirectory()) directories.add(join(dependencyRoot, entry.name));
+  try {
+    if (!lstatSync(dependencyRoot, { throwIfNoEntry: false })?.isDirectory()) return directories;
+    const entries = readdirSync(dependencyRoot, { withFileTypes: true });
+    directories.add(dependencyRoot);
+    for (const entry of entries) {
+      if (entry.name.startsWith("@") && entry.isDirectory()) directories.add(join(dependencyRoot, entry.name));
+    }
+  } catch (error) {
+    // A package manager can remove node_modules between the stat and directory read.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   return directories;
 };
